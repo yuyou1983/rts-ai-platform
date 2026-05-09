@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>RTS AI Native 平台 — Agent 体系重构设计 v2.0</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--bg2:#0d1225;--bg3:#111833;
+  --cyan:#00e5ff;--teal:#0ff;--blue:#3b82f6;--purple:#a855f7;
+  --red:#ff3b5c;--green:#22c55e;--yellow:#facc15;--orange:#f97316;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --glow-cyan:0 0 20px rgba(0,229,255,.3);
+  --glow-blue:0 0 20px rgba(59,130,246,.3);
+  --glow-purple:0 0 20px rgba(168,85,247,.3);
+  --glow-green:0 0 20px rgba(34,197,94,.3);
+  --font-stack:'SF Pro Display','Inter','Noto Sans SC',system-ui,-apple-system,sans-serif;
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0s!important;animation-iteration-count:1!important;transition-duration:0s!important}
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-stack)}
+.deck{width:1920px;height:1080px;position:relative;overflow:hidden;margin:0 auto;transform-origin:top left}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:60px 80px 80px;opacity:0;transform:translateX(40px);transition:opacity .5s ease,transform .5s ease}
+.slide.active{display:flex;opacity:1;transform:translateX(0)}
+.slide.leaving{display:flex;opacity:0;transform:translateX(-40px)}
+
+/* Background SVG canvas */
+#bg-svg{position:fixed;inset:0;pointer-events:none;z-index:0}
+.slide{z-index:1}
+
+/* Slide counter */
+#counter{position:fixed;bottom:24px;right:40px;font-size:14px;color:var(--text3);font-weight:300;letter-spacing:2px;z-index:100;font-variant-numeric:tabular-nums}
+
+/* Typography */
+h1{font-size:64px;font-weight:900;letter-spacing:-2px;line-height:1.1}
+h2{font-size:42px;font-weight:900;letter-spacing:-1px;line-height:1.15}
+h3{font-size:28px;font-weight:700;line-height:1.3}
+.sub{font-size:22px;font-weight:300;color:var(--text2);line-height:1.5}
+.badge{display:inline-block;padding:4px 14px;border-radius:100px;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.badge-opus{background:rgba(168,85,247,.2);color:#c084fc;border:1px solid rgba(168,85,247,.4)}
+.badge-sonnet{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.35)}
+.badge-haiku{background:rgba(0,229,255,.12);color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
+.badge-m0{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
+.badge-m1{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.35)}
+.badge-m2{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.35)}
+.badge-red{background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.3)}
+.badge-green{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-yellow{background:rgba(250,204,21,.12);color:var(--yellow);border:1px solid rgba(250,204,21,.3)}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px 24px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.6}
+.card-grid{display:grid;gap:16px}
+.card-grid-3{grid-template-columns:repeat(3,1fr)}
+.card-grid-4{grid-template-columns:repeat(4,1fr)}
+.card-grid-5{grid-template-columns:repeat(5,1fr)}
+
+/* Defect list */
+.defect-item{display:flex;align-items:flex-start;gap:16px;padding:14px 20px;border-radius:10px;background:rgba(255,59,92,.04);border:1px solid rgba(255,59,92,.1);margin-bottom:10px}
+.defect-num{width:32px;height:32px;border-radius:8px;background:rgba(255,59,92,.15);color:var(--red);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0}
+.defect-text{font-size:20px;font-weight:600;line-height:1.4}
+.defect-sub{font-size:16px;color:var(--text2);font-weight:300;margin-top:2px}
+
+/* Agent card */
+.agent-card{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden}
+.agent-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.agent-card.ac-cyan::before{background:var(--cyan);box-shadow:var(--glow-cyan)}
+.agent-card.ac-blue::before{background:var(--blue);box-shadow:var(--glow-blue)}
+.agent-card.ac-purple::before{background:var(--purple);box-shadow:var(--glow-purple)}
+.agent-card.ac-green::before{background:var(--green);box-shadow:var(--glow-green)}
+.agent-name{font-size:18px;font-weight:700;letter-spacing:.5px;font-family:'SF Mono','Fira Code',monospace}
+.agent-role{font-size:14px;color:var(--text2);font-weight:400}
+.agent-skills{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.skill-tag{font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(0,229,255,.08);color:var(--cyan);border:1px solid rgba(0,229,255,.15);font-weight:500}
+
+/* Architecture layers */
+.arch-layer{padding:20px 28px;border-radius:12px;position:relative;overflow:hidden}
+.arch-layer::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.3),transparent)}
+.layer-pipeline{background:linear-gradient(135deg,rgba(168,85,247,.1),rgba(168,85,247,.02));border:1px solid rgba(168,85,247,.2)}
+.layer-harness{background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(59,130,246,.02));border:1px solid rgba(59,130,246,.2)}
+.layer-hub{background:linear-gradient(135deg,rgba(0,229,255,.1),rgba(0,229,255,.02));border:1px solid rgba(0,229,255,.2)}
+.layer-sim{background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(34,197,94,.02));border:1px solid rgba(34,197,94,.2)}
+.layer-label{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.layer-pipeline .layer-label{color:#c084fc}
+.layer-harness .layer-label{color:#60a5fa}
+.layer-hub .layer-label{color:var(--cyan)}
+.layer-sim .layer-label{color:#4ade80}
+.layer-content{font-size:18px;font-weight:300;color:var(--text2)}
+
+/* Flow arrow */
+.flow-arrow{display:flex;align-items:center;justify-content:center;padding:4px 0}
+.flow-arrow svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.4))}
+
+/* ADR cards */
+.adr-card{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:22px 26px;position:relative;overflow:hidden}
+.adr-id{font-size:13px;font-weight:700;letter-spacing:2px;color:var(--cyan);text-transform:uppercase}
+.adr-title{font-size:22px;font-weight:800;margin:8px 0 10px}
+.adr-body{font-size:16px;font-weight:300;color:var(--text2);line-height:1.6}
+.adr-verdict{margin-top:12px;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600}
+
+/* Timeline */
+.timeline{display:flex;align-items:stretch;gap:0;position:relative}
+.milestone{flex:1;padding:28px 32px;position:relative;border-radius:0}
+.milestone:first-child{border-radius:12px 0 0 12px}
+.milestone:last-child{border-radius:0 12px 12px 0}
+.milestone.m0{background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));border:1px solid rgba(34,197,94,.2);border-right:none}
+.milestone.m1{background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(59,130,246,.02));border:1px solid rgba(59,130,246,.2);border-right:none}
+.milestone.m2{background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(168,85,247,.02));border:1px solid rgba(168,85,247,.2)}
+.milestone-label{font-size:42px;font-weight:900;letter-spacing:-1px}
+.m0 .milestone-label{color:#4ade80}
+.m1 .milestone-label{color:#60a5fa}
+.m2 .milestone-label{color:#c084fc}
+.milestone-weeks{font-size:16px;font-weight:300;color:var(--text2);margin-top:2px}
+.milestone-title{font-size:22px;font-weight:700;margin:12px 0 10px}
+.milestone-items{list-style:none;padding:0}
+.milestone-items li{font-size:15px;font-weight:300;color:var(--text2);padding:4px 0;padding-left:18px;position:relative;line-height:1.5}
+.milestone-items li::before{content:'';position:absolute;left:0;top:12px;width:6px;height:6px;border-radius:50%}
+.m0 .milestone-items li::before{background:#4ade80;box-shadow:0 0 6px rgba(34,197,94,.5)}
+.m1 .milestone-items li::before{background:#60a5fa;box-shadow:0 0 6px rgba(59,130,246,.5)}
+.m2 .milestone-items li::before{background:#c084fc;box-shadow:0 0 6px rgba(168,85,247,.5)}
+
+/* Progress bar */
+.progress-track{height:4px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:16px;overflow:hidden}
+.progress-fill{height:100%;border-radius:2px;animation:progressGrow 1.5s ease-out forwards}
+.m0 .progress-fill{background:linear-gradient(90deg,#22c55e,#4ade80)}
+.m1 .progress-fill{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.m2 .progress-fill{background:linear-gradient(90deg,#a855f7,#c084fc)}
+@keyframes progressGrow{from{width:0}to{width:var(--pct)}}
+
+/* Pipeline */
+.pipeline-row{display:flex;align-items:center;gap:0}
+.pipeline-node{flex:1;text-align:center;padding:14px 8px;border-radius:10px;font-size:14px;font-weight:600;position:relative}
+.pipeline-node.pn-cyan{background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);color:var(--cyan)}
+.pipeline-node.pn-blue{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#60a5fa}
+.pipeline-node.pn-purple{background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.2);color:#c084fc}
+.pipeline-node.pn-green{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#4ade80}
+.pipeline-connector{width:28px;height:2px;flex-shrink:0;position:relative;overflow:hidden}
+.pipeline-connector::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,229,255,.4),rgba(0,229,255,.1))}
+.pipeline-connector::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,var(--cyan),transparent);animation:flowDash 1.5s linear infinite}
+@keyframes flowDash{to{left:100%}}
+
+/* State machine */
+.state-node{display:inline-flex;align-items:center;justify-content:center;width:120px;height:44px;border-radius:8px;font-size:14px;font-weight:700;letter-spacing:.5px}
+.state-s0{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#4ade80}
+.state-s1{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:#60a5fa}
+.state-s2{background:rgba(255,59,92,.12);border:1px solid rgba(255,59,92,.3);color:var(--red)}
+.state-s3{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);color:#c084fc}
+
+/* Interface matrix table */
+.matrix-table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border-radius:10px;border:1px solid rgba(255,255,255,.06)}
+.matrix-table th{padding:12px 18px;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:left;background:rgba(0,229,255,.06);color:var(--cyan);border-bottom:1px solid rgba(0,229,255,.12)}
+.matrix-table td{padding:10px 18px;font-size:15px;font-weight:300;color:var(--text2);border-bottom:1px solid rgba(255,255,255,.03)}
+.matrix-table tr:last-child td{border-bottom:none}
+.matrix-table .mono{font-family:'SF Mono','Fira Code',monospace;font-size:13px;font-weight:500;color:var(--text)}
+
+/* Pattern arrows */
+.pattern-flow{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 0}
+.pattern-arrow{font-size:28px;color:var(--cyan);opacity:.5;animation:patternPulse 2s ease-in-out infinite}
+@keyframes patternPulse{0%,100%{opacity:.3}50%{opacity:.8}}
+
+/* Reference pattern highlight boxes */
+.ref-stat{display:flex;flex-direction:column;align-items:center;padding:20px;border-radius:12px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1)}
+.ref-stat-num{font-size:48px;font-weight:900;color:var(--cyan);line-height:1}
+.ref-stat-label{font-size:14px;font-weight:300;color:var(--text2);margin-top:6px}
+
+/* Animated dash for data flow SVG */
+.dash-anim{stroke-dasharray:8 4;animation:dashFlow 1s linear infinite}
+@keyframes dashFlow{to{stroke-dashoffset:-12}}
+
+/* Slide-specific layouts */
+.slide-title-content{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:20px}
+.slide-title-content h1{font-size:72px;background:linear-gradient(135deg,var(--cyan),var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.slide-title-content .version{font-size:32px;font-weight:900;color:var(--text);opacity:.9}
+.slide-title-content .date{font-size:20px;font-weight:300;color:var(--text3);letter-spacing:3px}
+
+/* Particle canvas */
+#particles{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;width:100%;height:100%}
+
+/* Glow separator */
+.glow-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.25),transparent);margin:20px 0}
+
+/* Key pattern boxes */
+.key-patterns{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.key-pattern{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);font-size:14px;font-weight:500;color:#93c5fd}
+.key-pattern .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot-cyan{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.dot-blue{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+.dot-purple{background:var(--purple);box-shadow:0 0 6px var(--purple)}
+.dot-green{background:var(--green);box-shadow:0 0 6px var(--green)}
+
+/* Two-column layout */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.two-col-4-6{display:grid;grid-template-columns:4fr 6fr;gap:32px}
+
+/* Animations for slide content */
+.slide.active .anim-fadein{animation:fadeIn .6s ease both}
+.slide.active .anim-fadein-d1{animation:fadeIn .6s ease .1s both}
+.slide.active .anim-fadein-d2{animation:fadeIn .6s ease .2s both}
+.slide.active .anim-fadein-d3{animation:fadeIn .6s ease .3s both}
+.slide.active .anim-fadein-d4{animation:fadeIn .6s ease .4s both}
+.slide.active .anim-fadein-d5{animation:fadeIn .6s ease .5s both}
+.slide.active .anim-fadein-d6{animation:fadeIn .6s ease .6s both}
+.slide.active .anim-fadein-d7{animation:fadeIn .6s ease .7s both}
+.slide.active .anim-fadein-d8{animation:fadeIn .6s ease .8s both}
+.slide.active .anim-fadein-d9{animation:fadeIn .6s ease .9s both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* Agent phase cards */
+.phase-card{border-radius:12px;padding:20px 24px;position:relative;overflow:hidden}
+.phase-card.phase-m0{background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));border:1px solid rgba(34,197,94,.2)}
+.phase-card.phase-m1{background:linear-gradient(135deg,rgba(59,130,246,.08),rgba(59,130,246,.02));border:1px solid rgba(59,130,246,.2)}
+.phase-card.phase-m2{background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(168,85,247,.02));border:1px solid rgba(168,85,247,.2)}
+
+/* Scrollable area for dense content */
+.scroll-y{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(0,229,255,.2) transparent}
+.scroll-y::-webkit-scrollbar{width:4px}
+.scroll-y::-webkit-scrollbar-track{background:transparent}
+.scroll-y::-webkit-scrollbar-thumb{background:rgba(0,229,255,.2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<svg id="bg-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(0,229,255,0.04)" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+  <g id="circuit-lines"></g>
+</svg>
+
+<div class="deck" id="deck">
+
+<!-- ====== SLIDE 1: TITLE ====== -->
+<div class="slide active" id="s1">
+  <div class="slide-title-content">
+    <div class="anim-fadein" style="font-size:16px;font-weight:700;letter-spacing:6px;text-transform:uppercase;color:var(--cyan);opacity:.7">Architecture Redesign</div>
+    <h1 class="anim-fadein-d1">RTS AI Native 平台</h1>
+    <div class="version anim-fadein-d2">Agent 体系重构设计 v2.0</div>
+    <div class="glow-sep anim-fadein-d3" style="width:300px"></div>
+    <div class="date anim-fadein-d4">2026 — 05 — 08</div>
+    <div class="anim-fadein-d5" style="margin-top:24px;display:flex;gap:12px">
+      <span class="badge badge-opus">OPUS</span>
+      <span class="badge badge-sonnet">SONNET</span>
+      <span class="badge badge-haiku">HAIKU</span>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SLIDE 2: 参考模式 ====== -->
+<div class="slide" id="s2">
+  <h2 class="anim-fadein" style="margin-bottom:6px">参考模式</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:24px">claude-game-studios — 四层分离架构</div>
+  <div class="two-col-4-6 anim-fadein-d2" style="flex:1">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="ref-stat">
+        <div class="ref-stat-num">3</div>
+        <div class="ref-stat-label">领导层 Agent</div>
+      </div>
+      <div class="ref-stat">
+        <div class="ref-stat-num">48</div>
+        <div class="ref-stat-label">职能专家 Agent</div>
+      </div>
+      <div class="ref-stat">
+        <div class="ref-stat-num">7</div>
+        <div class="ref-stat-label">编排 Skill (team-*)</div>
+      </div>
+      <div class="ref-stat">
+        <div class="ref-stat-num">36</div>
+        <div class="ref-stat-label">工作流 Skill</div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+        <div class="card" style="text-align:center">
+          <div style="font-size:16px;font-weight:700;color:#c084fc">领导层 (3)</div>
+        </div>
+        <div class="pattern-flow"><span class="pattern-arrow">↓</span></div>
+        <div class="card" style="text-align:center">
+          <div style="font-size:16px;font-weight:700;color:#60a5fa">职能专家层 (48)</div>
+        </div>
+        <div class="pattern-flow"><span class="pattern-arrow">↓</span></div>
+        <div class="card" style="text-align:center">
+          <div style="font-size:16px;font-weight:700;color:var(--cyan)">编排 Skill (7)</div>
+        </div>
+        <div class="pattern-flow"><span class="pattern-arrow">↓</span></div>
+        <div class="card" style="text-align:center">
+          <div style="font-size:16px;font-weight:700;color:#4ade80">工作流 Skill (36)</div>
+        </div>
+      </div>
+      <div class="glow-sep"></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text2);margin-bottom:10px">关键模式</div>
+      <div class="key-patterns">
+        <div class="key-pattern"><span class="dot dot-cyan"></span>统一协作协议</div>
+        <div class="key-pattern"><span class="dot dot-blue"></span>增量审批机制</div>
+        <div class="key-pattern"><span class="dot dot-purple"></span>Team Skill 编排</div>
+        <div class="key-pattern"><span class="dot dot-green"></span>模型分层 (opus/sonnet/haiku)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SLIDE 3: 领导层 ====== -->
+<div class="slide" id="s3">
+  <h2 class="anim-fadein" style="margin-bottom:6px">研发侧 Agent — 领导层</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:24px">层级 1：战略决策与冲突仲裁 · 全部 Opus 级</div>
+  <div class="card-grid card-grid-3 anim-fadein-d2" style="flex:1;align-content:start">
+    <div class="agent-card ac-purple anim-fadein-d3">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="agent-name" style="color:#c084fc">rts-technical-director</div>
+        <span class="badge badge-opus">OPUS</span>
+      </div>
+      <div class="agent-role">架构决策 · 技术选型 · 跨系统冲突仲裁</div>
+      <div class="agent-skills">
+        <span class="skill-tag">architecture-decision</span>
+        <span class="skill-tag">tech-debt</span>
+        <span class="skill-tag">gate-check</span>
+      </div>
+    </div>
+    <div class="agent-card ac-purple anim-fadein-d4">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="agent-name" style="color:#c084fc">rts-producer</div>
+        <span class="badge badge-opus">OPUS</span>
+      </div>
+      <div class="agent-role">里程碑管理 · Sprint 规划 · 范围控制 · 协调</div>
+      <div class="agent-skills">
+        <span class="skill-tag">sprint-plan</span>
+        <span class="skill-tag">scope-check</span>
+        <span class="skill-tag">estimate</span>
+        <span class="skill-tag">milestone-review</span>
+      </div>
+    </div>
+    <div class="agent-card ac-purple anim-fadein-d5">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="agent-name" style="color:#c084fc">rts-creative-director</div>
+        <span class="badge badge-opus">OPUS</span>
+      </div>
+      <div class="agent-role">游戏愿景 · 玩法调性 · 创意仲裁</div>
+      <div class="agent-skills">
+        <span class="skill-tag">brainstorm</span>
+        <span class="skill-tag">design-review</span>
+      </div>
+    </div>
+  </div>
+  <div class="anim-fadein-d6" style="margin-top:auto;padding-top:16px;display:flex;gap:16px;align-items:center">
+    <span style="font-size:14px;color:var(--text3);font-weight:300">领导层负责: 方向决策 · 优先级仲裁 · 质量门禁</span>
+    <span class="badge badge-purple" style="background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.3)">3 × OPUS</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 4: 职能专家层 ====== -->
+<div class="slide" id="s4">
+  <h2 class="anim-fadein" style="margin-bottom:6px">研发侧 Agent — 职能专家层</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">层级 2：垂直领域实施 · 9 位专家 · Sonnet/Haiku 分层</div>
+  <div class="scroll-y" style="flex:1;max-height:760px">
+    <div class="card-grid card-grid-3 anim-fadein-d2" style="gap:12px">
+      <div class="agent-card ac-blue">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#60a5fa">rts-simcore-engineer</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">规则引擎 · 状态管理 · 回放 · 协议</div>
+        <div class="agent-skills"><span class="skill-tag">code-review</span><span class="skill-tag">architecture-decision</span></div>
+      </div>
+      <div class="agent-card ac-blue">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#60a5fa">rts-ai-engineer</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">AgentHub · 行为树/RL · 推理优化</div>
+        <div class="agent-skills"><span class="skill-tag">code-review</span><span class="skill-tag">balance-check</span></div>
+      </div>
+      <div class="agent-card ac-cyan">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:var(--cyan)">rts-systems-designer</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">战斗公式 · 经济模型 · 克制矩阵</div>
+        <div class="agent-skills"><span class="skill-tag">design-review</span><span class="skill-tag">balance-check</span><span class="skill-tag">brainstorm</span></div>
+      </div>
+      <div class="agent-card ac-blue">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#60a5fa">rts-data-engineer</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">遥测 · 回放解析 · MLflow · ETL</div>
+        <div class="agent-skills"><span class="skill-tag">code-review</span><span class="skill-tag">replay-analyze</span></div>
+      </div>
+      <div class="agent-card ac-green">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#4ade80">rts-devops</div><span class="badge badge-haiku">HAIKU</span></div>
+        <div class="agent-role">CI/CD · 仿真池 · 构建 · 灰度发布</div>
+        <div class="agent-skills"><span class="skill-tag">code-review</span></div>
+      </div>
+      <div class="agent-card ac-cyan">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:var(--cyan)">rts-balance-analyst</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">胜率 · ELO · 强弱曲线 · OP/UP</div>
+        <div class="agent-skills"><span class="skill-tag">balance-check</span><span class="skill-tag">replay-analyze</span></div>
+      </div>
+      <div class="agent-card ac-blue">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#60a5fa">rts-test-orchestrator</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">Test Matrix · Harness · A/B · 回滚</div>
+        <div class="agent-skills"><span class="skill-tag">test-matrix</span><span class="skill-tag">harness-run</span><span class="skill-tag">gate-check</span></div>
+      </div>
+      <div class="agent-card ac-cyan">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:var(--cyan)">rts-design-assistant</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">配置草案 · Patch Diff · GDD</div>
+        <div class="agent-skills"><span class="skill-tag">design-review</span><span class="skill-tag">brainstorm</span></div>
+      </div>
+      <div class="agent-card ac-blue">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="agent-name" style="color:#60a5fa">rts-replay-analyst</div><span class="badge badge-sonnet">SONNET</span></div>
+        <div class="agent-role">战报 · 失误归因 · 训练标注</div>
+        <div class="agent-skills"><span class="skill-tag">replay-analyze</span><span class="skill-tag">balance-check</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:auto;padding-top:12px;display:flex;gap:16px;align-items:center">
+    <span class="badge badge-sonnet">8 × SONNET</span>
+    <span class="badge badge-haiku">1 × HAIKU</span>
+    <span style="font-size:14px;color:var(--text3);font-weight:300;margin-left:8px">Haiku 仅用于 DevOps 低延迟任务，其余专家均为 Sonnet</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 5: 运行时Agent ====== -->
+<div class="slide" id="s5">
+  <h2 class="anim-fadein" style="margin-bottom:6px">运行时 Agent — 渐进式 3 阶段</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">从单体状态机到多 Agent 协作，按里程碑逐步拆分</div>
+  <div class="two-col anim-fadein-d2" style="flex:1">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- M0 -->
+      <div class="phase-card phase-m0">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <span class="badge badge-m0">M0</span>
+          <span style="font-size:20px;font-weight:800;color:#4ade80">单体基线</span>
+          <span style="font-size:14px;color:var(--text3);font-weight:300">6 周</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="state-node state-s0">COLLECT</div>
+          <svg width="24" height="20"><path d="M0 10 L20 10" stroke="#4ade80" stroke-width="1.5" class="dash-anim"/><path d="M16 5 L22 10 L16 15" stroke="#4ade80" stroke-width="1.5" fill="none"/></svg>
+          <div class="state-node state-s1">PRODUCE</div>
+          <svg width="24" height="20"><path d="M0 10 L20 10" stroke="#60a5fa" stroke-width="1.5" class="dash-anim"/><path d="M16 5 L22 10 L16 15" stroke="#60a5fa" stroke-width="1.5" fill="none"/></svg>
+          <div class="state-node state-s2">ATTACK</div>
+          <svg width="24" height="20"><path d="M0 10 L20 10" stroke="#ff3b5c" stroke-width="1.5" class="dash-anim"/><path d="M16 5 L22 10 L16 15" stroke="#ff3b5c" stroke-width="1.5" fill="none"/></svg>
+          <div class="state-node state-s3">DEFEND</div>
+        </div>
+        <div style="font-size:14px;color:var(--text2);font-weight:300;margin-top:10px">1 × BaselineAgent · 10 Hz · obs.world.v1 → cmd.micro.v1</div>
+      </div>
+      <!-- M1 -->
+      <div class="phase-card phase-m1">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <span class="badge badge-m1">M1</span>
+          <span style="font-size:20px;font-weight:800;color:#60a5fa">三核心拆分</span>
+          <span style="font-size:14px;color:var(--text3);font-weight:300">10 周</span>
+        </div>
+        <div class="card-grid card-grid-3" style="gap:8px">
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Coordinator</div><div style="font-size:12px;color:var(--text3)">仲裁 + 黑板 · 10 Hz</div></div>
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Economy</div><div style="font-size:12px;color:var(--text3)">采集/工人/供给 · 5-10 Hz</div></div>
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Combat</div><div style="font-size:12px;color:var(--text3)">微操/集火/风筝 · 10-20 Hz</div></div>
+        </div>
+      </div>
+      <!-- M2 -->
+      <div class="phase-card phase-m2">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <span class="badge badge-m2">M2</span>
+          <span style="font-size:20px;font-weight:800;color:#c084fc">全 Agent + League</span>
+          <span style="font-size:14px;color:var(--text3);font-weight:300">20 周</span>
+        </div>
+        <div class="card-grid card-grid-3" style="gap:8px">
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Strategy</div><div style="font-size:12px;color:var(--text3)">宏观战略 · 1-2 Hz</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Scout</div><div style="font-size:12px;color:var(--text3)">侦察/情报 · 1-2 Hz</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Build</div><div style="font-size:12px;color:var(--text3)">建造/科技 · 2-5 Hz</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <!-- Interface Version Matrix -->
+      <div style="font-size:16px;font-weight:700;color:var(--text2);margin-bottom:12px">AgentHub 接口版本矩阵</div>
+      <table class="matrix-table">
+        <thead>
+          <tr><th>接口</th><th>M0 (v0)</th><th>M1 (v1)</th><th>M2 (v2)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">obs.world</td><td class="mono" style="color:#4ade80">v1</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v2</td></tr>
+          <tr><td class="mono">obs.econ</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
+          <tr><td class="mono">obs.fow</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">obs.build</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">cmd.micro</td><td class="mono" style="color:#4ade80">v1</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v2</td></tr>
+          <tr><td class="mono">intent.econ</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
+          <tr><td class="mono">plan.macro</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">intel.report</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">blackboard</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SLIDE 6: 编排Skill体系 ====== -->
+<div class="slide" id="s6">
+  <h2 class="anim-fadein" style="margin-bottom:6px">编排 Skill 体系</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">层级 3：team-* 编排流水线 · 4 条核心协作链</div>
+  <div style="display:flex;flex-direction:column;gap:18px;flex:1">
+    <!-- team-simcore -->
+    <div class="card anim-fadein-d2" style="padding:18px 24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:18px;font-weight:900;color:var(--cyan);font-family:'SF Mono','Fira Code',monospace">team-simcore</span>
+        <span style="font-size:13px;color:var(--text3);font-weight:300">新规则/状态/回放子系统开发</span>
+      </div>
+      <div class="pipeline-row">
+        <div class="pipeline-node pn-cyan">systems-designer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-blue">simcore-engineer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-blue">data-engineer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-purple">test-orchestrator</div>
+      </div>
+    </div>
+    <!-- team-ai -->
+    <div class="card anim-fadein-d3" style="padding:18px 24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:18px;font-weight:900;color:var(--cyan);font-family:'SF Mono','Fira Code',monospace">team-ai</span>
+        <span style="font-size:13px;color:var(--text3);font-weight:300">新 Agent/训练/评测</span>
+      </div>
+      <div class="pipeline-row">
+        <div class="pipeline-node pn-cyan">systems-designer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-blue">ai-engineer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-blue">data-engineer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-purple">test-orchestrator</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-green">balance-analyst</div>
+      </div>
+    </div>
+    <!-- team-balance -->
+    <div class="card anim-fadein-d4" style="padding:18px 24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:18px;font-weight:900;color:var(--cyan);font-family:'SF Mono','Fira Code',monospace">team-balance</span>
+        <span style="font-size:13px;color:var(--text3);font-weight:300">平衡补丁</span>
+      </div>
+      <div class="pipeline-row">
+        <div class="pipeline-node pn-green">balance-analyst</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-cyan">systems-designer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-cyan">design-assistant</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-purple">test-orchestrator</div>
+      </div>
+    </div>
+    <!-- team-release -->
+    <div class="card anim-fadein-d5" style="padding:18px 24px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:18px;font-weight:900;color:var(--cyan);font-family:'SF Mono','Fira Code',monospace">team-release</span>
+        <span style="font-size:13px;color:var(--text3);font-weight:300">版本发布</span>
+      </div>
+      <div class="pipeline-row">
+        <div class="pipeline-node pn-purple">producer</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-purple">test-orchestrator</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-green">devops</div><div class="pipeline-connector"></div>
+        <div class="pipeline-node pn-blue">data-engineer</div>
+      </div>
+    </div>
+  </div>
+  <div class="anim-fadein-d6" style="margin-top:auto;padding-top:12px;font-size:14px;color:var(--text3);font-weight:300">
+    编排 Skill 实现多 Agent 流水线协作，每个 team-* skill 内含阶段门禁与增量审批
+  </div>
+</div>
+
+<!-- ====== SLIDE 7: ADR ====== -->
+<div class="slide" id="s7">
+  <h2 class="anim-fadein" style="margin-bottom:6px">关键架构决策 (ADR)</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:24px">Architecture Decision Record — 三项核心决策</div>
+  <div class="card-grid card-grid-3 anim-fadein-d2" style="gap:20px;flex:1;align-content:start">
+    <!-- ADR-1 -->
+    <div class="adr-card">
+      <div class="adr-id anim-fadein-d3">ADR-001</div>
+      <div class="adr-title anim-fadein-d4" style="color:var(--cyan)">渐进式拆分</div>
+      <div class="adr-body anim-fadein-d5">
+        运行时 Agent 不在 M0 阶段拆分，而是随里程碑渐进增加。M0 单体 → M1 三核心 → M2 全 Agent。
+      </div>
+      <div class="adr-verdict anim-fadein-d6" style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.12);color:var(--cyan)">
+        ✓ 降低初期复杂度，避免过早抽象；每个阶段交付可验证闭环
+      </div>
+    </div>
+    <!-- ADR-2 -->
+    <div class="adr-card">
+      <div class="adr-id anim-fadein-d3">ADR-002</div>
+      <div class="adr-title anim-fadein-d4" style="color:var(--blue)">协议隔离</div>
+      <div class="adr-body anim-fadein-d5">
+        AgentHub 接口按版本演进 (v0 → v1 → v2)，各阶段 Agent 使用对应版本协议，互不干扰。
+      </div>
+      <div class="adr-verdict anim-fadein-d6" style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.12);color:#60a5fa">
+        ✓ 协议版本化保证向后兼容，M0 Agent 可在 M1+ 继续运行
+      </div>
+    </div>
+    <!-- ADR-3 -->
+    <div class="adr-card">
+      <div class="adr-id anim-fadein-d3">ADR-003</div>
+      <div class="adr-title anim-fadein-d4" style="color:var(--red)">LLM 不进高频环</div>
+      <div class="adr-body anim-fadein-d5">
+        LLM 推理仅用于宏观战略 (1-2 Hz) 和离线分析，高频决策 (10-20 Hz) 使用行为树/规则引擎。
+      </div>
+      <div class="adr-verdict anim-fadein-d6" style="background:rgba(255,59,92,.06);border:1px solid rgba(255,59,92,.12);color:var(--red)">
+        ✓ 延迟约束: LLM 推理 50-200ms 不可用于微操；高频环保持确定性
+      </div>
+    </div>
+  </div>
+  <div class="anim-fadein-d7" style="margin-top:auto;padding-top:16px;display:flex;gap:12px">
+    <span class="badge badge-green">已采纳</span>
+    <span class="badge badge-green">已采纳</span>
+    <span class="badge badge-green">已采纳</span>
+    <span style="font-size:14px;color:var(--text3);font-weight:300;margin-left:8px">三项决策均通过技术委员会评审</span>
+  </div>
+</div>
+
+<!-- ====== SLIDE 8: 四层架构 + 数据流 ====== -->
+<div class="slide" id="s8">
+  <h2 class="anim-fadein" style="margin-bottom:6px">四层架构 + 数据流</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">Pipeline → Harness → AgentHub → SimCore · 端到端数据闭环</div>
+  <div class="two-col anim-fadein-d2" style="flex:1">
+    <div style="display:flex;flex-direction:column;gap:0;flex:1">
+      <!-- Layer 4: Pipeline -->
+      <div class="arch-layer layer-pipeline anim-fadein-d2">
+        <div class="layer-label">Pipeline · 流水线层</div>
+        <div class="layer-content">team-simcore → team-ai → team-balance → team-release</div>
+      </div>
+      <!-- Arrow -->
+      <div class="flow-arrow anim-fadein-d3">
+        <svg width="40" height="24" viewBox="0 0 40 24">
+          <path d="M4 12 L36 12" stroke="#c084fc" stroke-width="2" class="dash-anim"/>
+          <path d="M30 6 L37 12 L30 18" stroke="#c084fc" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <!-- Layer 3: Harness -->
+      <div class="arch-layer layer-harness anim-fadein-d3">
+        <div class="layer-label">Harness · 测试执行层</div>
+        <div class="layer-content">Test Matrix · A/B · 回滚 · 仿真池</div>
+      </div>
+      <!-- Arrow -->
+      <div class="flow-arrow anim-fadein-d4">
+        <svg width="40" height="24" viewBox="0 0 40 24">
+          <path d="M4 12 L36 12" stroke="#60a5fa" stroke-width="2" class="dash-anim"/>
+          <path d="M30 6 L37 12 L30 18" stroke="#60a5fa" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <!-- Layer 2: AgentHub -->
+      <div class="arch-layer layer-hub anim-fadein-d4">
+        <div class="layer-label">AgentHub · Agent 运行时</div>
+        <div class="layer-content">BaselineAgent / Coordinator+Economy+Combat / Full+League</div>
+      </div>
+      <!-- Arrow -->
+      <div class="flow-arrow anim-fadein-d5">
+        <svg width="40" height="24" viewBox="0 0 40 24">
+          <path d="M4 12 L36 12" stroke="#00e5ff" stroke-width="2" class="dash-anim"/>
+          <path d="M30 6 L37 12 L30 18" stroke="#00e5ff" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <!-- Layer 1: SimCore -->
+      <div class="arch-layer layer-sim anim-fadein-d5">
+        <div class="layer-label">SimCore · 模拟核心</div>
+        <div class="layer-content">规则引擎 · 状态管理 · 回放 · 遥测 · Protobuf/gRPC</div>
+      </div>
+    </div>
+    <!-- Data flow diagram -->
+    <div style="display:flex;flex-direction:column;gap:16px;flex:1;justify-content:center">
+      <svg viewBox="0 0 600 520" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:560px">
+        <!-- Pipeline box -->
+        <rect x="150" y="10" width="300" height="60" rx="10" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.3)" stroke-width="1.5"/>
+        <text x="300" y="36" text-anchor="middle" fill="#c084fc" font-size="14" font-weight="700" font-family="var(--font-stack)">Pipeline</text>
+        <text x="300" y="56" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">编排 Skill · 阶段门禁</text>
+        
+        <!-- Harness box -->
+        <rect x="150" y="130" width="300" height="60" rx="10" fill="rgba(59,130,246,.08)" stroke="rgba(59,130,246,.3)" stroke-width="1.5"/>
+        <text x="300" y="156" text-anchor="middle" fill="#60a5fa" font-size="14" font-weight="700" font-family="var(--font-stack)">Harness</text>
+        <text x="300" y="176" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">Test Matrix · A/B · 仿真池</text>
+        
+        <!-- AgentHub box -->
+        <rect x="100" y="250" width="400" height="60" rx="10" fill="rgba(0,229,255,.06)" stroke="rgba(0,229,255,.3)" stroke-width="1.5"/>
+        <text x="300" y="276" text-anchor="middle" fill="#00e5ff" font-size="14" font-weight="700" font-family="var(--font-stack)">AgentHub</text>
+        <text x="300" y="296" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">协议版本化 · 行为树/RL · 黑板仲裁</text>
+        
+        <!-- SimCore box -->
+        <rect x="100" y="370" width="400" height="60" rx="10" fill="rgba(34,197,94,.06)" stroke="rgba(34,197,94,.3)" stroke-width="1.5"/>
+        <text x="300" y="396" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="700" font-family="var(--font-stack)">SimCore</text>
+        <text x="300" y="416" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">规则引擎 · 状态 · 回放 · 遥测</text>
+        
+        <!-- Down arrows (data flow) -->
+        <line x1="260" y1="70" x2="260" y2="130" stroke="#c084fc" stroke-width="1.5" class="dash-anim"/>
+        <polygon points="256,126 260,134 264,126" fill="#c084fc"/>
+        <text x="236" y="104" fill="#c084fc" font-size="10" font-family="var(--font-stack)" text-anchor="end">任务分发</text>
+        
+        <line x1="260" y1="190" x2="260" y2="250" stroke="#60a5fa" stroke-width="1.5" class="dash-anim"/>
+        <polygon points="256,246 260,254 264,246" fill="#60a5fa"/>
+        <text x="236" y="224" fill="#60a5fa" font-size="10" font-family="var(--font-stack)" text-anchor="end">配置注入</text>
+        
+        <line x1="260" y1="310" x2="260" y2="370" stroke="#00e5ff" stroke-width="1.5" class="dash-anim"/>
+        <polygon points="256,366 260,374 264,366" fill="#00e5ff"/>
+        <text x="236" y="344" fill="#00e5ff" font-size="10" font-family="var(--font-stack)" text-anchor="end">obs/cmd</text>
+        
+        <!-- Up arrows (feedback) -->
+        <line x1="340" y1="130" x2="340" y2="70" stroke="#60a5fa" stroke-width="1.5" class="dash-anim" style="animation-direction:reverse"/>
+        <polygon points="336,74 340,66 344,74" fill="#60a5fa"/>
+        <text x="364" y="104" fill="#60a5fa" font-size="10" font-family="var(--font-stack)">测试报告</text>
+        
+        <line x1="340" y1="250" x2="340" y2="190" stroke="#00e5ff" stroke-width="1.5" class="dash-anim" style="animation-direction:reverse"/>
+        <polygon points="336,194 340,186 344,194" fill="#00e5ff"/>
+        <text x="364" y="224" fill="#00e5ff" font-size="10" font-family="var(--font-stack)">评测指标</text>
+        
+        <line x1="340" y1="370" x2="340" y2="310" stroke="#4ade80" stroke-width="1.5" class="dash-anim" style="animation-direction:reverse"/>
+        <polygon points="336,314 340,306 344,314" fill="#4ade80"/>
+        <text x="364" y="344" fill="#4ade80" font-size="10" font-family="var(--font-stack)">遥测/回放</text>
+        
+        <!-- Protobuf label -->
+        <rect x="180" y="460" width="240" height="36" rx="8" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+        <text x="300" y="482" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="'SF Mono','Fira Code',monospace">Protobuf + gRPC · 全层通信协议</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SLIDE 9: 里程碑路线 ====== -->
+<div class="slide" id="s9">
+  <h2 class="anim-fadein" style="margin-bottom:6px">里程碑路线</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:24px">3 阶段交付 · 共 36 周 · 从闭环基线到全 Agent 产品化</div>
+  <div class="timeline anim-fadein-d2" style="flex:1;align-items:stretch">
+    <!-- M0 -->
+    <div class="milestone m0">
+      <div class="milestone-label anim-fadein-d2">M0</div>
+      <div class="milestone-weeks anim-fadein-d3">6 周</div>
+      <div class="milestone-title anim-fadein-d3">闭环基线</div>
+      <ul class="milestone-items anim-fadein-d4">
+        <li>规则引擎核心 + 状态管理</li>
+        <li>回放系统 (录制/回放/解析)</li>
+        <li>BaselineAgent 状态机</li>
+        <li>数据埋点闭环 (遥测→ETL→MLflow)</li>
+        <li>CI/CD 基础设施</li>
+        <li>Protobuf 协议 v0</li>
+      </ul>
+      <div class="progress-track anim-fadein-d5"><div class="progress-fill" style="--pct:100%"></div></div>
+    </div>
+    <!-- M1 -->
+    <div class="milestone m1">
+      <div class="milestone-label anim-fadein-d4">M1</div>
+      <div class="milestone-weeks anim-fadein-d5">10 周</div>
+      <div class="milestone-title anim-fadein-d5">三核心拆分</div>
+      <ul class="milestone-items anim-fadein-d6">
+        <li>Coordinator + Economy + Combat Agent</li>
+        <li>AgentHub v1 协议 (黑板仲裁)</li>
+        <li>产品玩法原型</li>
+        <li>训练管线 (PPO/IMPALA)</li>
+        <li>工具链参数化 (配置驱动)</li>
+        <li>A/B 测试框架</li>
+        <li>平衡分析自动化</li>
+      </ul>
+      <div class="progress-track anim-fadein-d7"><div class="progress-fill" style="--pct:65%"></div></div>
+    </div>
+    <!-- M2 -->
+    <div class="milestone m2">
+      <div class="milestone-label anim-fadein-d6">M2</div>
+      <div class="milestone-weeks anim-fadein-d7">20 周</div>
+      <div class="milestone-title anim-fadein-d7">全 Agent + 产品化</div>
+      <ul class="milestone-items anim-fadein-d8">
+        <li>6 运行时 Agent + League 系统</li>
+        <li>AgentHub v2 协议</li>
+        <li>3D 产品化 (Unity/Unreal)</li>
+        <li>RL 发布机制 (模型注册→灰度)</li>
+        <li>战术多样性 (>=5 可识别战术)</li>
+        <li>完整编排 Skill 体系</li>
+        <li>ELO 段位系统</li>
+      </ul>
+      <div class="progress-track anim-fadein-d9"><div class="progress-fill" style="--pct:30%"></div></div>
+    </div>
+  </div>
+  <div class="anim-fadein-d9" style="margin-top:auto;padding-top:16px;display:flex;gap:20px;align-items:center">
+    <span style="font-size:14px;color:var(--text3);font-weight:300">总周期: 36 周</span>
+    <span class="badge badge-m0">M0 交付</span>
+    <span class="badge badge-m1">M1 交付</span>
+    <span class="badge badge-m2">M2 交付</span>
+    <span style="font-size:14px;color:var(--text3);font-weight:300;margin-left:auto">每阶段均交付可验证闭环</span>
+  </div>
+</div>
+
+</div><!-- end deck -->
+
+<div id="counter">01 / 09</div>
+
+<script>
+// ====== Viewport Scaling ======
+function scaleDeck() {
+  const deck = document.getElementById('deck');
+  const scaleX = window.innerWidth / 1920;
+  const scaleY = window.innerHeight / 1080;
+  const scale = Math.min(scaleX, scaleY);
+  deck.style.transform = 'scale(' + scale + ')';
+  // Center the deck if one axis has extra space
+  const offsetX = (window.innerWidth - 1920 * scale) / 2;
+  const offsetY = (window.innerHeight - 1080 * scale) / 2;
+  deck.style.marginLeft = offsetX + 'px';
+  deck.style.marginTop = offsetY + 'px';
+}
+scaleDeck();
+window.addEventListener('resize', scaleDeck);
+
+// ====== Navigation ======
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = parseInt(localStorage.getItem('rts-deck-slide') || '0', 10);
+if (current < 0 || current >= total) current = 0;
+
+function showSlide(n, direction) {
+  const prev = slides[current];
+  const next = slides[n];
+  if (!next || n === current) return;
+  
+  prev.classList.remove('active');
+  prev.classList.add('leaving');
+  setTimeout(() => { prev.classList.remove('leaving'); }, 500);
+  
+  next.classList.add('active');
+  current = n;
+  localStorage.setItem('rts-deck-slide', current);
+  document.getElementById('counter').textContent = String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+}
+
+// Initial display
+slides.forEach((s, i) => { if (i !== current) s.classList.remove('active'); else s.classList.add('active'); });
+document.getElementById('counter').textContent = String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+    e.preventDefault();
+    if (current < total - 1) showSlide(current + 1, 1);
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (current > 0) showSlide(current - 1, -1);
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    showSlide(0, -1);
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    showSlide(total - 1, 1);
+  }
+});
+
+// Click navigation
+document.addEventListener('click', e => {
+  const x = e.clientX;
+  const w = window.innerWidth;
+  if (x > w * 0.65) {
+    if (current < total - 1) showSlide(current + 1, 1);
+  } else if (x < w * 0.35) {
+    if (current > 0) showSlide(current - 1, -1);
+  }
+});
+
+// ====== Particle System ======
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+const PARTICLE_COUNT = 60;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function initParticles() {
+  particles = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.5 + 0.1,
+      color: ['#00e5ff', '#3b82f6', '#a855f7', '#22c55e'][Math.floor(Math.random() * 4)]
+    });
+  }
+}
+initParticles();
+
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function drawParticles() {
+  if (prefersReducedMotion) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0) p.x = canvas.width;
+    if (p.x > canvas.width) p.x = 0;
+    if (p.y < 0) p.y = canvas.height;
+    if (p.y > canvas.height) p.y = 0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.alpha;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  
+  // Draw connections
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 120) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = particles[i].color;
+        ctx.globalAlpha = (1 - dist / 120) * 0.08;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(drawParticles);
+}
+if (!prefersReducedMotion) drawParticles();
+
+// ====== Circuit Background Animation ======
+const circuitSvg = document.getElementById('circuit-lines');
+if (!prefersReducedMotion && circuitSvg) {
+  function addCircuitLine() {
+    const y = Math.random() * 1080;
+    const x1 = Math.random() * 1920 * 0.3;
+    const x2 = x1 + Math.random() * 600 + 200;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y + (Math.random() - 0.5) * 40);
+    line.setAttribute('stroke', 'rgba(0,229,255,0.06)');
+    line.setAttribute('stroke-width', '0.8');
+    line.classList.add('dash-anim');
+    circuitSvg.appendChild(line);
+    
+    // Occasionally add a node dot
+    if (Math.random() > 0.5) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', x2);
+      circle.setAttribute('cy', y);
+      circle.setAttribute('r', '2');
+      circle.setAttribute('fill', 'rgba(0,229,255,0.15)');
+      circuitSvg.appendChild(circle);
+    }
+    
+    // Remove old lines to prevent memory bloat
+    while (circuitSvg.childNodes.length > 30) {
+      circuitSvg.removeChild(circuitSvg.firstChild);
+    }
+  }
+  
+  for (let i = 0; i < 10; i++) addCircuitLine();
+  setInterval(addCircuitLine, 3000);
+}
+</script>
+</body>
+</html>
