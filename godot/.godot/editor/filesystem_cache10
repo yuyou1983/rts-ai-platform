@@ -3,9 +3,9 @@
 ::res://scenes/::1778303419
 game_view.tscn::PackedScene::-1::1778303419::0::1::::<><><>0<>0<><>::res://scripts/game_view.gd
 main_menu.tscn::PackedScene::-1::1778303410::0::1::::<><><>0<>0<><>::res://scripts/main_menu.gd
-::res://scripts/::1778304347
+::res://scripts/::1778306788
 entity_state.gd::GDScript::3028457398350986072::1778303428::0::1::::EntityState<>RefCounted<><>0<>0<><>::
 fog_renderer.gd::GDScript::5748939900306480128::1778303428::0::1::::FogRenderer<>Node2D<><>0<>0<><>::
 game_view.gd::GDScript::7097666510623240550::1778306193::0::1::::<>Node2D<><>0<>0<><>::
-grpc_bridge.gd::GDScript::3829642289321534844::1778306172::0::1::::GrpcBridge<>Node<><>0<>0<><>::
+grpc_bridge.gd::GDScript::3829642289321534844::1778306785::0::1::::GrpcBridge<>Node<><>0<>0<><>::
 main_menu.gd::GDScript::1990540224865693774::1778303410::0::1::::<>Control<><>0<>0<><>::
