@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package rts.service;
+
+import "proto/obs.proto";
+import "proto/cmd.proto";
+import "proto/state.proto";
+
+// ─── SimCore gRPC 服务 ───
+
+service SimCoreService {
+  // Start a new game, returns initial state snapshot (unary)
+  rpc StartGame(StartGameRequest) returns (rts.state.GameStateSnapshot);
+
+  // Submit commands for the next tick (unary)
+  rpc Step(rts.cmd.CommandBatch) returns (rts.state.GameStateSnapshot);
+
+  // Get the full current state (unary)
+  rpc GetState(GetStateRequest) returns (rts.state.GameStateSnapshot);
+
+  // Stream replay from a given tick (server-streaming)
+  rpc GetReplay(GetReplayRequest) returns (stream rts.state.GameStateSnapshot);
+
+  // Health check (unary)
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message StartGameRequest {
+  rts.state.GameConfig config = 1;
+}
+
+message GetStateRequest {}
+
+message GetReplayRequest {
+  int32 from_tick = 1;  // 0 = from beginning
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool   healthy    = 1;
+  int32  game_tick  = 2;
+  string status     = 3;
+}

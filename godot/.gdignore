@@ -1,0 +1,6 @@
+# Ignore Godot editor cache
+.godot/
+# Ignore imported assets cache
+.import/
+# OS files
+.DS_Store

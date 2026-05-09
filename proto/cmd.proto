@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package rts.cmd;
+
+// ─── 单条命令 ───
+
+message Command {
+  oneof payload {
+    MoveCommand     move     = 1;
+    AttackCommand   attack   = 2;
+    BuildCommand    build    = 3;
+    GatherCommand   gather   = 4;
+    ResearchCommand research = 5;
+    TrainCommand    train    = 6;
+    StopCommand     stop     = 7;
+  }
+  int32 issuer = 10;  // player id
+}
+
+// ─── 命令批 (one per tick per agent) ───
+
+message CommandBatch {
+  repeated Command commands = 1;
+  int32 game_tick = 2;
+}
+
+// ─── 命令子类型 ───
+
+message MoveCommand {
+  string unit_id = 1;
+  float  target_x = 2;
+  float  target_y = 3;
+}
+
+message AttackCommand {
+  string attacker_id = 1;
+  string target_id   = 2;  // entity id to attack
+}
+
+message BuildCommand {
+  string builder_id    = 1;
+  string building_type = 2;
+  float  pos_x         = 3;
+  float  pos_y         = 4;
+}
+
+message GatherCommand {
+  string worker_id    = 1;
+  string resource_id  = 2;  // resource node to gather from
+}
+
+message ResearchCommand {
+  string building_id  = 1;  // building that performs research
+  string upgrade_name = 2;
+}
+
+message TrainCommand {
+  string building_id  = 1;  // building that produces the unit
+  string unit_type    = 2;
+}
+
+message StopCommand {
+  string unit_id = 1;
+}

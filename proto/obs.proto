@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package rts.obs;
+
+// ─── 全局状态摘要 (broadcast to all agents) ───
+
+message WorldObservation {
+  Resources     resources   = 1;
+  repeated Base bases       = 2;
+  TechState     tech        = 3;
+  int32         game_tick   = 4;
+  repeated ControlZone controlled_zones = 5;
+  Score         score       = 6;
+}
+
+// ─── 局部观察 (per-agent, fog-filtered) ───
+
+message LocalObservation {
+  int32 game_tick = 1;
+  repeated VisibleUnit   visible_units   = 2;
+  repeated VisibleBuilding visible_buildings = 3;
+  repeated VisibleResource visible_resources = 4;
+  FogState fog = 5;
+  OwnerInfo self = 6;
+}
+
+// ─── 迷雾状态 ───
+
+message FogState {
+  // 2D grid: 0=unexplored, 1=explored-not-visible, 2=visible
+  repeated int32 tiles = 1 [packed=true];
+  int32 width  = 2;
+  int32 height = 3;
+}
+
+// ─── 子类型 ───
+
+message Resources {
+  int32 mineral = 1;
+  int32 gas     = 2;
+  int32 supply_used  = 3;
+  int32 supply_cap   = 4;
+}
+
+message Base {
+  string  id          = 1;
+  int32   owner       = 2;  // player id
+  float   pos_x       = 3;
+  float   pos_y       = 4;
+  int32   health       = 5;
+  int32   max_health  = 6;
+  bool    is_main     = 7;  // main base = lose condition
+}
+
+message TechState {
+  int32 tech_level = 1;
+  repeated string unlocked_upgrades = 2;
+  repeated string available_upgrades = 3;
+}
+
+message ControlZone {
+  string id     = 1;
+  int32  owner  = 2;  // 0=neutral
+  float  pos_x  = 3;
+  float  pos_y  = 4;
+}
+
+message Score {
+  int32 units_killed    = 1;
+  int32 units_lost      = 2;
+  int32 resources_gathered = 3;
+  int32 buildings_built = 4;
+}
+
+// ─── 可见实体 (fog-filtered per agent) ───
+
+message VisibleUnit {
+  string id           = 1;
+  int32  owner         = 2;
+  string unit_type    = 3;
+  float  pos_x        = 4;
+  float  pos_y        = 5;
+  int32  health        = 6;
+  int32  max_health   = 7;
+  float  speed        = 8;
+  float  attack       = 9;
+  float  attack_range = 10;
+  bool   is_idle      = 11;
+}
+
+message VisibleBuilding {
+  string id             = 1;
+  int32  owner           = 2;
+  string building_type  = 3;
+  float  pos_x          = 4;
+  float  pos_y          = 5;
+  int32  health          = 6;
+  bool   is_constructing = 7;
+  repeated string production_queue = 8;
+}
+
+message VisibleResource {
+  string id             = 1;
+  string resource_type  = 2;
+  float  pos_x          = 3;
+  float  pos_y          = 4;
+  float  amount         = 5;
+}
+
+message OwnerInfo {
+  int32 player_id    = 1;
+  Resources resources = 2;
+  TechState tech     = 3;
+}

@@ -90,6 +90,9 @@ SimCore/
 
 ## 第二层: AgentHub (Agent运行层)
 
+> **框架**: 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 构建，
+> 利用其 MsgHub (消息广播)、Pipeline (流水线编排) 和 ReActAgent (推理-行动) 模式。
+
 ### 渐进式架构
 
 ```

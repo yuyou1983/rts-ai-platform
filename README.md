@@ -32,6 +32,8 @@ rts-ai-platform/
 ├── protocols/                  # 协议定义
 │   ├── obs/                   # 观察协议
 │   └── cmd/                   # 命令协议
+├── src/                       # Godot 游戏源码 (GDScript/C#/GDExtension)
+├── simcore/                   # Python Headless SimCore (训练用)
 └── scripts/                   # 工具脚本
 ```
 
@@ -67,10 +69,11 @@ rts-ai-platform/
 
 ## 技术栈
 
-- **引擎**: Unity ML-Agents + headless Dedicated Server
-- **训练框架**: PPO / IMPALA / V-trace
+- **引擎**: Godot 4.4.1 (前端表现 + Dedicated Server) / Python Headless SimCore (训练)
+- **Agent 框架**: [AgentScope](https://github.com/agentscope-ai/agentscope) — 运行时多 Agent 编排
+- **训练框架**: PPO / IMPALA / V-trace (Python，直连 SimCore)
 - **实验追踪**: MLflow Tracking + Model Registry
-- **版本控制**: Perforce P4 + P4 DAM
+- **版本控制**: Git + Git LFS (资产)
 - **协议**: Protobuf + gRPC
 
 ## 快速开始
@@ -92,5 +95,5 @@ ls protocols/
 - [AlphaStar Nature 论文](https://www.nature.com/articles/s41586-019-1724-z)
 - [SC2LE 论文](https://arxiv.org/abs/1708.04782)
 - [SMACv2 论文](https://arxiv.org/abs/2212.07489)
-- [Unity ML-Agents](https://unity.com/products/ml-agents)
+- [Godot Engine](https://godotengine.org/)
 - [MLflow](https://mlflow.org/)

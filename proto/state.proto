@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package rts.state;
+
+// ─── 完整状态快照 (for replay + telemetry) ───
+
+message GameStateSnapshot {
+  int32   game_tick    = 1;
+  bool    is_terminal  = 2;
+  int32   winner       = 3;  // 0=none/Draw, 1=player1, 2=player2
+  string termination_reason = 4;
+
+  repeated EntityState entities  = 5;
+  map<string, int32>  resources  = 6;  // "p1_mineral": 500, ...
+  FogGrid             fog_p1     = 7;
+  FogGrid             fog_p2     = 8;
+
+  GameConfig          config     = 9;
+}
+
+// ─── 实体状态 ───
+
+message EntityState {
+  string id            = 1;
+  int32  owner         = 2;
+  string entity_type  = 3;
+  float  pos_x         = 4;
+  float  pos_y         = 5;
+  int32  health        = 6;
+  int32  max_health   = 7;
+
+  // Unit-specific
+  float  speed         = 8;
+  float  attack        = 9;
+  float  attack_range  = 10;
+  bool   is_idle       = 11;
+  float  carry_amount  = 12;
+
+  // Building-specific
+  bool   is_constructing = 13;
+  repeated string production_queue = 14;
+
+  // Resource-specific
+  string resource_type = 15;
+  float  resource_amount = 16;
+}
+
+// ─── 迷雾网格 ───
+
+message FogGrid {
+  repeated int32 tiles = 1 [packed=true];
+  int32 width  = 2;
+  int32 height = 3;
+}
+
+// ─── 游戏配置 ───
+
+message GameConfig {
+  int32  map_seed     = 1;
+  int32  map_width    = 2;
+  int32  map_height   = 3;
+  int32  max_ticks    = 4;
+  float  tick_rate    = 5;
+  string game_mode    = 6;  // "1v1_skirmish", "2v2_team", etc.
+}

@@ -3,11 +3,15 @@
 ```
 rts-ai-platform/
 ├── .claude/                    # Claude Code 配置
-│   ├── agents/                 # Agent 定义 (开发侧)
+│   ├── agents/                 # Agent 定义 (开发侧 + 引擎专家)
 │   │   ├── rts-test-orchestrator.md
 │   │   ├── rts-balance.md
 │   │   ├── rts-design-assistant.md
-│   │   └── rts-replay-analyzer.md
+│   │   ├── rts-replay-analyzer.md
+│   │   ├── godot-specialist.md        # Godot 引擎总管
+│   │   ├── godot-gdscript-specialist.md  # GDScript 专家
+│   │   ├── godot-gdextension-specialist.md # C++/Rust 原生绑定专家
+│   │   └── godot-shader-specialist.md  # 着色器专家
 │   ├── docs/                   # 配置文档
 │   │   ├── directory-structure.md
 │   │   ├── coordination-rules.md
@@ -25,8 +29,13 @@ rts-ai-platform/
 │       ├── balance-check/
 │       ├── code-review/
 │       ├── gate-check/
+│       ├── godot-specialist/      # Godot 引擎工作流
+│       ├── godot-gdscript-specialist/
+│       ├── godot-gdextension-specialist/
+│       ├── godot-shader-specialist/
 │       ├── harness-run/
 │       ├── replay-analyze/
+│       ├── setup-engine/         # 引擎初始化引导
 │       └── test-matrix/
 │
 ├── agents/                     # Agent 配置 (详细)

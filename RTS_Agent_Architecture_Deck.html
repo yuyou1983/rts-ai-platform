@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTS AI Native Platform — Architecture Deck</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --ink: #e8e8f0;
+    --muted: #8888a0;
+    --dim: #555568;
+    --accent: #00d4aa;
+    --accent2: #00a3ff;
+    --accent3: #ff6b3d;
+    --accent4: #c06eff;
+    --accent5: #ffd43b;
+    --simcore: #00d4aa;
+    --agenthub: #00a3ff;
+    --harness: #ff6b3d;
+    --pipeline: #c06eff;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #deck {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    transform-origin: top left;
+  }
+
+  .slide {
+    width: 1920px;
+    height: 1080px;
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    padding: 80px 120px;
+    overflow: hidden;
+  }
+
+  .slide.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== NAVIGATION ===== */
+  #nav {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 100;
+    background: rgba(18,18,26,0.85);
+    backdrop-filter: blur(12px);
+    padding: 8px 20px;
+    border-radius: 40px;
+    border: 1px solid var(--border);
+  }
+
+  #nav button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    transition: all 0.15s;
+  }
+  #nav button:hover { color: var(--ink); background: var(--surface2); }
+
+  #counter {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+    min-width: 60px;
+    text-align: center;
+  }
+
+  /* ===== TYPOGRAPHY ===== */
+  h1 {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.1;
+  }
+  h2 {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.15;
+  }
+  h3 {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .label {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .mono { font-family: var(--mono); }
+
+  /* ===== LAYER COLORS ===== */
+  .c-simcore { color: var(--simcore); }
+  .c-agenthub { color: var(--agenthub); }
+  .c-harness { color: var(--harness); }
+  .c-pipeline { color: var(--pipeline); }
+  .bg-simcore { background: var(--simcore); }
+  .bg-agenthub { background: var(--agenthub); }
+  .bg-harness { background: var(--harness); }
+  .bg-pipeline { background: var(--pipeline); }
+  .border-simcore { border-color: var(--simcore); }
+  .border-agenthub { border-color: var(--agenthub); }
+  .border-harness { border-color: var(--harness); }
+  .border-pipeline { border-color: var(--pipeline); }
+
+  /* ===== LAYER BLOCK ===== */
+  .layer-block {
+    border-radius: 16px;
+    padding: 32px 36px;
+    border: 1.5px solid;
+    position: relative;
+  }
+  .layer-block::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 6px;
+    height: 100%;
+    border-radius: 16px 0 0 16px;
+  }
+
+  /* ===== CARD ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+    flex: 1;
+  }
+
+  /* ===== TAG ===== */
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+  }
+
+  /* ===== FLOW ARROW ===== */
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim);
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+
+  /* ===== GRID ===== */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; }
+
+  /* ===== ANIMATIONS ===== */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .slide.active > * {
+    animation: fadeUp 0.5s ease-out both;
+  }
+  .slide.active > *:nth-child(1) { animation-delay: 0ms; }
+  .slide.active > *:nth-child(2) { animation-delay: 80ms; }
+  .slide.active > *:nth-child(3) { animation-delay: 160ms; }
+  .slide.active > *:nth-child(4) { animation-delay: 240ms; }
+  .slide.active > *:nth-child(5) { animation-delay: 320ms; }
+  .slide.active > *:nth-child(6) { animation-delay: 400ms; }
+  .slide.active > *:nth-child(7) { animation-delay: 480ms; }
+  .slide.active > *:nth-child(8) { animation-delay: 560ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide.active > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
+
+  /* ===== PROTO TABLE ===== */
+  .proto-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+  .proto-table th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .proto-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(42,42,58,0.5);
+    color: var(--ink);
+  }
+  .proto-table tr:last-child td { border-bottom: none; }
+  .proto-table code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--surface2);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* ===== ADR BADGE ===== */
+  .adr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .adr-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    background: var(--surface2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: var(--accent);
+  }
+
+  /* ===== MILESTONE TIMELINE ===== */
+  .milestone-track {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    position: relative;
+  }
+  .milestone-node {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+  .milestone-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    background: var(--bg);
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 2;
+  }
+  .milestone-dot.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 0 20px rgba(0,212,170,0.4);
+  }
+  .milestone-node::after {
+    content: '';
+    position: absolute;
+    top: 9px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    z-index: 1;
+  }
+  .milestone-node:last-child::after { display: none; }
+
+  /* ===== KPI CARD ===== */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 700;
+  }
+  .kpi-label {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ===== SVG DIAGRAM STYLES ===== */
+  .arch-box {
+    rx: 12;
+    ry: 12;
+    stroke-width: 1.5;
+  }
+  .arch-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    fill: currentColor;
+  }
+  .arch-sub {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    fill: #8888a0;
+  }
+
+  /* ===== TECH BADGE ===== */
+  .tech-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .tech-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ===== GRADIENT GLOW ===== */
+  .glow-simcore { box-shadow: 0 0 40px rgba(0,212,170,0.08); }
+  .glow-agenthub { box-shadow: 0 0 40px rgba(0,163,255,0.08); }
+  .glow-harness { box-shadow: 0 0 40px rgba(255,107,61,0.08); }
+  .glow-pipeline { box-shadow: 0 0 40px rgba(192,110,255,0.08); }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+<!-- ==================== SLIDE 1: TITLE ==================== -->
+<div class="slide active" id="s1">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <div class="label c-simcore" style="margin-bottom:24px;">AI NATIVE RTS PLATFORM</div>
+    <h1 style="font-size:72px; line-height:1.05;">
+      RTS Agent<br>
+      <span style="color:var(--accent);">Architecture</span> Deck
+    </h1>
+    <div class="subtitle" style="margin-top:32px; max-width:640px;">
+      四层解耦架构 · Python Headless 仿真 · AgentScope 编排 · Godot 4.4 渲染
+    </div>
+    <div style="display:flex; gap:16px; margin-top:48px;">
+      <div class="tech-badge"><div class="tech-dot bg-simcore"></div>Python SimCore</div>
+      <div class="tech-badge"><div class="tech-dot bg-agenthub"></div>AgentScope</div>
+      <div class="tech-badge"><div class="tech-dot bg-harness"></div>Godot 4.4.1</div>
+      <div class="tech-badge"><div class="tech-dot bg-pipeline"></div>Protobuf + gRPC</div>
+    </div>
+  </div>
+  <div style="position:absolute; bottom:80px; right:120px; font-family:var(--mono); font-size:13px; color:var(--dim);">
+    v0.1 · M0 STARTUP · 2026.05
+  </div>
+  <!-- Decorative grid -->
+  <svg width="320" height="320" style="position:absolute; top:80px; right:120px; opacity:0.06;">
+    <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e8e8f0" stroke-width="1"/>
+    </pattern></defs>
+    <rect width="320" height="320" fill="url(#grid)"/>
+  </svg>
+</div>
+
+<!-- ==================== SLIDE 2: VISION ==================== -->
+<div class="slide" id="s2">
+  <div class="label c-simcore" style="margin-bottom:20px;">01 / VISION</div>
+  <h2>AI Native RTS：<span class="c-simcore">不是给 RTS 加 AI</span>，<br>而是让 AI 驱动 RTS</h2>
+  <div class="grid-2" style="margin-top:48px; flex:1;">
+    <div style="display:flex; flex-direction:column; gap:28px;">
+      <div class="card">
+        <h3 style="color:var(--accent); margin-bottom:12px;">传统 RTS</h3>
+        <div style="color:var(--muted); font-size:16px; line-height:1.7;">
+          引擎 → 规则 → 美术 → 关卡 → <span style="color:var(--dim);">最后塞一个 AI</span><br>
+          AI 是事后补丁，受限于引擎 API、单线程、不可训练
+        </div>
+      </div>
+      <div class="card" style="border-color:var(--accent); background:rgba(0,212,170,0.04);">
+        <h3 style="color:var(--accent); margin-bottom:12px;">AI Native RTS</h3>
+        <div style="font-size:16px; line-height:1.7;">
+          协议优先 → 可训练仿真 → 多 Agent 编排 → <span style="color:var(--accent);">引擎无关渲染</span><br>
+          AI 是一等公民，可训练、可回放、可批量仿真、可进化
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:20px; justify-content:center;">
+      <div class="adr-badge">
+        <div class="adr-num">ADR-1</div>
+        <div><strong>渐进式 Agent 拆分</strong><br><span style="color:var(--muted);font-size:14px;">M0 单体 → M1 三核心 → M2 全 Agent</span></div>
+      </div>
+      <div class="adr-badge">
+        <div class="adr-num">ADR-2</div>
+        <div><strong>协议隔离 (Protocol Barrier)</strong><br><span style="color:var(--muted);font-size:14px;">Agent 只见 obs/cmd，不耦合引擎</span></div>
+      </div>
+      <div class="adr-badge">
+        <div class="adr-num">ADR-3</div>
+        <div><strong>LLM 不进高频环</strong><br><span style="color:var(--muted);font-size:14px;">线上用蒸馏模型，LLM 仅离线规划</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 3: FOUR LAYERS ==================== -->
+<div class="slide" id="s3">
+  <div class="label c-agenthub" style="margin-bottom:20px;">02 / ARCHITECTURE</div>
+  <h2>四层解耦架构</h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:0; margin-top:40px; justify-content:center;">
+    <!-- Pipeline -->
+    <div class="layer-block border-pipeline glow-pipeline" style="border-color:var(--pipeline); margin-bottom:6px; background:rgba(192,110,255,0.04);">
+      <div style="position:absolute;top:0;left:0;width:6px;height:100%;background:var(--pipeline);border-radius:16px 0 0 16px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div class="label c-pipeline" style="margin-bottom:6px;">LAYER 04 · PIPELINE</div>
+          <h3 class="c-pipeline">工具链</h3>
+        </div>
+        <div style="font-size:15px; color:var(--muted); text-align:right; line-height:1.6;">
+          地图/单位/技能/关卡/美术编译 · CI/CD · 数据回流
+        </div>
+      </div>
+    </div>
+    <!-- Harness -->
+    <div class="layer-block border-harness glow-harness" style="border-color:var(--harness); margin-bottom:6px; background:rgba(255,107,61,0.04);">
+      <div style="position:absolute;top:0;left:0;width:6px;height:100%;background:var(--harness);border-radius:16px 0 0 16px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div class="label c-harness" style="margin-bottom:6px;">LAYER 03 · HARNESS</div>
+          <h3 class="c-harness">训练验证</h3>
+        </div>
+        <div style="font-size:15px; color:var(--muted); text-align:right; line-height:1.6;">
+          BuildRunner · MatchScheduler · SimulationPool · ReplayParser · PromotionGate
+        </div>
+      </div>
+    </div>
+    <!-- AgentHub -->
+    <div class="layer-block border-agenthub glow-agenthub" style="border-color:var(--agenthub); margin-bottom:6px; background:rgba(0,163,255,0.04);">
+      <div style="position:absolute;top:0;left:0;width:6px;height:100%;background:var(--agenthub);border-radius:16px 0 0 16px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div class="label c-agenthub" style="margin-bottom:6px;">LAYER 02 · AGENTHUB</div>
+          <h3 class="c-agenthub">Agent 运行</h3>
+        </div>
+        <div style="font-size:15px; color:var(--muted); text-align:right; line-height:1.6;">
+          Coordinator → Economy + Combat + Strategy + Scout + Build
+        </div>
+      </div>
+    </div>
+    <!-- SimCore -->
+    <div class="layer-block border-simcore glow-simcore" style="border-color:var(--simcore); background:rgba(0,212,170,0.04);">
+      <div style="position:absolute;top:0;left:0;width:6px;height:100%;background:var(--simcore);border-radius:16px 0 0 16px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div class="label c-simcore" style="margin-bottom:6px;">LAYER 01 · SIMCORE</div>
+          <h3 class="c-simcore">仿真内核</h3>
+        </div>
+        <div style="font-size:15px; color:var(--muted); text-align:right; line-height:1.6;">
+          规则引擎 · 状态管理 · 命令处理 · 回放系统 · 协议层
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:center; color:var(--dim); font-size:14px; margin-top:20px; font-family:var(--mono);">
+    ↑ 数据流: Pipeline → Harness → AgentHub ⇄ SimCore ↓
+  </div>
+</div>
+
+<!-- ==================== SLIDE 4: SIMCORE ==================== -->
+<div class="slide" id="s4">
+  <div class="label c-simcore" style="margin-bottom:20px;">03 / SIMCORE</div>
+  <h2>Python Headless 仿真内核</h2>
+  <div class="grid-2" style="margin-top:40px; flex:1;">
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div class="card" style="border-color:var(--simcore);">
+        <h3 class="c-simcore" style="margin-bottom:14px;">为什么选 Python 而非 Unity Headless</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:14px;">
+          <div style="color:var(--muted);">确定性回放</div>
+          <div class="c-simcore">99.5%+ 一致率（seed 控制）</div>
+          <div style="color:var(--muted);">并行仿真</div>
+          <div class="c-simcore">32-64 局低开销</div>
+          <div style="color:var(--muted);">ML 集成</div>
+          <div class="c-simcore">torch/numpy 零摩擦</div>
+          <div style="color:var(--muted);">迭代速度</div>
+          <div class="c-simcore">秒级规则热重载</div>
+          <div style="color:var(--muted);">3D 可视化</div>
+          <div style="color:var(--dim);">M2 阶段 Godot 接管</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:14px;">核心模块</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-family:var(--mono); font-size:14px; color:var(--muted);">
+          <div>Rules/ <span style="color:var(--dim)">Combat · Economy · Tech · Movement</span></div>
+          <div>State/ <span style="color:var(--dim)">Snapshot · Delta · Validation</span></div>
+          <div>Command/ <span style="color:var(--dim)">Parser · Executor · Validator</span></div>
+          <div>Replay/ <span style="color:var(--dim)">Recorder · Player · Validator</span></div>
+          <div>Protocol/ <span style="color:var(--dim)">obs · cmd</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:center;">
+      <svg width="500" height="440" viewBox="0 0 500 440">
+        <!-- SimCore internal structure -->
+        <rect x="40" y="20" width="420" height="400" rx="16" fill="rgba(0,212,170,0.03)" stroke="var(--simcore)" stroke-width="1.5" stroke-dasharray="6 3"/>
+        <text x="250" y="52" text-anchor="middle" fill="var(--simcore)" font-family="var(--mono)" font-size="13" font-weight="700" letter-spacing="2">SIMCORE</text>
+
+        <!-- Protocol -->
+        <rect x="70" y="70" width="360" height="50" rx="10" fill="var(--surface2)" stroke="var(--accent)" stroke-width="1"/>
+        <text x="250" y="100" text-anchor="middle" fill="var(--accent)" font-family="var(--mono)" font-size="14" font-weight="600">Protocol Layer (obs / cmd)</text>
+
+        <!-- Arrow down -->
+        <line x1="250" y1="120" x2="250" y2="145" stroke="var(--dim)" stroke-width="1.5" marker-end="url(#arrowG)"/>
+
+        <!-- Command -->
+        <rect x="70" y="145" width="170" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+        <text x="155" y="175" text-anchor="middle" fill="var(--ink)" font-size="14">Command 处理</text>
+
+        <!-- State -->
+        <rect x="260" y="145" width="170" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+        <text x="345" y="175" text-anchor="middle" fill="var(--ink)" font-size="14">State 管理</text>
+
+        <!-- Arrow down -->
+        <line x1="155" y1="195" x2="155" y2="220" stroke="var(--dim)" stroke-width="1.5"/>
+        <line x1="345" y1="195" x2="345" y2="220" stroke="var(--dim)" stroke-width="1.5"/>
+
+        <!-- Rules -->
+        <rect x="70" y="220" width="360" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+        <text x="250" y="250" text-anchor="middle" fill="var(--ink)" font-size="14">规则引擎 (Combat · Economy · Tech · Move)</text>
+
+        <!-- Arrow down -->
+        <line x1="250" y1="270" x2="250" y2="295" stroke="var(--dim)" stroke-width="1.5"/>
+
+        <!-- Replay -->
+        <rect x="70" y="295" width="170" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+        <text x="155" y="325" text-anchor="middle" fill="var(--ink)" font-size="14">Replay 系统</text>
+
+        <!-- Snapshot -->
+        <rect x="260" y="295" width="170" height="50" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+        <text x="345" y="325" text-anchor="middle" fill="var(--ink)" font-size="14">Snapshot 快照</text>
+
+        <!-- Seed -->
+        <rect x="165" y="370" width="170" height="34" rx="8" fill="rgba(0,212,170,0.1)" stroke="var(--simcore)" stroke-width="1"/>
+        <text x="250" y="392" text-anchor="middle" fill="var(--simcore)" font-family="var(--mono)" font-size="13" font-weight="600">seed = deterministic</text>
+
+        <defs>
+          <marker id="arrowG" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--simcore)"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 5: AGENTHUB ==================== -->
+<div class="slide" id="s5">
+  <div class="label c-agenthub" style="margin-bottom:20px;">04 / AGENTHUB</div>
+  <h2>Agent 运行层 — <span class="c-agenthub">AgentScope 驱动</span></h2>
+  <div class="grid-2" style="margin-top:40px; flex:1;">
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div class="card" style="border-color:var(--agenthub);">
+        <h3 class="c-agenthub" style="margin-bottom:12px;">AgentScope 核心映射</h3>
+        <table class="proto-table">
+          <tr><td style="color:var(--muted);">MsgHub</td><td>黑板广播 / Agent 间通信</td></tr>
+          <tr><td style="color:var(--muted);">SequentialPipeline</td><td>Economy → Build 顺序执行</td></tr>
+          <tr><td style="color:var(--muted);">FanoutPipeline</td><td>Combat ∥ Scout 并行执行</td></tr>
+          <tr><td style="color:var(--muted);">ReActAgent</td><td>obs → think → cmd 循环</td></tr>
+          <tr><td style="color:var(--muted);">Trinity-RFT</td><td>PPO/IMPALA 策略训练</td></tr>
+          <tr><td style="color:var(--muted);">Toolkit</td><td>注册 SimCore cmd 为工具</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px;">仲裁优先级</h3>
+        <div style="font-size:15px; line-height:2; font-family:var(--mono);">
+          <span style="color:var(--harness);">P0</span> 战斗/生存安全<br>
+          <span style="color:var(--accent5);">P1</span> 供给与生产阻塞解除<br>
+          <span style="color:var(--agenthub);">P2</span> 战略阶段目标<br>
+          <span style="color:var(--accent4);">P3</span> 侦察与不确定性降低<br>
+          <span style="color:var(--dim);">P4</span> 低优先级扩建/补科技
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:20px; justify-content:center;">
+      <!-- M0 → M2 Agent evolution -->
+      <div class="layer-block border-agenthub glow-agenthub" style="background:rgba(0,163,255,0.04); border-color:var(--agenthub); padding:24px 28px;">
+        <div class="label c-agenthub" style="margin-bottom:8px;">M0 · 单体基线</div>
+        <div style="font-family:var(--mono); font-size:14px; color:var(--muted);">BaselineAgent (状态机: OPENING → ECONOMY → MILITARY → END_GAME)</div>
+      </div>
+      <div style="text-align:center; color:var(--dim); font-size:20px;">↓</div>
+      <div class="layer-block border-agenthub glow-agenthub" style="background:rgba(0,163,255,0.04); border-color:var(--agenthub); padding:24px 28px;">
+        <div class="label c-agenthub" style="margin-bottom:8px;">M1 · 三核心</div>
+        <div style="font-family:var(--mono); font-size:14px; color:var(--muted);">Coordinator + Economy ∥ Combat &nbsp;&nbsp;↔&nbsp;&nbsp; MsgHub 黑板</div>
+      </div>
+      <div style="text-align:center; color:var(--dim); font-size:20px;">↓</div>
+      <div class="layer-block border-agenthub glow-agenthub" style="background:rgba(0,163,255,0.04); border-color:var(--agenthub); padding:24px 28px;">
+        <div class="label c-agenthub" style="margin-bottom:8px;">M2 · 全 Agent + League</div>
+        <div style="font-family:var(--mono); font-size:14px; color:var(--muted);">+ Strategy · Scout · Build &nbsp;&nbsp;↔&nbsp;&nbsp; League 自博弈训练</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 6: PROTOCOL ==================== -->
+<div class="slide" id="s6">
+  <div class="label c-simcore" style="margin-bottom:20px;">05 / PROTOCOL</div>
+  <h2>协议隔离 — obs / cmd 双向抽象</h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:32px; margin-top:36px;">
+    <!-- Obs protocols -->
+    <div>
+      <h3 style="margin-bottom:16px;"><span class="c-simcore">⟵</span> 观察协议 (Observation)</h3>
+      <div class="grid-4">
+        <div class="card" style="border-top:3px solid var(--simcore); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--simcore); margin-bottom:8px;">obs.world.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">资源 · 基地 · 科技<br>控制区域 · 情报</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--agenthub); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--agenthub); margin-bottom:8px;">local.obs.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">友方单位 · 可见敌方<br>地形 · 战斗状态</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--accent5); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--accent5); margin-bottom:8px;">obs.econ.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">工人状态 · 生产基地<br>生产队列 · 经济指标</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--accent4); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--accent4); margin-bottom:8px;">obs.fow.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">可见区域 · 已探索地图<br>敌方最后已知位置</div>
+        </div>
+      </div>
+    </div>
+    <!-- Cmd protocols -->
+    <div>
+      <h3 style="margin-bottom:16px;"><span class="c-harness">⟶</span> 命令协议 (Command)</h3>
+      <div class="grid-4">
+        <div class="card" style="border-top:3px solid var(--harness); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--harness); margin-bottom:8px;">cmd.micro.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">单位命令 · 阵型<br>战术标签</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--pipeline); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--pipeline); margin-bottom:8px;">build.queue.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">建造队列 · 科技订单<br>扩张请求</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--accent4); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--accent4); margin-bottom:8px;">plan.macro.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">战略阶段 · 里程碑<br>兵种比例 · 策略切换</div>
+        </div>
+        <div class="card" style="border-top:3px solid var(--accent5); padding:20px 24px;">
+          <div class="mono" style="font-size:13px; color:var(--accent5); margin-bottom:8px;">intel.report.v1</div>
+          <div style="font-size:14px; color:var(--muted); line-height:1.5;">敌方科技情报 · 威胁评估<br>不确定性估计</div>
+        </div>
+      </div>
+    </div>
+    <!-- Version rules -->
+    <div style="font-family:var(--mono); font-size:13px; color:var(--dim); text-align:center;">
+      新增字段 → optional &nbsp;│&nbsp; 删除字段 → deprecated &nbsp;│&nbsp; 修改类型 → 创建新版本
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 7: AGENTSCOPE INTEGRATION ==================== -->
+<div class="slide" id="s7">
+  <div class="label c-agenthub" style="margin-bottom:20px;">06 / AGENTSCOPE</div>
+  <h2>AgentScope 集成架构</h2>
+  <div style="flex:1; display:flex; align-items:center; justify-content:center; margin-top:32px;">
+    <svg width="1400" height="700" viewBox="0 0 1400 700">
+      <!-- Left: SimCore -->
+      <rect x="40" y="140" width="260" height="420" rx="16" fill="rgba(0,212,170,0.04)" stroke="var(--simcore)" stroke-width="1.5" stroke-dasharray="6 3"/>
+      <text x="170" y="170" text-anchor="middle" fill="var(--simcore)" font-family="var(--mono)" font-size="13" font-weight="700" letter-spacing="2">SIMCORE</text>
+      <rect x="70" y="200" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="170" y="227" text-anchor="middle" fill="var(--ink)" font-size="14">Rules Engine</text>
+      <rect x="70" y="260" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="170" y="287" text-anchor="middle" fill="var(--ink)" font-size="14">State Manager</text>
+      <rect x="70" y="320" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="170" y="347" text-anchor="middle" fill="var(--ink)" font-size="14">Command Executor</text>
+      <rect x="70" y="380" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="170" y="407" text-anchor="middle" fill="var(--ink)" font-size="14">Replay System</text>
+      <rect x="70" y="440" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="170" y="467" text-anchor="middle" fill="var(--accent)" font-size="14" font-weight="600">Protocol (obs/cmd)</text>
+
+      <!-- Bridge arrow -->
+      <line x1="300" y1="350" x2="430" y2="350" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="365" y="340" text-anchor="middle" fill="var(--dim)" font-family="var(--mono)" font-size="11">gRPC / 直连</text>
+      <polygon points="425,345 435,350 425,355" fill="var(--dim)"/>
+
+      <!-- Center: AgentScope -->
+      <rect x="440" y="40" width="560" height="620" rx="20" fill="rgba(0,163,255,0.03)" stroke="var(--agenthub)" stroke-width="1.5"/>
+      <text x="720" y="72" text-anchor="middle" fill="var(--agenthub)" font-family="var(--mono)" font-size="14" font-weight="700" letter-spacing="2">AGENTSCOPE</text>
+
+      <!-- MsgHub -->
+      <rect x="480" y="100" width="480" height="90" rx="12" fill="var(--surface2)" stroke="var(--agenthub)" stroke-width="1"/>
+      <text x="720" y="130" text-anchor="middle" fill="var(--agenthub)" font-size="15" font-weight="700">MsgHub</text>
+      <text x="720" y="155" text-anchor="middle" fill="var(--muted)" font-size="12">broadcast · announce · participants</text>
+      <text x="720" y="175" text-anchor="middle" fill="var(--dim)" font-size="12">← 黑板系统 (global_state / resource_budget / intel / decisions)</text>
+
+      <!-- Agents row -->
+      <rect x="480" y="210" width="140" height="80" rx="10" fill="var(--surface2)" stroke="var(--agenthub)" stroke-width="1"/>
+      <text x="550" y="240" text-anchor="middle" fill="var(--agenthub)" font-size="13" font-weight="600">Coordinator</text>
+      <text x="550" y="260" text-anchor="middle" fill="var(--dim)" font-size="11">仲裁</text>
+
+      <rect x="635" y="210" width="100" height="80" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="685" y="240" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">Economy</text>
+      <text x="685" y="260" text-anchor="middle" fill="var(--dim)" font-size="11">经济</text>
+
+      <rect x="750" y="210" width="100" height="80" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="800" y="240" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">Combat</text>
+      <text x="800" y="260" text-anchor="middle" fill="var(--dim)" font-size="11">战斗</text>
+
+      <rect x="865" y="210" width="100" height="80" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="915" y="240" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">Strategy</text>
+      <text x="915" y="260" text-anchor="middle" fill="var(--dim)" font-size="11">战略</text>
+
+      <!-- Pipelines -->
+      <rect x="480" y="310" width="220" height="60" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="590" y="335" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">SequentialPipeline</text>
+      <text x="590" y="355" text-anchor="middle" fill="var(--dim)" font-size="11">Economy → Build (顺序)</text>
+
+      <rect x="720" y="310" width="220" height="60" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="830" y="335" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">FanoutPipeline</text>
+      <text x="830" y="355" text-anchor="middle" fill="var(--dim)" font-size="11">Combat ∥ Scout (并行)</text>
+
+      <!-- ReActAgent -->
+      <rect x="480" y="390" width="480" height="70" rx="10" fill="var(--surface2)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="720" y="418" text-anchor="middle" fill="var(--accent)" font-size="14" font-weight="600">ReActAgent + Toolkit</text>
+      <text x="720" y="440" text-anchor="middle" fill="var(--dim)" font-size="12">obs → think → act (cmd) → observe ... · 注册 SimCore cmd 为工具</text>
+
+      <!-- Trinity-RFT -->
+      <rect x="480" y="480" width="480" height="70" rx="10" fill="rgba(255,107,61,0.06)" stroke="var(--harness)" stroke-width="1"/>
+      <text x="720" y="510" text-anchor="middle" fill="var(--harness)" font-size="14" font-weight="600">Trinity-RFT + Tuner</text>
+      <text x="720" y="532" text-anchor="middle" fill="var(--dim)" font-size="12">PPO/IMPALA 策略梯度 · LLM-as-Judge 自动奖励 · Agent Replay</text>
+
+      <!-- Memory -->
+      <rect x="480" y="570" width="480" height="60" rx="10" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="720" y="598" text-anchor="middle" fill="var(--ink)" font-size="13" font-weight="500">InMemory / LongTermMemory · 决策历史 + 战场态势黑板</text>
+
+      <!-- Right: Godot -->
+      <rect x="1100" y="140" width="260" height="420" rx="16" fill="rgba(192,110,255,0.04)" stroke="var(--pipeline)" stroke-width="1.5" stroke-dasharray="6 3"/>
+      <text x="1230" y="170" text-anchor="middle" fill="var(--pipeline)" font-family="var(--mono)" font-size="13" font-weight="700" letter-spacing="2">GODOT 4.4.1</text>
+      <rect x="1130" y="200" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="1230" y="227" text-anchor="middle" fill="var(--ink)" font-size="14">2D/3D 渲染器</text>
+      <rect x="1130" y="260" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="1230" y="287" text-anchor="middle" fill="var(--ink)" font-size="14">回放可视化</text>
+      <rect x="1130" y="320" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="1230" y="347" text-anchor="middle" fill="var(--ink)" font-size="14">人机交互界面</text>
+      <rect x="1130" y="380" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      <text x="1230" y="407" text-anchor="middle" fill="var(--ink)" font-size="14">关卡编辑器</text>
+      <rect x="1130" y="440" width="200" height="44" rx="8" fill="var(--surface2)" stroke="var(--pipeline)" stroke-width="1"/>
+      <text x="1230" y="467" text-anchor="middle" fill="var(--pipeline)" font-size="14" font-weight="600">GDScript / C# / C++</text>
+
+      <!-- Bridge arrow to Godot -->
+      <line x1="1000" y1="350" x2="1100" y2="350" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="1050" y="340" text-anchor="middle" fill="var(--dim)" font-family="var(--mono)" font-size="11">状态同步</text>
+      <polygon points="1095,345 1105,350 1095,355" fill="var(--dim)"/>
+
+      <!-- Bottom label -->
+      <text x="720" y="680" text-anchor="middle" fill="var(--dim)" font-family="var(--mono)" font-size="12">M0: 进程内直连 (零延迟) &nbsp;│&nbsp; M1+: gRPC 分布式桥接</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 8: HARNESS ==================== -->
+<div class="slide" id="s8">
+  <div class="label c-harness" style="margin-bottom:20px;">07 / HARNESS</div>
+  <h2>训练验证层</h2>
+  <div class="grid-2" style="margin-top:40px; flex:1;">
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div class="card" style="border-color:var(--harness);">
+        <h3 class="c-harness" style="margin-bottom:14px;">核心子系统</h3>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:15px;">
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>BuildRunner</span><span style="color:var(--muted);">构建运行器</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>MatchScheduler</span><span style="color:var(--muted);">对局调度器</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>SimulationPool</span><span style="color:var(--muted);">仿真池 (32-64 并发)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>ReplayParser</span><span style="color:var(--muted);">回放解析器</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>MetricsAggregator</span><span style="color:var(--muted);">指标聚合器</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:10px;">
+            <span>ExperimentRegistry</span><span style="color:var(--muted);">实验注册表</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--harness); font-weight:600;">PromotionGate</span><span style="color:var(--muted);">晋升门控</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">A/B 测试流程</h3>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div class="tag" style="background:rgba(0,212,170,0.1); color:var(--simcore);">Shadow</div>
+            <span style="color:var(--muted); font-size:15px;">与固定基线对打</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div class="tag" style="background:rgba(0,163,255,0.1); color:var(--agenthub);">Staging</div>
+            <span style="color:var(--muted); font-size:15px;">扩大对手池和地图池</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div class="tag" style="background:rgba(255,107,61,0.1); color:var(--harness);">Canary</div>
+            <span style="color:var(--muted); font-size:15px;">替换单一 Agent</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:16px;">
+            <div class="tag" style="background:rgba(192,110,255,0.1); color:var(--pipeline);">Promote</div>
+            <span style="color:var(--muted); font-size:15px;">晋升到生产环境</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">质量门控</h3>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:14px;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--muted);">规则一致性</span><span class="mono c-simcore">≥ 99.5%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--muted);">构建稳定性</span><span class="mono c-agenthub">≥ 92%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--muted);">AI 合法性</span><span class="mono c-harness">≤ 0.1% 非法</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--muted);">推理延迟 p95</span><span class="mono">≤ 80ms</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:var(--muted);">泛化能力</span><span class="mono">≤ 10pp 下降</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 9: PIPELINE ==================== -->
+<div class="slide" id="s9">
+  <div class="label c-pipeline" style="margin-bottom:20px;">08 / PIPELINE</div>
+  <h2>工具链层 — 自动化等级</h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:32px; margin-top:40px;">
+    <!-- Automation levels -->
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div style="display:flex; gap:0;">
+        <div style="width:200px; height:48px; background:rgba(0,212,170,0.15); border:1px solid var(--simcore); border-radius:8px 0 0 8px; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:14px; font-weight:600; color:var(--simcore);">L4 闭环</div>
+        <div style="width:200px; height:48px; background:rgba(0,163,255,0.1); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:14px; color:var(--agenthub);">L3 自动回归</div>
+        <div style="width:200px; height:48px; background:rgba(255,107,61,0.08); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:14px; color:var(--harness);">L2 一键构建</div>
+        <div style="width:200px; height:48px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:14px; color:var(--muted);">L1 自动校验</div>
+        <div style="width:200px; height:48px; background:var(--surface2); border:1px solid var(--border); border-radius:0 8px 8px 0; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:14px; color:var(--dim);">L0 手工</div>
+      </div>
+    </div>
+    <!-- Module table -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table class="proto-table" style="font-size:15px;">
+        <thead>
+          <tr><th>模块</th><th>核心功能</th><th>M0</th><th>M1</th><th>M2</th></tr>
+        </thead>
+        <tbody>
+          <tr><td style="font-weight:500;">地图模块</td><td style="color:var(--muted);">地图编译、公平性评分</td><td class="c-simcore" style="font-weight:600;">L2</td><td class="c-agenthub" style="font-weight:600;">L3</td><td class="c-simcore" style="font-weight:600;">L4</td></tr>
+          <tr><td style="font-weight:500;">单位模块</td><td style="color:var(--muted);">单位配置、强弱曲线</td><td class="c-simcore" style="font-weight:600;">L2</td><td class="c-agenthub" style="font-weight:600;">L3</td><td class="c-agenthub" style="font-weight:600;">L3</td></tr>
+          <tr><td style="font-weight:500;">技能模块</td><td style="color:var(--muted);">技能图编译、依赖检查</td><td style="color:var(--dim);">—</td><td class="c-simcore" style="font-weight:600;">L2</td><td class="c-agenthub" style="font-weight:600;">L3</td></tr>
+          <tr><td style="font-weight:500;">构建模块</td><td style="color:var(--muted);">CI/CD、自动测试</td><td class="c-agenthub" style="font-weight:600;">L3</td><td class="c-agenthub" style="font-weight:600;">L3</td><td class="c-simcore" style="font-weight:600;">L4</td></tr>
+          <tr><td style="font-weight:500;">部署模块</td><td style="color:var(--muted);">灰度发布、回滚</td><td style="color:var(--dim);">—</td><td class="c-simcore" style="font-weight:600;">L2</td><td class="c-simcore" style="font-weight:600;">L4</td></tr>
+          <tr><td style="font-weight:500;">数据模块</td><td style="color:var(--muted);">ETL、特征提取</td><td class="c-simcore" style="font-weight:600;">L2</td><td class="c-agenthub" style="font-weight:600;">L3</td><td class="c-simcore" style="font-weight:600;">L4</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- Dev-side agents -->
+    <div style="display:flex; gap:16px;">
+      <div class="tech-badge"><div class="tech-dot" style="background:var(--simcore);"></div>claude-game-studios (Godot 专家)</div>
+      <div class="tech-badge"><div class="tech-dot" style="background:var(--agenthub);"></div>team-simcore · team-ai</div>
+      <div class="tech-badge"><div class="tech-dot" style="background:var(--harness);"></div>balance · replay-analyzer · design-assistant</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 10: DATA FLOW ==================== -->
+<div class="slide" id="s10">
+  <div class="label" style="margin-bottom:20px; color:var(--ink);">09 / DATA FLOW</div>
+  <h2>四层数据流闭环</h2>
+  <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+    <svg width="1100" height="580" viewBox="0 0 1100 580">
+      <!-- Pipeline -->
+      <rect x="60" y="40" width="220" height="100" rx="14" fill="rgba(192,110,255,0.06)" stroke="var(--pipeline)" stroke-width="1.5"/>
+      <text x="170" y="80" text-anchor="middle" fill="var(--pipeline)" font-size="15" font-weight="700">Pipeline</text>
+      <text x="170" y="105" text-anchor="middle" fill="var(--dim)" font-size="12">代码/配置/模型提交</text>
+
+      <!-- Arrow down -->
+      <line x1="170" y1="140" x2="170" y2="180" stroke="var(--pipeline)" stroke-width="1.5" marker-end="url(#arrowP)"/>
+
+      <!-- Harness -->
+      <rect x="60" y="185" width="220" height="100" rx="14" fill="rgba(255,107,61,0.06)" stroke="var(--harness)" stroke-width="1.5"/>
+      <text x="170" y="225" text-anchor="middle" fill="var(--harness)" font-size="15" font-weight="700">Harness</text>
+      <text x="170" y="250" text-anchor="middle" fill="var(--dim)" font-size="12">构建 + Smoke 测试</text>
+
+      <!-- Arrow right -->
+      <line x1="280" y1="235" x2="370" y2="235" stroke="var(--harness)" stroke-width="1.5" marker-end="url(#arrowH)"/>
+
+      <!-- AgentHub -->
+      <rect x="380" y="185" width="240" height="100" rx="14" fill="rgba(0,163,255,0.06)" stroke="var(--agenthub)" stroke-width="1.5"/>
+      <text x="500" y="225" text-anchor="middle" fill="var(--agenthub)" font-size="15" font-weight="700">AgentHub</text>
+      <text x="500" y="250" text-anchor="middle" fill="var(--dim)" font-size="12">MsgHub 编排 + Agent 决策</text>
+
+      <!-- Arrow right -->
+      <line x1="620" y1="235" x2="710" y2="235" stroke="var(--agenthub)" stroke-width="1.5" marker-end="url(#arrowA)"/>
+
+      <!-- SimCore -->
+      <rect x="720" y="185" width="240" height="100" rx="14" fill="rgba(0,212,170,0.06)" stroke="var(--simcore)" stroke-width="1.5"/>
+      <text x="840" y="225" text-anchor="middle" fill="var(--simcore)" font-size="15" font-weight="700">SimCore</text>
+      <text x="840" y="250" text-anchor="middle" fill="var(--dim)" font-size="12">obs/cmd 协议交互</text>
+
+      <!-- Arrow back (SimCore → AgentHub) -->
+      <line x1="840" y1="285" x2="840" y2="340" stroke="var(--simcore)" stroke-width="1.5"/>
+      <line x1="840" y1="340" x2="500" y2="340" stroke="var(--simcore)" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <line x1="500" y1="340" x2="500" y2="285" stroke="var(--simcore)" stroke-width="1.5" marker-end="url(#arrowS)"/>
+      <text x="670" y="335" text-anchor="middle" fill="var(--simcore)" font-family="var(--mono)" font-size="11">obs 回传</text>
+
+      <!-- Arrow down from Harness -->
+      <line x1="170" y1="285" x2="170" y2="380" stroke="var(--harness)" stroke-width="1.5"/>
+
+      <!-- Replay + Metrics -->
+      <rect x="60" y="380" width="220" height="100" rx="14" fill="rgba(255,107,61,0.04)" stroke="var(--border)" stroke-width="1"/>
+      <text x="170" y="415" text-anchor="middle" fill="var(--muted)" font-size="14" font-weight="500">回放 + 指标</text>
+      <text x="170" y="440" text-anchor="middle" fill="var(--dim)" font-size="12">ReplayParser · MetricsAggregator</text>
+
+      <!-- Arrow down -->
+      <line x1="170" y1="480" x2="170" y2="530" stroke="var(--pipeline)" stroke-width="1.5" marker-end="url(#arrowP)"/>
+
+      <!-- Data feedback -->
+      <rect x="60" y="530" width="220" height="40" rx="10" fill="rgba(192,110,255,0.06)" stroke="var(--pipeline)" stroke-width="1"/>
+      <text x="170" y="555" text-anchor="middle" fill="var(--pipeline)" font-size="13" font-weight="600">数据回流 + 反馈 → Pipeline</text>
+
+      <!-- Godot side -->
+      <rect x="720" y="380" width="240" height="100" rx="14" fill="rgba(192,110,255,0.04)" stroke="var(--pipeline)" stroke-width="1" stroke-dasharray="5 3"/>
+      <text x="840" y="415" text-anchor="middle" fill="var(--pipeline)" font-size="14" font-weight="500">Godot 4.4.1</text>
+      <text x="840" y="440" text-anchor="middle" fill="var(--dim)" font-size="12">回放可视化 · 人机交互</text>
+      <line x1="840" y1="285" x2="840" y2="380" stroke="var(--pipeline)" stroke-width="1" stroke-dasharray="4 3"/>
+
+      <!-- Trinity-RFT -->
+      <rect x="380" y="420" width="240" height="80" rx="14" fill="rgba(0,163,255,0.04)" stroke="var(--agenthub)" stroke-width="1" stroke-dasharray="5 3"/>
+      <text x="500" y="455" text-anchor="middle" fill="var(--agenthub)" font-size="14" font-weight="600">Trinity-RFT (M1+)</text>
+      <text x="500" y="478" text-anchor="middle" fill="var(--dim)" font-size="12">RL 训练闭环 · Auto Judge</text>
+      <line x1="500" y1="340" x2="500" y2="420" stroke="var(--agenthub)" stroke-width="1" stroke-dasharray="4 3"/>
+
+      <defs>
+        <marker id="arrowP" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--pipeline)"/></marker>
+        <marker id="arrowH" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--harness)"/></marker>
+        <marker id="arrowA" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--agenthub)"/></marker>
+        <marker id="arrowS" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--simcore)"/></marker>
+      </defs>
+    </svg>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 11: M0 MILESTONE ==================== -->
+<div class="slide" id="s11">
+  <div class="label c-simcore" style="margin-bottom:20px;">10 / M0 MILESTONE</div>
+  <h2>M0 启动阶段 — <span class="c-simcore">6 周闭环</span></h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:32px; margin-top:36px;">
+    <!-- Timeline -->
+    <div class="milestone-track" style="margin-top:10px;">
+      <div class="milestone-node">
+        <div class="milestone-dot active"></div>
+        <div style="font-weight:600; font-size:15px;">Week 1-2</div>
+        <div style="color:var(--muted); font-size:13px; margin-top:6px;">协议与基础</div>
+        <div style="color:var(--dim); font-size:12px; margin-top:4px; font-family:var(--mono);">obs/cmd v1 · Rules · Snapshot · Command Parser</div>
+      </div>
+      <div class="milestone-node">
+        <div class="milestone-dot" style="border-color:var(--accent2); background:var(--accent2); box-shadow:0 0 16px rgba(0,163,255,0.3);"></div>
+        <div style="font-weight:600; font-size:15px;">Week 3-4</div>
+        <div style="color:var(--muted); font-size:13px; margin-top:6px;">SimCore 核心</div>
+        <div style="color:var(--dim); font-size:12px; margin-top:4px; font-family:var(--mono);">2D headless · AI (econ) · AI (combat) · Replay</div>
+      </div>
+      <div class="milestone-node">
+        <div class="milestone-dot" style="border-color:var(--harness); background:var(--harness); box-shadow:0 0 16px rgba(255,107,61,0.3);"></div>
+        <div style="font-weight:600; font-size:15px;">Week 5-6</div>
+        <div style="color:var(--muted); font-size:13px; margin-top:6px;">CI 与数据</div>
+        <div style="color:var(--dim); font-size:12px; margin-top:4px; font-family:var(--mono);">CI/CD · Smoke · Telemetry · Metrics</div>
+      </div>
+    </div>
+
+    <!-- Deliverables + KPIs -->
+    <div class="grid-2" style="flex:1;">
+      <div class="card" style="border-color:var(--simcore);">
+        <h3 class="c-simcore" style="margin-bottom:16px;">核心交付物</h3>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:14px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--simcore); flex-shrink:0;"></div>
+            <span>规则/状态/命令协议 v1</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--simcore); flex-shrink:0;"></div>
+            <span>2D Headless SimCore (Python)</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--pipeline); flex-shrink:0;"></div>
+            <span>Godot 4.4.1 项目初始化</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--agenthub); flex-shrink:0;"></div>
+            <span>基线脚本 AI (经济 + 战斗)</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--harness); flex-shrink:0;"></div>
+            <span>Replay/Telemetry v1</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:8px; height:8px; border-radius:50%; background:var(--dim); flex-shrink:0;"></div>
+            <span>CI/一键构建/冒烟测试</span>
+            <span style="color:var(--dim); font-family:var(--mono); font-size:12px;">P0</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;">验收 KPI</h3>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-value c-simcore">≥ 99.5%</div>
+            <div class="kpi-label">同 seed 回放一致率</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value c-agenthub">≥ 85%</div>
+            <div class="kpi-label">Nightly build 成功率</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value c-harness">≤ 0.5%</div>
+            <div class="kpi-label">AI 非法动作率</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value" style="color:var(--ink);">≥ 99%</div>
+            <div class="kpi-label">回放完整性</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value c-pipeline">32-64</div>
+            <div class="kpi-label">2D 并发仿真局数</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value" style="color:var(--dim);">0</div>
+            <div class="kpi-label">当前代码行数</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 12: TECH STACK ==================== -->
+<div class="slide" id="s12">
+  <div class="label" style="margin-bottom:20px; color:var(--ink);">11 / TECH STACK</div>
+  <h2>技术栈全景</h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:28px; margin-top:40px;">
+    <div class="grid-4">
+      <div class="card" style="border-top:3px solid var(--simcore); padding:24px;">
+        <div class="label c-simcore" style="margin-bottom:12px;">SIMCORE</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:14px;">
+          <div class="mono" style="color:var(--simcore);">Python 3.12+</div>
+          <div style="color:var(--muted);">NumPy · PyTorch</div>
+          <div style="color:var(--muted);">Protobuf + gRPC</div>
+          <div style="color:var(--dim); font-size:13px; margin-top:8px;">确定性 seed 回放<br>32-64 并发仿真</div>
+        </div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--agenthub); padding:24px;">
+        <div class="label c-agenthub" style="margin-bottom:12px;">AGENTHUB</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:14px;">
+          <div class="mono" style="color:var(--agenthub);">AgentScope 2.0+</div>
+          <div style="color:var(--muted);">MsgHub · ReActAgent</div>
+          <div style="color:var(--muted);">Trinity-RFT · Tuner</div>
+          <div style="color:var(--dim); font-size:13px; margin-top:8px;">Apache-2.0 许可<br>狼人杀 9 人局验证</div>
+        </div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--pipeline); padding:24px;">
+        <div class="label c-pipeline" style="margin-bottom:12px;">GODOT 4.4.1</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:14px;">
+          <div class="mono" style="color:var(--pipeline);">GDScript / C# / C++</div>
+          <div style="color:var(--muted);">GDExtension (Rust)</div>
+          <div style="color:var(--muted);">Vulkan / OpenGL</div>
+          <div style="color:var(--dim); font-size:13px; margin-top:8px;">2D 先行 → 3D M2<br>回放可视化 + 人机</div>
+        </div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--harness); padding:24px;">
+        <div class="label c-harness" style="margin-bottom:12px;">HARNESS + PIPE</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:14px;">
+          <div class="mono" style="color:var(--harness);">GitHub Actions</div>
+          <div style="color:var(--muted);">MLflow · Prometheus</div>
+          <div style="color:var(--muted);">Git LFS</div>
+          <div style="color:var(--dim); font-size:13px; margin-top:8px;">A/B 测试四阶段<br>L0→L4 自动化等级</div>
+        </div>
+      </div>
+    </div>
+    <!-- Dev agents -->
+    <div class="card">
+      <h3 style="margin-bottom:14px;">研发侧 Agent 体系</h3>
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--simcore);"></div>godot-specialist</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--simcore);"></div>gdscript-specialist</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--simcore);"></div>gdextension-specialist</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--simcore);"></div>shader-specialist</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--agenthub);"></div>team-simcore</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--agenthub);"></div>team-ai</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--harness);"></div>test-orchestrator</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--harness);"></div>balance-tuner</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--harness);"></div>replay-analyzer</div>
+        <div class="tech-badge"><div class="tech-dot" style="background:var(--harness);"></div>design-assistant</div>
+      </div>
+    </div>
+    <!-- License note -->
+    <div style="font-family:var(--mono); font-size:12px; color:var(--dim); text-align:center;">
+      所有依赖 Apache-2.0 兼容 · AgentScope (Apache-2.0) · Godot (MIT) · Protobuf (BSD-3)
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 13: ROADMAP ==================== -->
+<div class="slide" id="s13">
+  <div class="label" style="margin-bottom:20px; color:var(--ink);">12 / ROADMAP</div>
+  <h2>里程碑路线图</h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:0; margin-top:44px; justify-content:center;">
+    <!-- M0 -->
+    <div style="display:flex; align-items:stretch; gap:0; margin-bottom:4px;">
+      <div style="width:140px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; padding-top:8px;">
+        <div style="width:48px; height:48px; border-radius:50%; background:rgba(0,212,170,0.15); border:2px solid var(--simcore); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; color:var(--simcore);">M0</div>
+        <div style="font-size:13px; color:var(--simcore); margin-top:8px; font-weight:600;">6 周</div>
+        <div style="font-size:12px; color:var(--dim);">STARTUP</div>
+      </div>
+      <div class="layer-block border-simcore glow-simcore" style="flex:1; border-color:var(--simcore); background:rgba(0,212,170,0.04); padding:20px 28px;">
+        <div style="display:flex; gap:40px; font-size:14px; line-height:1.7;">
+          <div>
+            <strong class="c-simcore">Python SimCore 闭环</strong><br>
+            <span style="color:var(--muted);">2D headless · 规则引擎 · 状态快照 · 命令解析 · 回放录制</span>
+          </div>
+          <div>
+            <strong>基线 AI</strong><br>
+            <span style="color:var(--muted);">单体状态机 (采集→生产→进攻→防守)</span>
+          </div>
+          <div>
+            <strong>Godot 初始化</strong><br>
+            <span style="color:var(--muted);">项目结构 · Autoload · Git LFS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- M1 -->
+    <div style="display:flex; align-items:stretch; gap:0; margin-bottom:4px;">
+      <div style="width:140px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; padding-top:8px;">
+        <div style="width:48px; height:48px; border-radius:50%; background:rgba(0,163,255,0.1); border:2px solid var(--agenthub); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; color:var(--agenthub);">M1</div>
+        <div style="font-size:13px; color:var(--agenthub); margin-top:8px; font-weight:600;">10 周</div>
+        <div style="font-size:12px; color:var(--dim);">MULTI-AGENT</div>
+      </div>
+      <div class="layer-block border-agenthub glow-agenthub" style="flex:1; border-color:var(--agenthub); background:rgba(0,163,255,0.04); padding:20px 28px;">
+        <div style="display:flex; gap:40px; font-size:14px; line-height:1.7;">
+          <div>
+            <strong class="c-agenthub">三核心 Agent</strong><br>
+            <span style="color:var(--muted);">Coordinator + Economy + Combat · MsgHub 黑板 · gRPC 分布式</span>
+          </div>
+          <div>
+            <strong>RL 训练启动</strong><br>
+            <span style="color:var(--muted);">Trinity-RFT · PPO 策略梯度 · Auto Judge</span>
+          </div>
+          <div>
+            <strong>技能/部署模块</strong><br>
+            <span style="color:var(--muted);">技能图编译 · 灰度发布</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- M2 -->
+    <div style="display:flex; align-items:stretch; gap:0;">
+      <div style="width:140px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; padding-top:8px;">
+        <div style="width:48px; height:48px; border-radius:50%; background:rgba(192,110,255,0.1); border:2px solid var(--pipeline); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; color:var(--pipeline);">M2</div>
+        <div style="font-size:13px; color:var(--pipeline); margin-top:8px; font-weight:600;">14 周</div>
+        <div style="font-size:12px; color:var(--dim);">PRODUCTIZE</div>
+      </div>
+      <div class="layer-block border-pipeline glow-pipeline" style="flex:1; border-color:var(--pipeline); background:rgba(192,110,255,0.04); padding:20px 28px;">
+        <div style="display:flex; gap:40px; font-size:14px; line-height:1.7;">
+          <div>
+            <strong class="c-pipeline">全 Agent + League</strong><br>
+            <span style="color:var(--muted);">6 Agent 完整拆分 · 自博弈训练 · OOD 泛化评测</span>
+          </div>
+          <div>
+            <strong>3D Godot 产品化</strong><br>
+            <span style="color:var(--muted);">3D 场景 · 模型蒸馏 · 人机对战</span>
+          </div>
+          <div>
+            <strong>闭环自动化</strong><br>
+            <span style="color:var(--muted);">L4 闭环推荐 · 自动修复</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 14: CURRENT STATUS ==================== -->
+<div class="slide" id="s14">
+  <div class="label c-harness" style="margin-bottom:20px;">13 / STATUS</div>
+  <h2>当前进度：设计完成，<span class="c-harness">代码为零</span></h2>
+  <div style="flex:1; display:flex; flex-direction:column; gap:28px; margin-top:40px;">
+    <!-- Progress bars -->
+    <div class="card">
+      <h3 style="margin-bottom:20px;">各维度完成度</h3>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>架构设计</span><span class="mono c-simcore">95%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:95%; height:100%; background:var(--simcore); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>Agent Identity 设计</span><span class="mono c-agenthub">90%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:90%; height:100%; background:var(--agenthub); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>协议设计 (Protobuf)</span><span class="mono c-simcore">85%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:85%; height:100%; background:var(--simcore); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>AgentScope 集成方案</span><span class="mono c-agenthub">80%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:80%; height:100%; background:var(--agenthub); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>SimCore 代码</span><span class="mono" style="color:var(--harness);">0%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:0%; height:100%; background:var(--harness); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>测试覆盖</span><span class="mono" style="color:var(--harness);">0%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:0%; height:100%; background:var(--harness); border-radius:4px;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+            <span>CI/CD 基础设施</span><span class="mono" style="color:var(--harness);">0%</span>
+          </div>
+          <div style="height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+            <div style="width:0%; height:100%; background:var(--harness); border-radius:4px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Summary row -->
+    <div class="grid-3">
+      <div class="kpi-card" style="text-align:center;">
+        <div class="kpi-value" style="color:var(--ink);">~30</div>
+        <div class="kpi-label">文档/配置文件</div>
+      </div>
+      <div class="kpi-card" style="text-align:center;">
+        <div class="kpi-value c-harness">0</div>
+        <div class="kpi-label">源代码文件 (.py .gd .cs)</div>
+      </div>
+      <div class="kpi-card" style="text-align:center;">
+        <div class="kpi-value c-simcore">1</div>
+        <div class="kpi-label">Git Commit</div>
+      </div>
+    </div>
+    <div style="font-family:var(--mono); font-size:13px; color:var(--dim); text-align:center;">
+      总体进度 ~8% &nbsp;│&nbsp; 下一步: 提交未暂存的设计文档 → 启动 SimCore Python 原型
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SLIDE 15: CLOSING ==================== -->
+<div class="slide" id="s15">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="label c-simcore" style="margin-bottom:32px;">RTS AI NATIVE PLATFORM</div>
+    <h1 style="font-size:56px; line-height:1.15;">
+      协议隔离 · 渐进演化<br>
+      <span style="color:var(--accent);">可训练 · 可回放 · 可仿真</span>
+    </h1>
+    <div class="subtitle" style="margin-top:36px; max-width:700px;">
+      从 Python Headless SimCore 出发，经 AgentScope 多 Agent 编排，到 Godot 4.4 产品化<br>
+      每一层独立可测，每一步有质量门控
+    </div>
+    <div style="display:flex; gap:24px; margin-top:56px;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div style="width:56px; height:56px; border-radius:14px; background:rgba(0,212,170,0.1); border:1.5px solid var(--simcore); display:flex; align-items:center; justify-content:center;">
+          <span class="mono c-simcore" style="font-size:20px; font-weight:700;">S</span>
+        </div>
+        <span style="font-size:13px; color:var(--muted);">SimCore</span>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div style="width:56px; height:56px; border-radius:14px; background:rgba(0,163,255,0.1); border:1.5px solid var(--agenthub); display:flex; align-items:center; justify-content:center;">
+          <span class="mono c-agenthub" style="font-size:20px; font-weight:700;">A</span>
+        </div>
+        <span style="font-size:13px; color:var(--muted);">AgentHub</span>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div style="width:56px; height:56px; border-radius:14px; background:rgba(255,107,61,0.1); border:1.5px solid var(--harness); display:flex; align-items:center; justify-content:center;">
+          <span class="mono c-harness" style="font-size:20px; font-weight:700;">H</span>
+        </div>
+        <span style="font-size:13px; color:var(--muted);">Harness</span>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div style="width:56px; height:56px; border-radius:14px; background:rgba(192,110,255,0.1); border:1.5px solid var(--pipeline); display:flex; align-items:center; justify-content:center;">
+          <span class="mono c-pipeline" style="font-size:20px; font-weight:700;">P</span>
+        </div>
+        <span style="font-size:13px; color:var(--muted);">Pipeline</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end #deck -->
+
+<!-- ===== NAVIGATION BAR ===== -->
+<div id="nav">
+  <button id="prevBtn" title="上一页">◀</button>
+  <span id="counter">1 / 15</span>
+  <button id="nextBtn" title="下一页">▶</button>
+</div>
+
+<script>
+(function() {
+  const TOTAL = 15;
+  const deck = document.getElementById('deck');
+  const counter = document.getElementById('counter');
+  let current = parseInt(localStorage.getItem('rts_deck_slide') || '1', 10);
+  if (current < 1 || current > TOTAL) current = 1;
+
+  function showSlide(n) {
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('s' + n);
+    if (target) target.classList.add('active');
+    current = n;
+    counter.textContent = n + ' / ' + TOTAL;
+    localStorage.setItem('rts_deck_slide', n);
+  }
+
+  function go(dir) {
+    const next = current + dir;
+    if (next >= 1 && next <= TOTAL) showSlide(next);
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => go(-1));
+  document.getElementById('nextBtn').addEventListener('click', () => go(1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); showSlide(1); }
+    else if (e.key === 'End') { e.preventDefault(); showSlide(TOTAL); }
+  });
+
+  // Viewport scaling
+  function scaleDeck() {
+    const scaleX = window.innerWidth / 1920;
+    const scaleY = window.innerHeight / 1080;
+    const scale = Math.min(scaleX, scaleY);
+    deck.style.transform = 'scale(' + scale + ')';
+    const offsetX = (window.innerWidth - 1920 * scale) / 2;
+    const offsetY = (window.innerHeight - 1080 * scale) / 2;
+    deck.style.marginLeft = offsetX + 'px';
+    deck.style.marginTop = offsetY + 'px';
+  }
+  scaleDeck();
+  window.addEventListener('resize', scaleDeck);
+
+  showSlide(current);
+})();
+</script>
+</body>
+</html>

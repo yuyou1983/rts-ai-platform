@@ -4,15 +4,18 @@ AI Native RTS 游戏研发平台，由多层 Agent 体系驱动。
 
 ## 技术栈
 
-- **引擎**: Unity ML-Agents (默认) / Unreal (M2 可选)
-- **语言**: C# (Unity) / C++ (Unreal) / Python (训练)
-- **训练框架**: PPO / IMPALA / V-trace
+- **引擎**: Godot 4.4.1 (前端表现 + Dedicated Server) / Python Headless SimCore (训练)
+- **语言**: GDScript (游戏逻辑/场景/UI) / C# (可选) / C++/Rust (GDExtension 性能热点) / Python (训练)
+- **Agent 框架**: [AgentScope](https://github.com/agentscope-ai/agentscope) — 运行时多 Agent 编排 (MsgHub, Pipeline, ReAct)
+- **训练框架**: PPO / IMPALA / V-trace (Python，直连 SimCore)
 - **实验追踪**: MLflow Tracking + Model Registry
-- **版本控制**: Git + Perforce P4 (资产)
+- **版本控制**: Git + Git LFS (资产)
 - **协议**: Protobuf + gRPC
 
 > **Note**: 平台包含运行时 Agent (游戏内决策) 和研发侧 Agent (开发自动化)。
+> 运行时 Agent 使用 AgentScope 框架编排 (MsgHub 广播 + Pipeline 流水线 + ReAct 推理)。
 > 研发侧 Agent 参考 claude-game-studios 的工业级实践：领导层 + 职能专家层 + 编排 skill。
+> 引擎专家使用 Godot 系列 Agent (godot-specialist + 3 个子专家)。
 
 ## 项目结构
 

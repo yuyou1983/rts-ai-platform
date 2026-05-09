@@ -1,0 +1,7 @@
+# Godot
+*.godot.binary linguist-generated
+*.tscn.binary linguist-generated
+# Protobuf generated
+simcore/proto_out/ linguist-generated
+# Godot import files
+godot/.godot/ export-ignore
