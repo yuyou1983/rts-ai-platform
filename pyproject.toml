@@ -42,6 +42,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "simcore/grpc_server.py" = ["N802"]  # protobuf method names must be PascalCase
+"tests/train/test_grpo.py" = ["E501"]  # long entity dict literals
 
 [tool.mypy]
 python_version = "3.11"

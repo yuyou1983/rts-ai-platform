@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import signal
 
-import aiohttp
 from aiohttp import web
 
 from simcore.grpc_client import SimCoreClient
