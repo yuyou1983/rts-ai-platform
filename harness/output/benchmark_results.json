@@ -1,0 +1,2402 @@
+[
+  {
+    "match_id": "mn8G8Wqcvp7BRLc77B8fn2",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16497295908629894,
+    "tps": 6095.1034333446905,
+    "error": null
+  },
+  {
+    "match_id": "iBHFANejKVQBseTJty8UdC",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17318829195573926,
+    "tps": 5777.559629335425,
+    "error": null
+  },
+  {
+    "match_id": "FrKpznYRexTDghXz4G3WqK",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17326524993404746,
+    "tps": 5773.495639867253,
+    "error": null
+  },
+  {
+    "match_id": "KtFadjwQpFpN46w8GdoUeX",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17384695820510387,
+    "tps": 5755.252125633134,
+    "error": null
+  },
+  {
+    "match_id": "hxhKTakuuWaZeFQxpru3DN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16551370825618505,
+    "tps": 6043.733962717242,
+    "error": null
+  },
+  {
+    "match_id": "kywF3TBMcEtWGgB5d5YdYg",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15678133303299546,
+    "tps": 6383.065329736953,
+    "error": null
+  },
+  {
+    "match_id": "jEBRrNWAt4bXfL7pRoifWy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17916179168969393,
+    "tps": 5583.083256312412,
+    "error": null
+  },
+  {
+    "match_id": "NWraxj2Gm6HSdkRP6GqDXn",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16298458306118846,
+    "tps": 6137.856237564941,
+    "error": null
+  },
+  {
+    "match_id": "MYkRuJhFMibSVxdupud6Zf",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17181795788928866,
+    "tps": 5823.981804153071,
+    "error": null
+  },
+  {
+    "match_id": "kyoYDR6mF3vmgvouYevYkr",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17804433405399323,
+    "tps": 5620.4983257343665,
+    "error": null
+  },
+  {
+    "match_id": "DRA9feSp4FFK6DqbyKdtAE",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19741187524050474,
+    "tps": 5068.112261096632,
+    "error": null
+  },
+  {
+    "match_id": "j2GGxoPfWAbLJjUp8qFAYJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14357304200530052,
+    "tps": 6967.967378956805,
+    "error": null
+  },
+  {
+    "match_id": "2syWVUp4ETjjbijXYqHyZd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16582254180684686,
+    "tps": 6032.5683357619555,
+    "error": null
+  },
+  {
+    "match_id": "PSShdSpAPyd9mV2udUJHsg",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17906749993562698,
+    "tps": 5586.272304626891,
+    "error": null
+  },
+  {
+    "match_id": "gJ5MEbRd9BRiuBdrjok4vj",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1912273750640452,
+    "tps": 5232.184742479834,
+    "error": null
+  },
+  {
+    "match_id": "jKu63LUaDVvxPgUQtaZA52",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1698177088983357,
+    "tps": 5890.471117899131,
+    "error": null
+  },
+  {
+    "match_id": "5wY2ENTWy4cVgGroH3JgQB",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18569633271545172,
+    "tps": 5387.033707730553,
+    "error": null
+  },
+  {
+    "match_id": "GnNMxtUzWtUFtrAumLokf5",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17046454222872853,
+    "tps": 5869.972790261711,
+    "error": null
+  },
+  {
+    "match_id": "WqNvqMKbgPURBbWunA2eUa",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18722999980673194,
+    "tps": 5349.265849208261,
+    "error": null
+  },
+  {
+    "match_id": "QvVkcqQsjRtdNntUKpZa6Q",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1531182499602437,
+    "tps": 6535.7679525711765,
+    "error": null
+  },
+  {
+    "match_id": "jc8q9n6bbdK7rBCBT69DtM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18082149978727102,
+    "tps": 5534.353325037865,
+    "error": null
+  },
+  {
+    "match_id": "MJzbupHPuJVeLaz9obTmww",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19390737498179078,
+    "tps": 5158.661079559964,
+    "error": null
+  },
+  {
+    "match_id": "MpJCF6CVKxjtiexhMixH7i",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1759007079526782,
+    "tps": 5686.827823087554,
+    "error": null
+  },
+  {
+    "match_id": "4Rof69RHgNkwgsYhgSjFWe",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16533600026741624,
+    "tps": 6051.879723223381,
+    "error": null
+  },
+  {
+    "match_id": "cndwxHfF79MDxCYEbGg6qx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16191824991255999,
+    "tps": 6178.199349153749,
+    "error": null
+  },
+  {
+    "match_id": "ksMzMGzyvwPpJ6ACk7dg3s",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18113654106855392,
+    "tps": 5523.905623779503,
+    "error": null
+  },
+  {
+    "match_id": "WBEHWTjZreMCdUjVJYaycB",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17282225005328655,
+    "tps": 5789.822228699563,
+    "error": null
+  },
+  {
+    "match_id": "Dd5XpmXfHDdnDn2qWMe6E3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16149512492120266,
+    "tps": 6194.339678621885,
+    "error": null
+  },
+  {
+    "match_id": "bNLisCse5D7uXqZ9jQpqLH",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17779000010341406,
+    "tps": 5627.735170220512,
+    "error": null
+  },
+  {
+    "match_id": "iNronyXTg6ZZTNeSwnkm33",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14784812508150935,
+    "tps": 6766.0505173215115,
+    "error": null
+  },
+  {
+    "match_id": "hzcjM9wYDrgj5X5jE3eY5u",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18509379215538502,
+    "tps": 5404.133498801653,
+    "error": null
+  },
+  {
+    "match_id": "fa8hd33hMDKtdoqRVdchq4",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.201773582957685,
+    "tps": 4957.565325493098,
+    "error": null
+  },
+  {
+    "match_id": "JzsTwdpcPrDDgr68jzGsnL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1737626250833273,
+    "tps": 5758.491752457719,
+    "error": null
+  },
+  {
+    "match_id": "gn6YrfyZrak4y9s4ZTGKHo",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18003758322447538,
+    "tps": 5556.045572753297,
+    "error": null
+  },
+  {
+    "match_id": "8deWzMKE8MrdSnK83J2yUH",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1900689578615129,
+    "tps": 5262.650103594861,
+    "error": null
+  },
+  {
+    "match_id": "6W5M2j9wuVJ8QGMHwu8xAo",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17876216676086187,
+    "tps": 5595.565122728927,
+    "error": null
+  },
+  {
+    "match_id": "PJJF4M4v5ud223BtznBaoJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16442875005304813,
+    "tps": 6083.4527863911735,
+    "error": null
+  },
+  {
+    "match_id": "ZAUomGTBiWEAAMSR3o2GYb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17155687510967255,
+    "tps": 5830.909468034625,
+    "error": null
+  },
+  {
+    "match_id": "YYzh4H9A8LFtHzFBvr5vYt",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17652195924893022,
+    "tps": 5669.352038076561,
+    "error": null
+  },
+  {
+    "match_id": "fSeDjmzcTbBsxGT6h9FWwf",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1948704165406525,
+    "tps": 5134.577274147294,
+    "error": null
+  },
+  {
+    "match_id": "QU7wwchHf4cT8RSh7heuFJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16929245879873633,
+    "tps": 5910.906364502319,
+    "error": null
+  },
+  {
+    "match_id": "EhxBKb2Nzm9AsQc6ET2Kpa",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1489654998295009,
+    "tps": 6719.5419890260455,
+    "error": null
+  },
+  {
+    "match_id": "ctBy3WZrYRoFWAuJnk8P96",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15640745917335153,
+    "tps": 6395.918551468618,
+    "error": null
+  },
+  {
+    "match_id": "azVPDDVr92YjXpG2JfHZyq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15728283300995827,
+    "tps": 6361.888071433618,
+    "error": null
+  },
+  {
+    "match_id": "8DtF4JqhkDs3WPeXuRYwpq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16079441690817475,
+    "tps": 6221.030105736272,
+    "error": null
+  },
+  {
+    "match_id": "AsrQcmcNEscF4k7mxsUCFN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1767206247895956,
+    "tps": 5660.18380869307,
+    "error": null
+  },
+  {
+    "match_id": "kQm4b58YHHLMXTX3DdCcVd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18263175012543797,
+    "tps": 5476.9474305193235,
+    "error": null
+  },
+  {
+    "match_id": "EmoaP78txgaKkNXqGaUhwM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.36901983385905623,
+    "tps": 2710.675695370292,
+    "error": null
+  },
+  {
+    "match_id": "4FwFWFK34knBJzFCDwJqV4",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.23777433298528194,
+    "tps": 4207.709367572333,
+    "error": null
+  },
+  {
+    "match_id": "es7z5RCZi5FsGypWdWddPG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15776929212734103,
+    "tps": 6340.9128226744215,
+    "error": null
+  },
+  {
+    "match_id": "cXQDM63tVs4zgMu9FzNqvQ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.34764745784923434,
+    "tps": 2877.710947805284,
+    "error": null
+  },
+  {
+    "match_id": "jZZqPxXswBsd9ASPQjJgWW",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17093524988740683,
+    "tps": 5852.295393058971,
+    "error": null
+  },
+  {
+    "match_id": "FZSTYURyBiYsNHVPCvNAHb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18623658316209912,
+    "tps": 5372.927042348372,
+    "error": null
+  },
+  {
+    "match_id": "hHKfXRV95VsKEJWw9VQLk7",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1676366669125855,
+    "tps": 5967.162699537952,
+    "error": null
+  },
+  {
+    "match_id": "CWRkUemMjdpEhs98AovfEv",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19152366695925593,
+    "tps": 5222.5559568300605,
+    "error": null
+  },
+  {
+    "match_id": "JyRVFaErXXaSuYaTTzoo7i",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1831867080181837,
+    "tps": 5460.630312731548,
+    "error": null
+  },
+  {
+    "match_id": "5T3DSGwiLd8Tdhwdd7kzAj",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18243162520229816,
+    "tps": 5484.949501952194,
+    "error": null
+  },
+  {
+    "match_id": "AcACqAZkyd5ESBFw3NEj5p",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2112495000474155,
+    "tps": 4736.505253565408,
+    "error": null
+  },
+  {
+    "match_id": "dr5EDGnmwTRJr5jnv4ZQGb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2154649579897523,
+    "tps": 4643.679795879105,
+    "error": null
+  },
+  {
+    "match_id": "4GZ5wsH9biF3WouKDFGFae",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18228437518700957,
+    "tps": 5489.285166065088,
+    "error": null
+  },
+  {
+    "match_id": "UwNvhKDmnaNxdkpoiG2CUW",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2015620837919414,
+    "tps": 4964.062245741569,
+    "error": null
+  },
+  {
+    "match_id": "AMnS3oFCrpWpXUaaHPVnML",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.24081279197707772,
+    "tps": 4153.599407258766,
+    "error": null
+  },
+  {
+    "match_id": "jpV9gv4dPvdtLYZ2aZQjMY",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16146550001576543,
+    "tps": 6195.26711510818,
+    "error": null
+  },
+  {
+    "match_id": "nUCc8cMa9pRcUC28g9ENYP",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18201774964109063,
+    "tps": 5495.354707388417,
+    "error": null
+  },
+  {
+    "match_id": "2KDLWXYqEVRHAvPFpccRqc",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19094616593793035,
+    "tps": 5238.640806424576,
+    "error": null
+  },
+  {
+    "match_id": "jd52nknGVFvGB8n9mqwmoq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17981112515553832,
+    "tps": 5564.758021411652,
+    "error": null
+  },
+  {
+    "match_id": "7XTNABNsERty9ConEAwhsb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16276054084300995,
+    "tps": 6146.07059797063,
+    "error": null
+  },
+  {
+    "match_id": "o5yG6k3GTm28BaHiaUPwPL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17211116710677743,
+    "tps": 5812.0499351749195,
+    "error": null
+  },
+  {
+    "match_id": "YeUs8eAhx5nAbTV2FN2XTj",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1789650828577578,
+    "tps": 5590.281288488143,
+    "error": null
+  },
+  {
+    "match_id": "kGya4BTBbGcNaPhAKiN2eg",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15240674978122115,
+    "tps": 6565.896568935347,
+    "error": null
+  },
+  {
+    "match_id": "Atjhf6QzjAs9ZbSWs5Ck9S",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16202120808884501,
+    "tps": 6174.122576612561,
+    "error": null
+  },
+  {
+    "match_id": "PHybXNQsgBWVLu5pxFYJXV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16237749997526407,
+    "tps": 6160.71142090531,
+    "error": null
+  },
+  {
+    "match_id": "C4mHeTYbjqPcVUWwao59BM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15523162484169006,
+    "tps": 6446.5925057826,
+    "error": null
+  },
+  {
+    "match_id": "5kXaHzPmE96ZNjaemqo9J4",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17410279158502817,
+    "tps": 5750.008314481619,
+    "error": null
+  },
+  {
+    "match_id": "SE7LgSi96Rf4LBV25cGSo3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.23140562511980534,
+    "tps": 4323.426919505389,
+    "error": null
+  },
+  {
+    "match_id": "fc58FPndtmGVkQTjEwXW6p",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17068995907902718,
+    "tps": 5863.085228683688,
+    "error": null
+  },
+  {
+    "match_id": "5aD4rkeCac5xkCEkjNK56A",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18141591595485806,
+    "tps": 5515.368674499421,
+    "error": null
+  },
+  {
+    "match_id": "Rz2QmasLVe7xuqMPmUTdAE",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1799692092463374,
+    "tps": 5558.368188061473,
+    "error": null
+  },
+  {
+    "match_id": "e6xFMNvaQfBydsL5hdcyNp",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1467817910015583,
+    "tps": 6817.67243424135,
+    "error": null
+  },
+  {
+    "match_id": "9TKWzL6JT76EP4tyyLs5XM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.13964729197323322,
+    "tps": 7163.903254871421,
+    "error": null
+  },
+  {
+    "match_id": "L8JKzFfHrJvVAPBKygTuq6",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16154500003904104,
+    "tps": 6194.477153071273,
+    "error": null
+  },
+  {
+    "match_id": "4vdVJawJf46oFVQsHPM6on",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17893716599792242,
+    "tps": 5592.039739172781,
+    "error": null
+  },
+  {
+    "match_id": "kHQmV8DnZsqJnggeDVcFPd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18391233310103416,
+    "tps": 5440.555807866683,
+    "error": null
+  },
+  {
+    "match_id": "mZoGvejcDbWVpNrHw97bdB",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15394641691818833,
+    "tps": 6497.9016912909665,
+    "error": null
+  },
+  {
+    "match_id": "PNCEitFJt67r3YtkrGCsn5",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16242625005543232,
+    "tps": 6158.958088052812,
+    "error": null
+  },
+  {
+    "match_id": "f5RnH2QUTJ8WgnffjnRrHE",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1695524170063436,
+    "tps": 5902.252760953321,
+    "error": null
+  },
+  {
+    "match_id": "2bphKjdKyJEdcxf4ThPNws",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.220832834020257,
+    "tps": 4530.555196689017,
+    "error": null
+  },
+  {
+    "match_id": "8EbPT9Xy2r5hoyHHWkQXnq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1828796248883009,
+    "tps": 5471.426033861401,
+    "error": null
+  },
+  {
+    "match_id": "8dDnaZhUiYrwgELRzGkFo5",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2713905000127852,
+    "tps": 3686.32223039069,
+    "error": null
+  },
+  {
+    "match_id": "cD6RL535oCUnp9777gstDS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.197178749833256,
+    "tps": 5072.840695845026,
+    "error": null
+  },
+  {
+    "match_id": "bK7BSSzBKC3tvGs6o4Abbd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15863604191690683,
+    "tps": 6305.71524813337,
+    "error": null
+  },
+  {
+    "match_id": "PaGUz8Xeu6uP4EF87oUNcb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15778341703116894,
+    "tps": 6339.552800318844,
+    "error": null
+  },
+  {
+    "match_id": "24wfVTcvvF5Pc8qmCHHWKL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17463245801627636,
+    "tps": 5727.931809742193,
+    "error": null
+  },
+  {
+    "match_id": "Fe34RY9tTkUZeAH8cdGFjG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18772795936092734,
+    "tps": 5328.542354589411,
+    "error": null
+  },
+  {
+    "match_id": "jaMfqBJaKqB7xaaaQTciaq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18088408280164003,
+    "tps": 5532.160409019138,
+    "error": null
+  },
+  {
+    "match_id": "SiiLXaenGrYQX5cQb9nVT3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16996229207143188,
+    "tps": 5887.218549436478,
+    "error": null
+  },
+  {
+    "match_id": "ccG5Jq9qLA9Nq8pgNLf3ea",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14235154213383794,
+    "tps": 7027.39661001042,
+    "error": null
+  },
+  {
+    "match_id": "goWQtACqp2oY8NPJQhkYDG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14853379176929593,
+    "tps": 6734.535838002645,
+    "error": null
+  },
+  {
+    "match_id": "WaXexsh5kbJ8WVTyw5urFL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19084895821288228,
+    "tps": 5241.327077706308,
+    "error": null
+  },
+  {
+    "match_id": "AQqpEXPxGETYaz5NA2iboU",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17577216727659106,
+    "tps": 5691.15387813708,
+    "error": null
+  },
+  {
+    "match_id": "e92bFQPfsjfpnCDy6zssMv",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2086360831744969,
+    "tps": 4795.730834032335,
+    "error": null
+  },
+  {
+    "match_id": "CAgPKYRd2GuH8Kg8keGTu9",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2467506672255695,
+    "tps": 4053.5165506312687,
+    "error": null
+  },
+  {
+    "match_id": "fCrypqgDkYymif8V7FtR7Y",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1761117922142148,
+    "tps": 5679.78371769042,
+    "error": null
+  },
+  {
+    "match_id": "4nc9a5mTGL4jAXjo58P36i",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18291562469676137,
+    "tps": 5468.450220570696,
+    "error": null
+  },
+  {
+    "match_id": "VbB3g5oX8w2AGRRx4FFNoz",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17973083397373557,
+    "tps": 5565.5968100861,
+    "error": null
+  },
+  {
+    "match_id": "5HdZbNZisHzDrR8J8S56cb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16038179164752364,
+    "tps": 6239.1156687104585,
+    "error": null
+  },
+  {
+    "match_id": "NdSboeiVs8SaDh8G22y3Qv",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15909412503242493,
+    "tps": 6288.13323740746,
+    "error": null
+  },
+  {
+    "match_id": "QkhAaBHjSZixDnLtWxVKy8",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17098054196685553,
+    "tps": 5851.89868253669,
+    "error": null
+  },
+  {
+    "match_id": "LX5bLPWSCF7kxkhVJgkYMC",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1457230830565095,
+    "tps": 6864.98859621608,
+    "error": null
+  },
+  {
+    "match_id": "fuzJzzt3XSZ8vGwAPqKfFJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1751411659643054,
+    "tps": 5713.153958087903,
+    "error": null
+  },
+  {
+    "match_id": "SbpvYiqqbkCuLPSH8HqLuP",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15754329226911068,
+    "tps": 6349.396187190932,
+    "error": null
+  },
+  {
+    "match_id": "ktuyeCgneP8f97cAPjAp2b",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18989066686481237,
+    "tps": 5267.841168946757,
+    "error": null
+  },
+  {
+    "match_id": "dWoNHGLqQnS3GUYpnfEgtY",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15296175004914403,
+    "tps": 6542.365352305157,
+    "error": null
+  },
+  {
+    "match_id": "2Nk2uWR3Dreiy4RremuNpG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1799286250025034,
+    "tps": 5559.230826059116,
+    "error": null
+  },
+  {
+    "match_id": "nrKnUGzvDdxxbvUYRtYTNB",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17248520907014608,
+    "tps": 5799.3203252845315,
+    "error": null
+  },
+  {
+    "match_id": "VZuRdkdzCZMMzu8fPVd5si",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17005012510344386,
+    "tps": 5884.386523920638,
+    "error": null
+  },
+  {
+    "match_id": "5B4iM8PVQo925YFPwKUhdx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15811116574332118,
+    "tps": 6329.12730566669,
+    "error": null
+  },
+  {
+    "match_id": "JbJobHKYCdsmhzWebgY9Mc",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.26087029092013836,
+    "tps": 3834.9501394915474,
+    "error": null
+  },
+  {
+    "match_id": "3svHHfWUSTwvvkwsmXs6Zz",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16080400021746755,
+    "tps": 6225.372497601155,
+    "error": null
+  },
+  {
+    "match_id": "C8QDPCypZtu7XGBVKUTNaH",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15272975014522672,
+    "tps": 6549.581984958056,
+    "error": null
+  },
+  {
+    "match_id": "AzNKpbkx45cPXvabGdzp56",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17622500006109476,
+    "tps": 5676.163526634468,
+    "error": null
+  },
+  {
+    "match_id": "WrP4KMYEcBnU7yugPiJGo9",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1541860420256853,
+    "tps": 6488.089227674093,
+    "error": null
+  },
+  {
+    "match_id": "7guznxx9zhbmSjgDLrvBNT",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16286091739311814,
+    "tps": 6144.102241935749,
+    "error": null
+  },
+  {
+    "match_id": "VJKteRoNqLNtVCWmTFdfdZ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18138004234060645,
+    "tps": 5514.959319719567,
+    "error": null
+  },
+  {
+    "match_id": "Lre5RvMRpE27QQ53itqzo2",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17694854084402323,
+    "tps": 5653.256128422445,
+    "error": null
+  },
+  {
+    "match_id": "G27veAaMVabtDxWXpYowsk",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17229912523180246,
+    "tps": 5807.451056735221,
+    "error": null
+  },
+  {
+    "match_id": "LWHe2stkhK2At7rZpfDKHR",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17703054193407297,
+    "tps": 5652.207008216279,
+    "error": null
+  },
+  {
+    "match_id": "Vb2FbDRzNbzvXEZJHRUFD6",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17857970809563994,
+    "tps": 5601.353115677344,
+    "error": null
+  },
+  {
+    "match_id": "G25Vzn7e5GVCVfv9NcCZLs",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19564791629090905,
+    "tps": 5113.04406997788,
+    "error": null
+  },
+  {
+    "match_id": "GwBqsn54y6vMqo7Fyqd43q",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20543829072266817,
+    "tps": 4873.988138172695,
+    "error": null
+  },
+  {
+    "match_id": "NBjp4UN5VVjJg3Q67tTUZt",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1662424593232572,
+    "tps": 6017.483788670155,
+    "error": null
+  },
+  {
+    "match_id": "4qn8x3rX3oWNShmufFMki9",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19466479076072574,
+    "tps": 5141.387061265163,
+    "error": null
+  },
+  {
+    "match_id": "XUF8c2cNDoXZuJofJF2Hq7",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18158074980601668,
+    "tps": 5510.742501260667,
+    "error": null
+  },
+  {
+    "match_id": "3ThSjaXa6XREd4dffbJQNC",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19312183372676373,
+    "tps": 5181.857279719886,
+    "error": null
+  },
+  {
+    "match_id": "froviN3tZuuzEzMKQW3fkU",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2676086248829961,
+    "tps": 3737.521938681158,
+    "error": null
+  },
+  {
+    "match_id": "8pauDga6CxWEV26SnzddRt",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16293037496507168,
+    "tps": 6139.9635227636345,
+    "error": null
+  },
+  {
+    "match_id": "imB7uCtSnunLwLtNa7KuP2",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17372095817700028,
+    "tps": 5759.843318623677,
+    "error": null
+  },
+  {
+    "match_id": "8gKHQ9fc5w5S5uuub5PnsV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1828108332119882,
+    "tps": 5471.608169557681,
+    "error": null
+  },
+  {
+    "match_id": "EMDBebfJPhfJDS2w2hU5nk",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.23048250004649162,
+    "tps": 4339.697802402939,
+    "error": null
+  },
+  {
+    "match_id": "C4x2aAXfrxVjkCmU5fEoD4",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15818533301353455,
+    "tps": 6323.854042959164,
+    "error": null
+  },
+  {
+    "match_id": "Yw93DZZDzT6EAF8Y5ZCzs3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15137066692113876,
+    "tps": 6609.205142038301,
+    "error": null
+  },
+  {
+    "match_id": "SCXq95ZkBGWKNfjiCzXBHZ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17888587480410933,
+    "tps": 5593.568518820139,
+    "error": null
+  },
+  {
+    "match_id": "cD55ARDHW3azmiRV6bMgYa",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18549887463450432,
+    "tps": 5392.3520357906045,
+    "error": null
+  },
+  {
+    "match_id": "VYXbSXXU5rayrf6wbg6uJy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17784174997359514,
+    "tps": 5624.737231098386,
+    "error": null
+  },
+  {
+    "match_id": "S5P2dzrkSb36vxF7rzjJNQ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16180620808154345,
+    "tps": 6183.753297077825,
+    "error": null
+  },
+  {
+    "match_id": "KyaDwqoH8Egf3tPbPrhxP2",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15068179136142135,
+    "tps": 6639.123553335942,
+    "error": null
+  },
+  {
+    "match_id": "bkR8rDZan2TwG5LxyPbvvt",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16068320907652378,
+    "tps": 6227.608201043235,
+    "error": null
+  },
+  {
+    "match_id": "n8nbBbDz3sHQN6sZRJkVgh",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17780658323317766,
+    "tps": 5627.447507582293,
+    "error": null
+  },
+  {
+    "match_id": "WPMx9qge2oqjaLRAzCLtoX",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17820529080927372,
+    "tps": 5614.674712369855,
+    "error": null
+  },
+  {
+    "match_id": "LjQkfETq8Z4rrsahnF9Mv6",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15641562500968575,
+    "tps": 6395.250452690394,
+    "error": null
+  },
+  {
+    "match_id": "jfxsdNEvcUVyxVCGZdAe3t",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17739041708409786,
+    "tps": 5639.610533068004,
+    "error": null
+  },
+  {
+    "match_id": "AS49xHo9wNGWHBoAfzsKE7",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15947370789945126,
+    "tps": 6275.226725521875,
+    "error": null
+  },
+  {
+    "match_id": "NwRdy36NdjbSWjqSnY3hJV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16155062522739172,
+    "tps": 6192.218853613496,
+    "error": null
+  },
+  {
+    "match_id": "L2UiXJFWApH7pP3wx9NDhG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20770037500187755,
+    "tps": 4817.218679117508,
+    "error": null
+  },
+  {
+    "match_id": "STFTcgH59ghaaVTPKbkP5h",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.34638904174789786,
+    "tps": 2887.804467359008,
+    "error": null
+  },
+  {
+    "match_id": "XpN92bvHaygq6qpMHVNG8V",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15262716729193926,
+    "tps": 6554.270028495528,
+    "error": null
+  },
+  {
+    "match_id": "bYwhc64LkhLham2pd7iCiN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20543420780450106,
+    "tps": 4871.132152687119,
+    "error": null
+  },
+  {
+    "match_id": "VoYmYxSfiihZtpYxB8gtdw",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16577062476426363,
+    "tps": 6034.270121540736,
+    "error": null
+  },
+  {
+    "match_id": "6DcYT2BqsPMuEWbkKTViAA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1751894587650895,
+    "tps": 5709.833410386759,
+    "error": null
+  },
+  {
+    "match_id": "KMahBQ7X4Dy9wekecAKbBY",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16679720813408494,
+    "tps": 5997.4121200050895,
+    "error": null
+  },
+  {
+    "match_id": "mzjoekGZBkgvRC4sP5hora",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1876876661553979,
+    "tps": 5333.198219649397,
+    "error": null
+  },
+  {
+    "match_id": "ibwFGPai679HgJskwoYMNy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18098533293232322,
+    "tps": 5529.107989875489,
+    "error": null
+  },
+  {
+    "match_id": "M89JfKSB3wstGBcTTfSSVd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15907916612923145,
+    "tps": 6290.8940646589845,
+    "error": null
+  },
+  {
+    "match_id": "EumYz9y2ZSKYhKfUSUMBUi",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16333116590976715,
+    "tps": 6124.440992917392,
+    "error": null
+  },
+  {
+    "match_id": "St3jftwsDjF9h3B4XHnzry",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17454158421605825,
+    "tps": 5730.804087892273,
+    "error": null
+  },
+  {
+    "match_id": "fuitHXSzgEwvvX8LcL6oHg",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17590745771303773,
+    "tps": 5688.99002820142,
+    "error": null
+  },
+  {
+    "match_id": "ZRqLx8gLdBN7N3xTbwnCkh",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1866337084211409,
+    "tps": 5359.411037595293,
+    "error": null
+  },
+  {
+    "match_id": "2xDHLu6M9iHL3cH96AWDdn",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16048229206353426,
+    "tps": 6235.162263733676,
+    "error": null
+  },
+  {
+    "match_id": "a62DprVeUHS9nEh37rKkaW",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17238825000822544,
+    "tps": 5802.515727342144,
+    "error": null
+  },
+  {
+    "match_id": "AtVTY6uVSwwy4nfKqvJJzu",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.159962167032063,
+    "tps": 6253.393760106825,
+    "error": null
+  },
+  {
+    "match_id": "7QnXWJ6rVxMG6Hsq7XFAoj",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1593365417793393,
+    "tps": 6278.321102349551,
+    "error": null
+  },
+  {
+    "match_id": "QkXRu3PeV5CEt2LDBhtWHb",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18022370897233486,
+    "tps": 5552.31800221387,
+    "error": null
+  },
+  {
+    "match_id": "keDoNgNYPGsWK8tuF2Y6oS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17561408318579197,
+    "tps": 5697.622859884923,
+    "error": null
+  },
+  {
+    "match_id": "FkKBJhZFj5ASfxrMXWmw29",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15098941698670387,
+    "tps": 6625.0173963946745,
+    "error": null
+  },
+  {
+    "match_id": "TaL7Hy2cAsyP6RHPuqmX4W",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.22527079237625003,
+    "tps": 4439.9954127210085,
+    "error": null
+  },
+  {
+    "match_id": "2cnVrQhKV9sC2AtLbzKfvN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.3029950843192637,
+    "tps": 3300.954184233154,
+    "error": null
+  },
+  {
+    "match_id": "TNoTSRUiwNS9mrekh98wgk",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17846204107627273,
+    "tps": 5605.612901825498,
+    "error": null
+  },
+  {
+    "match_id": "jgj2ix4wZRazbo6uFz4R4v",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1800563749857247,
+    "tps": 5557.920233032442,
+    "error": null
+  },
+  {
+    "match_id": "Gi4XvCbnoiii9qXdZimHHx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17277683410793543,
+    "tps": 5791.600806876596,
+    "error": null
+  },
+  {
+    "match_id": "5jSwKb668tNeuzhNDGnuDG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18968245759606361,
+    "tps": 5277.333787411123,
+    "error": null
+  },
+  {
+    "match_id": "5pxUWNviPhRW3H9D57gLdc",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14881037501618266,
+    "tps": 6724.755472642195,
+    "error": null
+  },
+  {
+    "match_id": "aDvCcwVRZdbQXtzWNq2viC",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1647712499834597,
+    "tps": 6072.763847741182,
+    "error": null
+  },
+  {
+    "match_id": "9dqFdzZv2sxJXvmin5DzqA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15480120806023479,
+    "tps": 6462.0320708023355,
+    "error": null
+  },
+  {
+    "match_id": "dH4N3K9L7bVrCeZE6RE7aG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1760521251708269,
+    "tps": 5681.67155473169,
+    "error": null
+  },
+  {
+    "match_id": "SSJPw6gN5G5zaS6Gh8CPeN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1682536662556231,
+    "tps": 5945.1647985792315,
+    "error": null
+  },
+  {
+    "match_id": "Z8ww4QoZJD8WbZvHfmstqp",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17738333297893405,
+    "tps": 5639.21830548474,
+    "error": null
+  },
+  {
+    "match_id": "3MfeHkTXw6LsUdbcDCbW8G",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17384100006893277,
+    "tps": 5754.146895193701,
+    "error": null
+  },
+  {
+    "match_id": "ZdKYJTLFgHQbqkm4WGLGnW",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1678911247290671,
+    "tps": 5958.340789639738,
+    "error": null
+  },
+  {
+    "match_id": "kExzcVzvwxdPa4uZMdNpmR",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17799191689118743,
+    "tps": 5621.805693496636,
+    "error": null
+  },
+  {
+    "match_id": "dWVvfCFGPiEvehEoNgPXY3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15925091691315174,
+    "tps": 6283.763795596395,
+    "error": null
+  },
+  {
+    "match_id": "PzHnVDMP3kAUBGnad5QDnS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1767283328808844,
+    "tps": 5662.379201778069,
+    "error": null
+  },
+  {
+    "match_id": "UVhu5NV7F3RdZYdwRgfRzs",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19269037526100874,
+    "tps": 5192.431509330244,
+    "error": null
+  },
+  {
+    "match_id": "PQ37TR8xRycfU64LU94JXh",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15718829166144133,
+    "tps": 6363.807746075695,
+    "error": null
+  },
+  {
+    "match_id": "oYN3mP4oJjCcnweXYFm8Wy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15603216690942645,
+    "tps": 6411.270173886943,
+    "error": null
+  },
+  {
+    "match_id": "NMZTvT7ZdkDRGEc33M7ByS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20351237477734685,
+    "tps": 4915.022331422377,
+    "error": null
+  },
+  {
+    "match_id": "FrK8wxM5NUDMrrVqFVNSuG",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16023999964818358,
+    "tps": 6245.496422577129,
+    "error": null
+  },
+  {
+    "match_id": "8oKp2mEy8pLe8Bwt8dNj2G",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18868916714563966,
+    "tps": 5302.48347426775,
+    "error": null
+  },
+  {
+    "match_id": "MX45hxECkr437p6t6TNwMu",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18187266681343317,
+    "tps": 5500.314329669642,
+    "error": null
+  },
+  {
+    "match_id": "PMSYAN7SGm4WGhMVhXsmXJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1679230839945376,
+    "tps": 5959.962457417999,
+    "error": null
+  },
+  {
+    "match_id": "mFnEYUFzv2mamNFmPxT2aW",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16578737506642938,
+    "tps": 6036.237030933554,
+    "error": null
+  },
+  {
+    "match_id": "QQrBZhuRBHN5yxcPbSoc2X",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16766245802864432,
+    "tps": 5966.13178306703,
+    "error": null
+  },
+  {
+    "match_id": "dKDNdTQhzLSvsiyowW86Vu",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2936228751204908,
+    "tps": 3406.4030427445055,
+    "error": null
+  },
+  {
+    "match_id": "Eij3zeQkk6ChWupzZdSxak",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17423204192891717,
+    "tps": 5742.687410072942,
+    "error": null
+  },
+  {
+    "match_id": "A5iyUE6wkKF9RADJrnuTYy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15557829197496176,
+    "tps": 6430.022167681445,
+    "error": null
+  },
+  {
+    "match_id": "82UFmQS4dgG9UbSYeXDDPD",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1725955419242382,
+    "tps": 5797.388489710568,
+    "error": null
+  },
+  {
+    "match_id": "boWrTbSTifwYiXCaZ6AtrX",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18381808325648308,
+    "tps": 5443.464296840475,
+    "error": null
+  },
+  {
+    "match_id": "n8B7EhyhbZEKXJhjATiDSa",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16206937516108155,
+    "tps": 6174.132144368035,
+    "error": null
+  },
+  {
+    "match_id": "YfXBooT2K7ZSY8oQLYR3eZ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16563220834359527,
+    "tps": 6039.604702148319,
+    "error": null
+  },
+  {
+    "match_id": "7tNqaN3aQZEXYpco7FgCpr",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17191262496635318,
+    "tps": 5821.006932249959,
+    "error": null
+  },
+  {
+    "match_id": "exLah7HGTYVvt9dJeJCwua",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1638071248307824,
+    "tps": 6108.533355829974,
+    "error": null
+  },
+  {
+    "match_id": "YhfQ8CrhKWuSNM45qcyJDa",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19192787492647767,
+    "tps": 5211.758055481394,
+    "error": null
+  },
+  {
+    "match_id": "9kVzU4xxvE4Z9GxDaSy7xS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1674522920511663,
+    "tps": 5973.632361227952,
+    "error": null
+  },
+  {
+    "match_id": "9Ka2XLvbcTC6icn7E8ZmZD",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17031691689044237,
+    "tps": 5873.161751669842,
+    "error": null
+  },
+  {
+    "match_id": "nY5o9R8wm2LGXPvVkBKzMM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15616074996069074,
+    "tps": 6405.9754797675905,
+    "error": null
+  },
+  {
+    "match_id": "AWbQCTLyXQifyrWkzv5WCC",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18248229194432497,
+    "tps": 5483.0636067209325,
+    "error": null
+  },
+  {
+    "match_id": "YqxEXZQnbAgamwJrm4dXhH",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16439887508749962,
+    "tps": 6084.896441556067,
+    "error": null
+  },
+  {
+    "match_id": "NJAJJ4yRJsg2XXyULkDVn2",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15692733321338892,
+    "tps": 6376.6800928057355,
+    "error": null
+  },
+  {
+    "match_id": "YnRcWMTJhU9KGNrEqmhJCL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1867322912439704,
+    "tps": 5356.848695401095,
+    "error": null
+  },
+  {
+    "match_id": "PyeLJDdAvpJoDmujSnzxLA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17084670765325427,
+    "tps": 5856.829773749639,
+    "error": null
+  },
+  {
+    "match_id": "aQuH24jBbjAFr7Ai53Z8Vo",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17030012514442205,
+    "tps": 5873.966675233013,
+    "error": null
+  },
+  {
+    "match_id": "nkHtUB3V2Qxdzrro3CEPbd",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17588987480849028,
+    "tps": 5688.8025819662225,
+    "error": null
+  },
+  {
+    "match_id": "d5hEHjzjz8UPr3fiFXpBnB",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17085941694676876,
+    "tps": 5855.4137294931115,
+    "error": null
+  },
+  {
+    "match_id": "95QDMqCmYuLQYYB2JWQUNx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1489717923104763,
+    "tps": 6719.683074115295,
+    "error": null
+  },
+  {
+    "match_id": "FLUocqpoQq2FBrgfBwLpa3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1643308335915208,
+    "tps": 6087.262437459634,
+    "error": null
+  },
+  {
+    "match_id": "2oCjxT2nNJ9xHsVXTdQU8E",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15534929232671857,
+    "tps": 6439.480006185906,
+    "error": null
+  },
+  {
+    "match_id": "7p3HEWZkpsr38BzEXGGrYV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18356150016188622,
+    "tps": 5451.581776502037,
+    "error": null
+  },
+  {
+    "match_id": "DdKYq4kaNC3CLeDvAzq38v",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15595462499186397,
+    "tps": 6414.0493283246005,
+    "error": null
+  },
+  {
+    "match_id": "S2DuEC4eUZvmeSS44ExY5e",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1994703747332096,
+    "tps": 5014.615521713421,
+    "error": null
+  },
+  {
+    "match_id": "QBNesv3PjWwnn664V6Sn4S",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.35677120788022876,
+    "tps": 2803.8421544626563,
+    "error": null
+  },
+  {
+    "match_id": "K5WXmwFBdd2WgyCRPtjqAy",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16504629189148545,
+    "tps": 6063.12316322673,
+    "error": null
+  },
+  {
+    "match_id": "5JghrUMHDxLjVKuDRfbvYk",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17399454209953547,
+    "tps": 5749.228706651078,
+    "error": null
+  },
+  {
+    "match_id": "nEGgcYMrLfhKPPVdz9qDMJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.22132924990728498,
+    "tps": 4521.069889283155,
+    "error": null
+  },
+  {
+    "match_id": "EyGgmt4oVexfCNhUtpA6uq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.23653608281165361,
+    "tps": 4228.685917250006,
+    "error": null
+  },
+  {
+    "match_id": "8uerBmN5Z9hpyi93VypW3f",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15408008312806487,
+    "tps": 6492.98650074093,
+    "error": null
+  },
+  {
+    "match_id": "g2k9RykJzHHT2pJTESxCmK",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16555795818567276,
+    "tps": 6043.805503752688,
+    "error": null
+  },
+  {
+    "match_id": "hRbe5i8QBS2NwGiUFxK6ij",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16015966702252626,
+    "tps": 6245.636213458108,
+    "error": null
+  },
+  {
+    "match_id": "nnGJQsby2WvKxQkX9r8h5U",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1564475828781724,
+    "tps": 6393.805687475633,
+    "error": null
+  },
+  {
+    "match_id": "HbfsS7N6bwJkJ634MgbTpN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17424291698262095,
+    "tps": 5740.705256263705,
+    "error": null
+  },
+  {
+    "match_id": "kvgP8w9Wj49SYvcL4raqXz",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17275662487372756,
+    "tps": 5790.066674709461,
+    "error": null
+  },
+  {
+    "match_id": "AQUoTzivFLw7pVJD3jdXNx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1759617500938475,
+    "tps": 5684.567614478673,
+    "error": null
+  },
+  {
+    "match_id": "awWgBwK2EqMTzPW525YvfA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1576707921922207,
+    "tps": 6344.196445020252,
+    "error": null
+  },
+  {
+    "match_id": "dXN4Yg7exU5hKpiyFuUwNA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20632379222661257,
+    "tps": 4848.719933157917,
+    "error": null
+  },
+  {
+    "match_id": "fsgkGhcPxjcVDjYJ4mmPEQ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1521485410630703,
+    "tps": 6577.71946227299,
+    "error": null
+  },
+  {
+    "match_id": "ZJJxRh3gurUCnUn3cTybce",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16369833284989,
+    "tps": 6110.642372661872,
+    "error": null
+  },
+  {
+    "match_id": "22YGEDH8abQcrPmfdgGDmV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16554608289152384,
+    "tps": 6042.572941916555,
+    "error": null
+  },
+  {
+    "match_id": "Gst4aGrekLcB5RiVFWkfD8",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18721266696229577,
+    "tps": 5344.404585044776,
+    "error": null
+  },
+  {
+    "match_id": "mXFGnfggLrNZUhfM8payUY",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20757229113951325,
+    "tps": 4819.3554977333715,
+    "error": null
+  },
+  {
+    "match_id": "ZFvBQrW4YkqrCEFF3cg4SF",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1444726251065731,
+    "tps": 6926.610846176577,
+    "error": null
+  },
+  {
+    "match_id": "hYixjeVF9z2PgJR5RXf9ee",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17334483424201608,
+    "tps": 5770.549918408639,
+    "error": null
+  },
+  {
+    "match_id": "oPvKnDpCXzfrN4xyXV6H8C",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1825549160130322,
+    "tps": 5479.298178691401,
+    "error": null
+  },
+  {
+    "match_id": "HFdE4JMSK2YN2sHYXHqVpP",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1837797500193119,
+    "tps": 5442.752005322162,
+    "error": null
+  },
+  {
+    "match_id": "LZanQD8VzcdpGuD97smdFx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14878629194572568,
+    "tps": 6724.126204496654,
+    "error": null
+  },
+  {
+    "match_id": "fE8rpXsrmEdK2usuRAtg9m",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1506657088175416,
+    "tps": 6641.962280029099,
+    "error": null
+  },
+  {
+    "match_id": "JzpCFndk8ViW3jnH82szws",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15931000001728535,
+    "tps": 6279.638597101973,
+    "error": null
+  },
+  {
+    "match_id": "4hZRdptKVx3HfRTpR3Jvdr",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14257220784202218,
+    "tps": 7017.028888728314,
+    "error": null
+  },
+  {
+    "match_id": "RAYzYCdyVysnuZkZt5iNn7",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1625922080129385,
+    "tps": 6154.10020356199,
+    "error": null
+  },
+  {
+    "match_id": "Xed2iNYFfcgvaoaFVhAR3P",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1767197079025209,
+    "tps": 5660.102353721474,
+    "error": null
+  },
+  {
+    "match_id": "Go9wtpphUa3VxJc79RWxYj",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16503516724333167,
+    "tps": 6060.96270236629,
+    "error": null
+  },
+  {
+    "match_id": "FNaMQn7ZTHjEEZgoYfyKgx",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18155383318662643,
+    "tps": 5509.821460464127,
+    "error": null
+  },
+  {
+    "match_id": "ZXdVXawP4NTBshTyEEdj7x",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15364795923233032,
+    "tps": 6512.56493808311,
+    "error": null
+  },
+  {
+    "match_id": "KkbbjdE9E9gdTMSQpSRgvS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1507531674578786,
+    "tps": 6635.815645706288,
+    "error": null
+  },
+  {
+    "match_id": "bcwmZjnQUuaxEPf4dn6ARM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.3533432502299547,
+    "tps": 2830.934140674353,
+    "error": null
+  },
+  {
+    "match_id": "PhdbMABSExXw5efYsTMN3f",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17087379191070795,
+    "tps": 5853.812737615156,
+    "error": null
+  },
+  {
+    "match_id": "VYo4DRbhnkSjuyz8HhXjTM",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16219712514430285,
+    "tps": 6167.276585050111,
+    "error": null
+  },
+  {
+    "match_id": "ncVfFDsMsM3ctRWsVvkAxg",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.48598199989646673,
+    "tps": 2057.9866904353817,
+    "error": null
+  },
+  {
+    "match_id": "PLstKAtL2dUUrCwhcNsnUk",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.25002441741526127,
+    "tps": 4002.360051741861,
+    "error": null
+  },
+  {
+    "match_id": "QNid9aWVsyUPaJMiAwjGDN",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18586183292791247,
+    "tps": 5382.272540993072,
+    "error": null
+  },
+  {
+    "match_id": "72SKpLd9dpdTsj42geNsuf",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.21151458378881216,
+    "tps": 4730.754045640592,
+    "error": null
+  },
+  {
+    "match_id": "QohDnghMVH8Qa7HucnqPft",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16105283377692103,
+    "tps": 6213.309129857926,
+    "error": null
+  },
+  {
+    "match_id": "U4ur6xD7QxwqgCcpKA7F5G",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.20640754234045744,
+    "tps": 4847.22162927792,
+    "error": null
+  },
+  {
+    "match_id": "KkdPeQvrpC4hWTkD8y5Q9k",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1634427923709154,
+    "tps": 6120.651805614724,
+    "error": null
+  },
+  {
+    "match_id": "c9S4LVPgWd7yvHRZ7ngwWs",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.19131029210984707,
+    "tps": 5230.344361139491,
+    "error": null
+  },
+  {
+    "match_id": "XcrgAyTfcVRbnn5aG6nazS",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17445237515494227,
+    "tps": 5735.762042187218,
+    "error": null
+  },
+  {
+    "match_id": "765UgURXYquVLTiyBfPwdu",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17270329175516963,
+    "tps": 5792.819806813559,
+    "error": null
+  },
+  {
+    "match_id": "bGGuBoDsmmnSCapdG8EFFh",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15900479210540652,
+    "tps": 6293.442810394728,
+    "error": null
+  },
+  {
+    "match_id": "D7YDie7MuZxjQny4DeNjfA",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1853892500512302,
+    "tps": 5397.298515785391,
+    "error": null
+  },
+  {
+    "match_id": "55mhBy4jsLpcWgHjP7BLDe",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18767599994316697,
+    "tps": 5329.868912842836,
+    "error": null
+  },
+  {
+    "match_id": "7J7U9usDTUXaAbMmN8b4S3",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18487858306616545,
+    "tps": 5457.540913113244,
+    "error": null
+  },
+  {
+    "match_id": "XCGjeYYxLnFPg5s3ZmSdFV",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1872910838574171,
+    "tps": 5343.623958254132,
+    "error": null
+  },
+  {
+    "match_id": "j4rKGLvLMmKz4MjX4rkct9",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15490329219028354,
+    "tps": 6460.214356387828,
+    "error": null
+  },
+  {
+    "match_id": "FNseiaDcHVd8C9y2XT25va",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17629212513566017,
+    "tps": 5674.231025130527,
+    "error": null
+  },
+  {
+    "match_id": "9rZBhLSSPiicm9qGUQgCxH",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.14702158328145742,
+    "tps": 6804.047977740116,
+    "error": null
+  },
+  {
+    "match_id": "NCj97Tp5hXFxwwPoDxeH4m",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.21173237496986985,
+    "tps": 4724.240200547779,
+    "error": null
+  },
+  {
+    "match_id": "DdsHosFMg3xrawdWBwuAhL",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17190566705539823,
+    "tps": 5821.189053668722,
+    "error": null
+  },
+  {
+    "match_id": "BV8L9i4UTU5NsPt94S47bq",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1612903750501573,
+    "tps": 6204.189147790654,
+    "error": null
+  },
+  {
+    "match_id": "Tqbk8gHUaukdviR4RoM4q5",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18340908270329237,
+    "tps": 5454.204567454512,
+    "error": null
+  },
+  {
+    "match_id": "FSqgBPJN3PkXTC9s2Ujinw",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.16442658426240087,
+    "tps": 6087.690166431431,
+    "error": null
+  },
+  {
+    "match_id": "fymR2MeQL6oSCVdjWgczHs",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1877492913044989,
+    "tps": 5329.3185808664275,
+    "error": null
+  },
+  {
+    "match_id": "V6LijjgUmfzr8Xsz8DK3xE",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.194623582996428,
+    "tps": 5139.759706039215,
+    "error": null
+  },
+  {
+    "match_id": "k5yDZ2Vqk88U6dmbTqkEeJ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.1920227501541376,
+    "tps": 5210.887883601948,
+    "error": null
+  },
+  {
+    "match_id": "bUkDgfzCZBAQTxcDwY4FFm",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18504933407530189,
+    "tps": 5405.751192152792,
+    "error": null
+  },
+  {
+    "match_id": "4eYGJg2K9bMZSuV2oXrgiv",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15238604182377458,
+    "tps": 6567.520787072608,
+    "error": null
+  },
+  {
+    "match_id": "dJEHAB6MzFE9FWDQHgwwjZ",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.15450833272188902,
+    "tps": 6474.285048905464,
+    "error": null
+  },
+  {
+    "match_id": "ENRZoChgxVezdZ99Uko77Q",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18802662519738078,
+    "tps": 5320.045058535941,
+    "error": null
+  },
+  {
+    "match_id": "JDsgwosgdSV9iiMtBC6F8P",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17991395806893706,
+    "tps": 5563.2668683376405,
+    "error": null
+  },
+  {
+    "match_id": "FzduKse7wzGG2sZHmDhZe4",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.18819808308035135,
+    "tps": 5316.564889551069,
+    "error": null
+  },
+  {
+    "match_id": "YrPmKrRehsuqyeGeCDpRUY",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.4422797919251025,
+    "tps": 2261.2833784881805,
+    "error": null
+  },
+  {
+    "match_id": "RY9u7iEXJAzRoJhGjjhpKT",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.22986791701987386,
+    "tps": 4351.3442079349115,
+    "error": null
+  },
+  {
+    "match_id": "6e4nFvbLvTzAW9JWruhzPu",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.2043534591794014,
+    "tps": 4896.176572934293,
+    "error": null
+  },
+  {
+    "match_id": "QvVxZkQ6EzyYwchRfKt2AX",
+    "winner": 0,
+    "ticks": 1000,
+    "elapsed": 0.17903424985706806,
+    "tps": 5587.33351863388,
+    "error": null
+  }
+]
