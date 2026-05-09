@@ -8,6 +8,11 @@ extends Node2D
 ##   scout    = blue    diamond (8×8)
 ##   building = gray    rect    (24×24 for base, 16×16 for barracks)
 ##   resource = green   circle  (radius 4)
+##
+## Controls:
+##   Left-click  → select unit (highlight green border)
+##   Right-click → move selected units to cursor
+##   WASD        → scroll camera
 
 const GrpcBridge := preload("res://scripts/grpc_bridge.gd")
 
@@ -20,6 +25,9 @@ var _bridge: GrpcBridge
 var _game_tick: int = 0
 var _entity_sprites: Dictionary = {}  # entity_id → Sprite2D
 var _cell_size: int = 16  # pixels per world unit
+
+# Selection state
+var _selected_ids: PackedStringArray = []
 
 
 func _ready() -> void:
@@ -46,10 +54,61 @@ func _input(event: InputEvent) -> void:
 	if Input.is_action_pressed("move_camera_right"):
 		_camera.position.x += speed * get_process_delta_time()
 
-	# Right-click sends move command to selected units
+	# Left-click: select unit
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var click_pos := _camera.get_global_mouse_position()
+		_try_select_at(click_pos)
+
+	# Right-click: move selected units
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		var target := _camera.get_global_mouse_position()
-		_bridge.submit_command({"action": "move", "target_x": target.x, "target_y": target.y})
+		if _selected_ids.is_empty():
+			return
+		var target := _camera.get_global_mouse_position() / _cell_size
+		var commands: Array = []
+		for uid in _selected_ids:
+			commands.append({
+				"action": "move",
+				"issuer": 1,
+				"unit_id": uid,
+				"target_x": target.x,
+				"target_y": target.y,
+			})
+		_bridge.submit_commands(commands)
+		print("[GameView] Sent move command for %d units to (%.1f, %.1f)" % [_selected_ids.size(), target.x, target.y])
+
+
+func _try_select_at(world_pos: Vector2) -> void:
+	"""Try to select an entity near the click position."""
+	var best_id := ""
+	var best_dist := 12.0  # pixel threshold
+	for eid in _entity_sprites:
+		var sprite: Sprite2D = _entity_sprites[eid]
+		var dist := world_pos.distance_to(sprite.position)
+		if dist < best_dist:
+			best_dist = dist
+			best_id = eid
+
+	if best_id != "":
+		# Toggle selection
+		if best_id in _selected_ids:
+			_selected_ids.remove_at(_selected_ids.find(best_id))
+		else:
+			_selected_ids.append(best_id)
+	else:
+		# Click on empty → deselect all
+		_selected_ids.clear()
+
+	_update_selection_highlights()
+
+
+func _update_selection_highlights() -> void:
+	"""Green border for selected units."""
+	for eid in _entity_sprites:
+		var sprite: Sprite2D = _entity_sprites[eid]
+		if eid in _selected_ids:
+			sprite.modulate = Color(0.5, 1.0, 0.5)  # bright green tint
+		else:
+			sprite.modulate = Color.WHITE  # reset
 
 
 # ─── Signal handlers ──────────────────────────────────────────
@@ -87,6 +146,7 @@ func _render_entities(state: Dictionary) -> void:
 		if eid not in alive_ids:
 			_entity_sprites[eid].queue_free()
 			_entity_sprites.erase(eid)
+			_selected_ids.remove_at(_selected_ids.find(eid)) if eid in _selected_ids else null
 
 	# Create or update sprites for each entity
 	for eid in alive_ids:
@@ -96,21 +156,30 @@ func _render_entities(state: Dictionary) -> void:
 		var owner: int = e.get("owner", 0)
 
 		if eid not in _entity_sprites:
-			var sprite := _create_entity_sprite(eid, etype, owner)
+			var sprite := _create_entity_sprite(eid, e)
 			_map_container.add_child(sprite)
 			_entity_sprites[eid] = sprite
 
 		var sprite: Sprite2D = _entity_sprites[eid]
 		sprite.position = pos
-		# Update health bar (modulate alpha based on health ratio)
+		# Health-based alpha (dimmer when damaged)
 		var health_ratio: float = float(e.get("health", 1)) / max(float(e.get("max_health", 1)), 1.0)
-		sprite.modulate.a = clampf(0.3 + 0.7 * health_ratio, 0.3, 1.0)
+		if eid not in _selected_ids:
+			sprite.modulate.a = clampf(0.3 + 0.7 * health_ratio, 0.3, 1.0)
+
+	# Refresh selection highlights after render
+	_update_selection_highlights()
 
 
-func _create_entity_sprite(eid: String, etype: String, owner: int) -> Sprite2D:
-	"""Create a colored sprite for the given entity type and owner."""
+func _create_entity_sprite(eid: String, e: Dictionary) -> Sprite2D:
+	"""Create a colored sprite for the given entity."""
 	var sprite := Sprite2D.new()
 	sprite.name = eid
+
+	var etype: String = e.get("entity_type", "")
+	var owner: int = e.get("owner", 0)
+	var building_type: String = e.get("building_type", "")
+	var unit_type: String = e.get("unit_type", "")
 
 	# Owner colors: P1=cyan, P2=magenta, Neutral=white
 	var color := Color.CYAN if owner == 1 else Color.MAGENTA if owner == 2 else Color.WHITE
@@ -118,26 +187,30 @@ func _create_entity_sprite(eid: String, etype: String, owner: int) -> Sprite2D:
 	var img := Image.create_empty(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color.TRANSPARENT)
 
-	match etype:
+	# Pick shape by entity type
+	var shape_type := etype
+	if etype == "unit" and unit_type != "":
+		shape_type = unit_type
+	elif etype == "building" and building_type != "":
+		shape_type = building_type
+
+	match shape_type:
 		"worker":
-			# Yellow square 8×8 centered
 			var sc := Color.YELLOW if owner != 0 else Color.GREEN
 			img.fill_rect(Rect2i(4, 4, 8, 8), sc)
 		"soldier":
-			# Red circle radius 6
 			var sc := Color.RED if owner != 0 else Color.GRAY
 			_draw_circle_on_image(img, 8, 8, 6, sc)
 		"scout":
-			# Blue diamond
 			var sc := Color.BLUE if owner != 0 else Color.WHITE
 			_draw_diamond_on_image(img, 8, 8, 6, sc)
-		"building":
-			# Gray rectangle — base=24×24, barracks=16×16
-			var sz := 24 if _is_base(eid) else 16
-			var offset := (16 - sz) / 2
-			img.fill_rect(Rect2i(offset, offset, sz, sz), Color.GRAY)
+		"base":
+			img.fill_rect(Rect2i(0, 0, 16, 16), Color.GRAY)
+			img.fill_rect(Rect2i(2, 2, 12, 12), color)
+		"barracks":
+			img.fill_rect(Rect2i(2, 2, 12, 12), Color.GRAY)
+			img.fill_rect(Rect2i(4, 4, 8, 8), color)
 		"resource":
-			# Green circle radius 4
 			_draw_circle_on_image(img, 8, 8, 4, Color.GREEN)
 		_:
 			img.fill_rect(Rect2i(4, 4, 8, 8), color)
@@ -147,24 +220,19 @@ func _create_entity_sprite(eid: String, etype: String, owner: int) -> Sprite2D:
 	return sprite
 
 
-func _is_base(eid: String) -> bool:
-	"""Check if this entity ID looks like a base (heuristic)."""
-	return "base" in eid
-
-
 # ─── Image drawing helpers ───────────────────────────────────
 
 func _draw_circle_on_image(img: Image, cx: int, cy: int, r: int, color: Color) -> void:
-	for x in range(max(cx - r, 0), min(cx + r + 1, 16)):
-		for y in range(max(cy - r, 0), min(cy + r + 1, 16)):
+	for x in range(maxi(cx - r, 0), mini(cx + r + 1, 16)):
+		for y in range(maxi(cy - r, 0), mini(cy + r + 1, 16)):
 			if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r:
 				img.set_pixel(x, y, color)
 
 
-func _draw_diamond_on_image(img: Image, cx: int, cy: int, r: int, color: Color) -> void:
-	for x in range(max(cx - r, 0), min(cx + r + 1, 16)):
-		for y in range(max(cy - r, 0), min(cy + r + 1, 16)):
-			if abs(x - cx) + abs(y - cy) <= r:
+func _draw_diamond_on_image(img: Image, cx: int, cy: int, r: int, color: Color)-> void:
+	for x in range(maxi(cx - r, 0), mini(cx + r + 1, 16)):
+		for y in range(maxi(cy - r, 0), mini(cy + r + 1, 16)):
+			if absi(x - cx) + absi(y - cy) <= r:
 				img.set_pixel(x, y, color)
 
 

@@ -37,8 +37,12 @@ message EntityState {
   float  carry_amount  = 12;
 
   // Building-specific
+  string building_type = 17;
   bool   is_constructing = 13;
   repeated string production_queue = 14;
+
+  // Unit-specific (subtype)
+  string unit_type = 18;
 
   // Resource-specific
   string resource_type = 15;

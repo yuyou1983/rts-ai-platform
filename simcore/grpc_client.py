@@ -106,6 +106,8 @@ class SimCoreClient:
             entities[e.id] = {
                 "owner": e.owner,
                 "entity_type": e.entity_type,
+                "building_type": e.building_type,
+                "unit_type": e.unit_type,
                 "pos_x": e.pos_x,
                 "pos_y": e.pos_y,
                 "health": e.health,

@@ -28,21 +28,24 @@ async def main() -> None:
     method = sys.argv[2]
     params = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
 
-    async with SimCoreClient(address) as client:
-        if method == "start_game":
-            result = await client.start_game(
-                seed=params.get("seed", 42),
-                max_ticks=params.get("max_ticks", 10000),
-                tick_rate=params.get("tick_rate", 20.0),
-            )
-        elif method == "step":
-            result = await client.step(commands=params.get("commands", []))
-        elif method == "get_state":
-            result = await client.get_state()
-        elif method == "health":
-            result = await client.health()
-        else:
-            result = {"error": f"unknown method: {method}"}
+    try:
+        async with SimCoreClient(address) as client:
+            if method == "start_game":
+                result = await client.start_game(
+                    seed=params.get("seed", 42),
+                    max_ticks=params.get("max_ticks", 10000),
+                    tick_rate=params.get("tick_rate", 20.0),
+                )
+            elif method == "step":
+                result = await client.step(commands=params.get("commands", []))
+            elif method == "get_state":
+                result = await client.get_state()
+            elif method == "health":
+                result = await client.health()
+            else:
+                result = {"error": f"unknown method: {method}"}
+    except Exception as e:
+        result = {"error": str(e), "method": method}
 
     print(json.dumps(result, default=str))
 

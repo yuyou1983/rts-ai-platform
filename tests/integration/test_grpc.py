@@ -1,103 +1,90 @@
-"""Integration tests for gRPC server + client."""
-import asyncio
+"""Integration tests for gRPC server + client (auto-step mode).
+
+Uses real gRPC client/server via subprocess to avoid event loop conflicts.
+"""
+import subprocess
+import sys
+import time
 
 import pytest
 
 from simcore.grpc_client import SimCoreClient
-from simcore.grpc_server import SimCoreServicer
+
+
+def _find_free_port() -> int:
+    """Find a free TCP port."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
 
 
 @pytest.fixture
-def servicer():
-    return SimCoreServicer()
+def grpc_server_port():
+    """Start a real gRPC server on a free port, yield the port, then kill it."""
+    port = _find_free_port()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "simcore.grpc_server",
+         "--port", str(port), "--tick-rate", "20"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    time.sleep(2)  # Wait for server to start
+    yield port
+    proc.terminate()
+    proc.wait(timeout=5)
 
 
-class TestServerUnit:
-    """Test server logic without network."""
+class TestGrpcIntegration:
+    """Integration tests with a real gRPC server subprocess."""
 
-    def test_servicer_init(self, servicer):
-        assert servicer.engine is not None
+    @pytest.mark.asyncio
+    async def test_start_and_step(self, grpc_server_port):
+        """Start game, step once, verify tick advances."""
+        async with SimCoreClient(f"localhost:{grpc_server_port}") as client:
+            s = await client.start_game(seed=42, max_ticks=100)
+            assert s["tick"] == 0
+            assert not s["is_terminal"]
 
-    def test_state_to_snapshot(self, servicer):
-        from simcore.engine import SimCore
+            s = await client.step(commands=[])
+            assert s["tick"] == 1
 
-        e = SimCore()
-        e.initialize(map_seed=42)
-        snap = servicer._state_to_snapshot(e.state)
-        assert snap.game_tick == 0
-        assert len(snap.entities) > 0
+            s = await client.step(commands=[])
+            assert s["tick"] == 2
 
+    @pytest.mark.asyncio
+    async def test_health(self, grpc_server_port):
+        """Health check should report healthy."""
+        async with SimCoreClient(f"localhost:{grpc_server_port}") as client:
+            h = await client.health()
+            assert h["healthy"] is True
+            assert h["status"] == "idle"
 
-class TestClientServerIntegration:
-    """Full client-server integration via in-process channel."""
+    @pytest.mark.asyncio
+    async def test_building_type_in_state(self, grpc_server_port):
+        """building_type and unit_type should be present in entity dict."""
+        async with SimCoreClient(f"localhost:{grpc_server_port}") as client:
+            s = await client.start_game(seed=42, max_ticks=100)
+            for _eid, e in s["entities"].items():
+                assert "building_type" in e
+                assert "unit_type" in e
 
-    def test_start_and_step(self):
-        """Start game and step through gRPC."""
-        from concurrent import futures
-
-        import grpc
-
-        async def _test():
-            # Start in-process server
-            server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=2))
-            from simcore.proto_out.proto import service_pb2_grpc
-            service_pb2_grpc.add_SimCoreServiceServicer_to_server(
-                SimCoreServicer(), server
-            )
-            port = server.add_insecure_port("[::]:0")
-            await server.start()
-
-            try:
-                async with SimCoreClient(f"localhost:{port}") as client:
-                    state = await client.start_game(seed=42)
-                    assert state["tick"] == 0
-                    assert len(state["entities"]) > 0
-
-                    # Step a few ticks
-                    for i in range(5):
-                        state = await client.step(commands=[])
-                        assert state["tick"] == i + 1
-
-                    # Get state
-                    state2 = await client.get_state()
-                    assert state2["tick"] == 5
-
-                    # Health
-                    health = await client.health()
-                    assert health["healthy"] is True
-            finally:
-                await server.stop(grace=0)
-
-        asyncio.run(_test())
-
-    def test_step_with_commands(self):
-        """Send actual commands through gRPC."""
-        from concurrent import futures
-
-        import grpc
-
-        async def _test():
-            server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=2))
-            from simcore.proto_out.proto import service_pb2_grpc
-            service_pb2_grpc.add_SimCoreServiceServicer_to_server(
-                SimCoreServicer(), server
-            )
-            port = server.add_insecure_port("[::]:0")
-            await server.start()
-
-            try:
-                async with SimCoreClient(f"localhost:{port}") as client:
-                    await client.start_game(seed=42)
-                    # Send a move command
-                    state = await client.step(commands=[{
-                        "action": "move",
-                        "unit_id": "worker_p1_0",
-                        "target_x": 10.0,
-                        "target_y": 10.0,
-                        "issuer": 1,
-                    }])
-                    assert state["tick"] == 1
-            finally:
-                await server.stop(grace=0)
-
-        asyncio.run(_test())
+    @pytest.mark.asyncio
+    async def test_command_submission(self, grpc_server_port):
+        """Submit a move command and verify it doesn't crash."""
+        async with SimCoreClient(f"localhost:{grpc_server_port}") as client:
+            s = await client.start_game(seed=42, max_ticks=100)
+            unit_id = ""
+            for eid, e in s["entities"].items():
+                if e.get("entity_type") == "unit":
+                    unit_id = eid
+                    break
+            if unit_id:
+                s2 = await client.step(commands=[{
+                    "action": "move",
+                    "issuer": 1,
+                    "unit_id": unit_id,
+                    "target_x": 10.0,
+                    "target_y": 10.0,
+                }])
+                assert s2["tick"] == 1

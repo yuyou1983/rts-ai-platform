@@ -61,6 +61,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["harness", "."]
 addopts = "-q -n 4"
+asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests",
