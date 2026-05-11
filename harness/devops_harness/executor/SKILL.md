@@ -408,7 +408,7 @@ Resume from the last successful checkpoint:
 
 ### Bundled scripts may have Python 3.11 syntax issues
 
-`scripts/compile_trajectory.py` (line 232 in the original HiClaw distribution) uses a **nested f-string with bracket access** (`f"...{pp["name"]}..."`) which is a `SyntaxError` in Python 3.11 and earlier. Python 3.12+ supports it, but Hermes targets 3.11+.
+`scripts/compile_trajectory.py` (line 232 in the original DevKCClaw distribution) uses a **nested f-string with bracket access** (`f"...{pp["name"]}..."`) which is a `SyntaxError` in Python 3.11 and earlier. Python 3.12+ supports it, but Hermes targets 3.11+.
 
 **Fix**: Extract inner expressions to a local variable before the f-string:
 ```python
@@ -420,14 +420,14 @@ param_placeholders = " ".join(f"<{pp['name']}>" for pp in params)
 lines.append(f'{p["name"].upper()}="${{{i+1}:?Usage: {slug}.sh {param_placeholders}}}"')
 ```
 
-If you re-install or update this skill from the HiClaw marketplace, re-verify **all** bundled scripts' syntax with:
+If you re-install or update this skill from the DevKCClaw marketplace, re-verify **all** bundled scripts' syntax with:
 ```bash
 for f in scripts/*.py; do python3 -c "import ast; ast.parse(open('$f').read())" || echo "FAIL: $f"; done
 ```
 
-### HiClaw marketplace CLI may fail — use direct API
+### DevKCClaw marketplace CLI may fail — use direct API
 
-The official CLI (`npx @nacos-group/cli skill-get`) tries HTTP port 8848, but the public marketplace only exposes HTTPS 443. Use the Nacos v3 client API directly instead — see `references/hiclaw-marketplace-api.md` in the `harness-creator` skill for full instructions.
+The official CLI (`npx @nacos-group/cli skill-get`) tries HTTP port 8848, but the public marketplace only exposes HTTPS 443. Use the Nacos v3 client API directly instead — see `references/devkcclaw-marketplace-api.md` in the `harness-creator` skill for full instructions.
 
 ### Hermes venv may lack system packages (grpcio, numpy, etc.)
 

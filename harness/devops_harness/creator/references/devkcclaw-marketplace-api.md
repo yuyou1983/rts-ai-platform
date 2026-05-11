@@ -1,9 +1,9 @@
-# HiClaw Marketplace API — Direct Download Workaround
+# DevKCClaw Marketplace API — Direct Download Workaround
 
 ## Problem
 
-The official HiClaw CLI (`npx @nacos-group/cli skill-get`) attempts to connect
-to Nacos via HTTP on port 8848. The public marketplace at `market.hiclaw.io`
+The official DevKCClaw CLI (`npx @nacos-group/cli skill-get`) attempts to connect
+to Nacos via HTTP on port 8848. The public marketplace at `market.devkcclaw.io`
 only exposes HTTPS on port 443, so the CLI fails with a connection error:
 
 ```
@@ -17,7 +17,7 @@ files directly, with **no authentication required**:
 
 ```bash
 # Download a skill by name
-curl -sL 'https://market.hiclaw.io/nacos/v3/client/ai/skills?name=<skill-name>&namespaceId=public' \
+curl -sL 'https://market.devkcclaw.io/nacos/v3/client/ai/skills?name=<skill-name>&namespaceId=public' \
   -o /tmp/<skill-name>.zip
 
 # Extract
@@ -36,7 +36,7 @@ cd /tmp/<skill-name> && unzip -q /tmp/<skill-name>.zip
 Paired skills share the same `nacosId` — harness-creator generates the
 infrastructure, harness-executor runs tasks against it.
 
-## Skill Structure (HiClaw Format)
+## Skill Structure (DevKCClaw Format)
 
 ```
 <skill-name>/
@@ -56,8 +56,8 @@ entire directory to `~/.hermes/skills/<category>/<skill-name>/`.
 
 ```bash
 # 1. Download
-curl -sL 'https://market.hiclaw.io/nacos/v3/client/ai/skills?name=harness-creator&namespaceId=public' -o /tmp/harness-creator.zip
-curl -sL 'https://market.hiclaw.io/nacos/v3/client/ai/skills?name=harness-executor&namespaceId=public' -o /tmp/harness-executor.zip
+curl -sL 'https://market.devkcclaw.io/nacos/v3/client/ai/skills?name=harness-creator&namespaceId=public' -o /tmp/harness-creator.zip
+curl -sL 'https://market.devkcclaw.io/nacos/v3/client/ai/skills?name=harness-executor&namespaceId=public' -o /tmp/harness-executor.zip
 
 # 2. Extract
 mkdir -p /tmp/harness-creator && cd /tmp/harness-creator && unzip -q /tmp/harness-creator.zip

@@ -501,7 +501,7 @@ Atomic, well-documented tools > complex agent choreography. Don't over-engineer.
 |------|-------------|----------|
 | `references/greenfield-templates.md` | Empty projects (Phase 2.3) | Complete Go/TS/Python scaffolding |
 | `references/greenfield-templates-rts.md` | Empty RTS game projects (Phase 2.3) | Multi-language RTS scaffolding (Python SimCore + GDScript Godot + Protobuf) |
-| `references/hiclaw-marketplace-api.md` | Installing/updating HiClaw skills | Direct Nacos v3 API download workaround when CLI fails | | Phase 4 doc creation | Doc templates with numbered sections |
+| `references/devkcclaw-marketplace-api.md` | Installing/updating DevKCClaw skills | Direct Nacos v3 API download workaround when CLI fails | | Phase 4 doc creation | Doc templates with numbered sections |
 | `references/linter-templates.md` | Phase 4 linter creation | Linter code templates per language |
 | `references/environment-detection-guide.md` | Phase 2 env analysis | Environment ecosystem detection |
 | `references/environment-config-guide.md` | Phase 4 config creation | Startup, services, env vars, AskUserQuestion templates |
