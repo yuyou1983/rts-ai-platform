@@ -12,9 +12,9 @@ from google.protobuf.internal import builder as _builder
 _sym_db = _symbol_database.Default()
 
 
-from . import obs_pb2 as proto_dot_obs__pb2
-from . import cmd_pb2 as proto_dot_cmd__pb2
-from . import state_pb2 as proto_dot_state__pb2
+from simcore.proto_out.proto import obs_pb2 as proto_dot_obs__pb2
+from simcore.proto_out.proto import cmd_pb2 as proto_dot_cmd__pb2
+from simcore.proto_out.proto import state_pb2 as proto_dot_state__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13proto/service.proto\x12\x0brts.service\x1a\x0fproto/obs.proto\x1a\x0fproto/cmd.proto\x1a\x11proto/state.proto\"9\n\x10StartGameRequest\x12%\n\x06\x63onfig\x18\x01 \x01(\x0b\x32\x15.rts.state.GameConfig\"\x11\n\x0fGetStateRequest\"%\n\x10GetReplayRequest\x12\x11\n\tfrom_tick\x18\x01 \x01(\x05\"\x0f\n\rHealthRequest\"D\n\x0eHealthResponse\x12\x0f\n\x07healthy\x18\x01 \x01(\x08\x12\x11\n\tgame_tick\x18\x02 \x01(\x05\x12\x0e\n\x06status\x18\x03 \x01(\t2\xee\x02\n\x0eSimCoreService\x12H\n\tStartGame\x12\x1d.rts.service.StartGameRequest\x1a\x1c.rts.state.GameStateSnapshot\x12;\n\x04Step\x12\x15.rts.cmd.CommandBatch\x1a\x1c.rts.state.GameStateSnapshot\x12\x46\n\x08GetState\x12\x1c.rts.service.GetStateRequest\x1a\x1c.rts.state.GameStateSnapshot\x12J\n\tGetReplay\x12\x1d.rts.service.GetReplayRequest\x1a\x1c.rts.state.GameStateSnapshot0\x01\x12\x41\n\x06Health\x12\x1a.rts.service.HealthRequest\x1a\x1b.rts.service.HealthResponseb\x06proto3')

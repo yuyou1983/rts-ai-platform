@@ -65,13 +65,12 @@ class TestRewardShaping:
         env = gym.make("rts-ai-v0", seed=42, reward_shaping="shaped")
         env.reset()
         rewards = []
-        for _ in range(100):
+        # 300 steps ensures ScriptAI P2 builds units and gathers resources,
+        # triggering non-zero shaped reward for P1. 100 steps was flaky.
+        for _ in range(300):
             _, reward, _, _, _ = env.step(env.action_space.sample())
             rewards.append(reward)
-        # Over 100 steps: ScriptAI P2 builds units → military advantage
-        # causes negative reward for P1; or P1 resource gain if random
-        # actions happen to gather.
-        assert any(abs(r) > 0 for r in rewards), f"All rewards zero in 100 steps: {rewards[:15]}"
+        assert any(abs(r) > 0 for r in rewards), f"All rewards zero in 300 steps: {rewards[:15]}"
         env.close()
 
 

@@ -116,6 +116,14 @@ class SimCoreClient:
                 "attack": e.attack,
                 "attack_range": e.attack_range,
                 "is_idle": e.is_idle,
+                "carry_amount": e.carry_amount,
+                "is_constructing": e.is_constructing,
+                "resource_type": e.resource_type,
+                "resource_amount": e.resource_amount,
+                "production_queue": list(e.production_queue),
+                "attack_target_id": e.attack_target_id,
+                "target_x": e.target_x,
+                "target_y": e.target_y,
             }
         return {
             "tick": snapshot.game_tick,
@@ -123,4 +131,16 @@ class SimCoreClient:
             "winner": snapshot.winner,
             "entities": entities,
             "resources": dict(snapshot.resources),
+            "fog_of_war": {
+                "1": {
+                    "tiles": list(snapshot.fog_p1.tiles),
+                    "width": snapshot.fog_p1.width,
+                    "height": snapshot.fog_p1.height,
+                },
+                "2": {
+                    "tiles": list(snapshot.fog_p2.tiles),
+                    "width": snapshot.fog_p2.width,
+                    "height": snapshot.fog_p2.height,
+                },
+            },
         }

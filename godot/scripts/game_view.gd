@@ -1,370 +1,811 @@
 extends Node2D
 
-## Game view — renders SimCore state, relays player commands via HTTP gateway.
-##
-## Entity rendering:
-##   worker   = yellow  square  (8x8)
-##   soldier  = red     circle  (radius 6)
-##   scout    = blue    diamond (8x8)
-##   building = gray    rect    (24x24 for base, 16x16 for barracks)
-##   resource = green   circle  (radius 4)
+## RTS Game View — Full interactive RTS prototype.
 ##
 ## Controls:
-##   Left-click      → select unit (highlight green border)
-##   Left-drag       → box-select units
-##   Right-click     → move selected units to cursor
-##   WASD            → scroll camera
-##   Shift+click     → add to selection
+##   WASD / Arrow keys     Move camera
+##   Left click / drag     Select units
+##   Shift+click           Add to selection
+##   Right click           Context action (move / attack / gather)
+##   B + right click       Build barracks (with worker selected)
+##   T                     Train worker/soldier (with building selected)
+##   Esc                   Deselect all
 ##
-## Minimap:
-##   Bottom-right corner, 150x112 px
-##   Shows all entity dots color-coded by owner
+## Architecture: Camera2D FIXED_TOP_LEFT + manual cam_offset. No canvas jitter.
 
-const GrpcBridge := preload("res://scripts/grpc_bridge.gd")
+const GrpcBridgeScript := preload("res://scripts/grpc_bridge.gd")
 
-@onready var _tick_label: Label = %TickLabel if has_node("%TickLabel") else $HUD/TopBar/TickLabel
-@onready var _resource_label: Label = %ResourceLabel if has_node("%ResourceLabel") else $HUD/TopBar/ResourceLabel
-@onready var _map_container: Node2D = $MapContainer
+# ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
-@onready var _minimap: ColorRect = $HUD/Minimap
-@onready var _select_rect_node: ColorRect = $HUD/SelectRect
+var _cell: float = 16.0
+var _map_w: float = 64.0
+var _map_h: float = 64.0
 
-var _bridge: GrpcBridge
-var _game_tick: int = 0
-var _entity_sprites: Dictionary = {}  # entity_id → Sprite2D
-var _health_bars: Dictionary = {}    # entity_id → ColorRect (health bar bg+fg)
-var _cell_size: int = 16  # pixels per world unit
+# ─── State ─────────────────────────────────────────────────
+var _bridge
+var _frame: int = 0
+var _default_font: Font
+var _analysis_written := false
 
-# Selection state
-var _selected_ids: PackedStringArray = []
-var _drag_start: Vector2 = Vector2.ZERO
-var _is_dragging: bool = false
+# Entity cache — richer than before
+var _ents: Array = []           # [{id, owner, type, px, py, health, max_health, building_type, resource_type, resource_amount, is_idle, carry_amount, carry_cap, attack_range, attack}, ...]
+var _selected: Dictionary = {}
 
-# Map bounds (for minimap & camera clamping)
-var _map_width: float = 64.0
-var _map_height: float = 64.0
+# Damage floaters — visual feedback for combat
+var _dmg_floats: Array = []    # [{id, x, y, amount, ttl}]
+var _prev_hp: Dictionary = {}  # {entity_id: hp} last tick
 
+# ─── Drag-select ───────────────────────────────────────────
+var _dragging := false
+var _drag_start := Vector2.ZERO
+var _drag_end := Vector2.ZERO
+const SELECT_RADIUS := 20.0
 
+# ─── Camera ────────────────────────────────────────────────
+var _cam_speed := 500.0
+
+# ─── Build mode ────────────────────────────────────────────
+var _build_mode := false        # True when B is held
+
+# ─── Game state ───────────────────────────────────────────
+var _game_active := false
+var _game_over_shown := false
+
+# ─── Fog of war ───────────────────────────────────────────
+var _fog_tiles: PackedInt32Array = []
+var _fog_w: int = 0
+var _fog_h: int = 0
+
+# ─── Jitter monitor ───────────────────────────────────────
+var _jitter_count: int = 0
+var _total_jitter_px: float = 0.0
+
+# ───────────────────────────────────────────────────────────
 func _ready() -> void:
-	_bridge = GrpcBridge.new()
+	_default_font = ThemeDB.fallback_font
+	_camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	_camera.position_smoothing_enabled = false
+
+	_bridge = GrpcBridgeScript.new()
+	_bridge.ai_player = 2  # P2 = AI
 	add_child(_bridge)
-	_bridge.game_started.connect(_on_game_started)
-	_bridge.state_updated.connect(_on_state_updated)
+	_bridge.game_started.connect(_on_start)
+	_bridge.state_updated.connect(_on_state)
+	_bridge.game_over.connect(_on_game_over)
 	_bridge.start_game(42)
-	_select_rect_node.visible = false
-	_select_rect_node.color = Color(0.2, 0.8, 0.2, 0.3)
+	_game_active = true
+	print("===== GameView ready (Human P1 vs AI P2) path=", get_path())
 
-
+# ───────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
-	pass  # GrpcBridge handles polling via its timer
+	_frame += 1
+	_move_camera()
+	_monitor_canvas_transform()
+	_build_mode = Input.is_key_pressed(KEY_B)
+	# Decay damage floaters
+	for f in _dmg_floats:
+		f.ttl -= 1
+		f.y -= 0.5  # float upward
+	_dmg_floats = _dmg_floats.filter(func(f): return f.ttl > 0)
+	queue_redraw()
+	if _frame == 30 and not _analysis_written:
+		_analysis_written = true
+		_write_analysis()
+	# Game over key handling
+	if _game_over_shown:
+		if Input.is_key_pressed(KEY_R):
+			_restart_game()
+		elif Input.is_key_pressed(KEY_Q):
+			get_tree().quit()
 
-
-func _input(event: InputEvent) -> void:
-	# Camera scroll with WASD
-	var speed := 500.0
+# ─── Camera ────────────────────────────────────────────────
+func _move_camera() -> void:
+	var dt := get_process_delta_time()
 	if Input.is_action_pressed("move_camera_up"):
-		_camera.position.y -= speed * get_process_delta_time()
+		_camera.position.y -= _cam_speed * dt
 	if Input.is_action_pressed("move_camera_down"):
-		_camera.position.y += speed * get_process_delta_time()
+		_camera.position.y += _cam_speed * dt
 	if Input.is_action_pressed("move_camera_left"):
-		_camera.position.x -= speed * get_process_delta_time()
+		_camera.position.x -= _cam_speed * dt
 	if Input.is_action_pressed("move_camera_right"):
-		_camera.position.x += speed * get_process_delta_time()
-	# Clamp camera
-	_camera.position.x = clampf(_camera.position.x, 0, _map_width * _cell_size)
-	_camera.position.y = clampf(_camera.position.y, 0, _map_height * _cell_size)
+		_camera.position.x += _cam_speed * dt
+	var vp := get_viewport().get_visible_rect().size
+	_camera.position.x = clampf(_camera.position.x, 0, maxf(0, _map_w * _cell - vp.x))
+	_camera.position.y = clampf(_camera.position.y, 0, maxf(0, _map_h * _cell - vp.y))
 
-	# Left-click: start drag or select
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			_drag_start = _camera.get_global_mouse_position()
-			_is_dragging = true
-		elif _is_dragging:
-			_is_dragging = false
-			_select_rect_node.visible = false
-			var drag_end := _camera.get_global_mouse_position()
-			var rect := Rect2(_drag_start, drag_end - _drag_start).abs()
-			if rect.size.length() < 6.0:
-				# Single click select
-				if not Input.is_key_pressed(KEY_SHIFT):
-					_selected_ids.clear()
-				_try_select_at(_drag_start)
-			else:
-				# Box select
-				if not Input.is_key_pressed(KEY_SHIFT):
-					_selected_ids.clear()
-				_select_in_rect(rect)
-			_update_selection_highlights()
+func _cam_offset() -> Vector2:
+	return -_camera.position
 
-	# Right-click: move selected units
+func _screen_to_world(sp: Vector2) -> Vector2:
+	return sp + _camera.position
+
+func _world_to_screen(wp: Vector2) -> Vector2:
+	return wp - _camera.position
+
+# ─── Entity helpers ────────────────────────────────────────
+func _ent_at_world_pos(wp: Vector2, radius: float = SELECT_RADIUS) -> Dictionary:
+	for e in _ents:
+		if wp.distance_to(Vector2(e.px, e.py)) < radius:
+			return e
+	return {}
+
+func _ents_in_world_rect(rect: Rect2) -> Array:
+	var result: Array = []
+	for e in _ents:
+		if rect.has_point(Vector2(e.px, e.py)):
+			result.append(e)
+	return result
+
+func _is_own_combat(e: Dictionary) -> bool:
+	return e.owner == 1 and e.type in ["worker", "soldier", "scout"]
+
+func _is_own_building(e: Dictionary) -> bool:
+	return e.owner == 1 and e.type == "building"
+
+func _find_nearest_enemy(from_px: float, from_py: float) -> Dictionary:
+	var best: Dictionary = {}
+	var best_dist: float = 999999.0
+	for e in _ents:
+		if e.owner == 2 and e.type != "resource":
+			var d: float = Vector2(from_px, from_py).distance_to(Vector2(e.px, e.py))
+			if d < best_dist:
+				best_dist = d
+				best = e
+	return best
+
+# ─── Input ─────────────────────────────────────────────────
+func _input(event: InputEvent) -> void:
+	if _game_over_shown:
+		return  # Only R/Q handled in _process
+	# Right-click: context action
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		if _selected_ids.is_empty():
+		_handle_right_click()
+		return
+
+	# Left-click: check minimap first, then selection
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var mpos := get_viewport().get_mouse_position()
+		if _is_minimap_click(mpos):
+			_handle_minimap_click(mpos)
 			return
-		var target := _camera.get_global_mouse_position() / _cell_size
-		var commands: Array = []
-		for uid in _selected_ids:
-			commands.append({
-				"action": "move",
+		_dragging = true
+		_drag_start = mpos
+		_drag_end = mpos
+		return
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		if _dragging:
+			_dragging = false
+			if _drag_start.distance_to(_drag_end) < 5.0:
+				_handle_single_click()
+			else:
+				_handle_drag_select()
+		return
+
+	if event is InputEventMouseMotion and _dragging:
+		_drag_end = get_viewport().get_mouse_position()
+
+	# Keyboard shortcuts
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_T:
+			_handle_train()
+		elif event.keycode == KEY_ESCAPE:
+			_selected.clear()
+
+func _handle_right_click() -> void:
+	if _selected.is_empty():
+		return
+
+	var world_pos := _screen_to_world(get_viewport().get_mouse_position())
+	var tgt_world := world_pos / _cell
+	var clicked_ent := _ent_at_world_pos(world_pos, SELECT_RADIUS * 3.0)
+	var cmds: Array = []
+
+	# Determine action type
+	var action := "move"  # default
+	var workers_selected := false
+	var buildings_selected := false
+	var combat_selected := false
+
+	for uid in _selected:
+		var e = _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+		if e.type == "worker":
+			workers_selected = true
+			combat_selected = true
+		elif e.type in ["soldier", "scout"]:
+			combat_selected = true
+		elif e.type == "building":
+			buildings_selected = true
+
+	# Smart context:
+	# 1. Clicked enemy → attack
+	# 2. Clicked own resource → gather (workers only)
+	# 3. Build mode + workers → build
+	# 4. Combat units + right-click empty ground → attack-move (find nearest enemy)
+	# 5. Otherwise → move
+	if not clicked_ent.is_empty():
+		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
+			action = "attack"
+		elif clicked_ent.type == "resource" and workers_selected:
+			action = "gather"
+		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
+			action = "move"  # move near own building
+	elif combat_selected and not workers_selected:
+		# Right-click on empty ground with combat units → attack nearest enemy
+		action = "attack_nearest"
+
+	if _build_mode and workers_selected:
+		action = "build"
+
+	# Generate commands per selected unit
+	for uid in _selected:
+		var e = _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+
+		match action:
+			"attack":
+				if _is_own_combat(e):
+					cmds.append({
+						"action": "attack",
+						"attacker_id": uid,
+						"target_id": clicked_ent.id,
+						"issuer": 1,
+					})
+			"attack_nearest":
+				if _is_own_combat(e):
+					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
+					if not nearest_enemy.is_empty():
+						cmds.append({
+							"action": "attack",
+							"attacker_id": uid,
+							"target_id": nearest_enemy.id,
+							"issuer": 1,
+						})
+					else:
+						cmds.append({
+							"action": "move",
+							"unit_id": uid,
+							"target_x": tgt_world.x,
+							"target_y": tgt_world.y,
+							"issuer": 1,
+						})
+			"gather":
+				if e.type == "worker":
+					cmds.append({
+						"action": "gather",
+						"worker_id": uid,
+						"resource_id": clicked_ent.id,
+						"issuer": 1,
+					})
+			"build":
+				if e.type == "worker":
+					cmds.append({
+						"action": "build",
+						"builder_id": uid,
+						"building_type": "barracks",
+						"pos_x": tgt_world.x,
+						"pos_y": tgt_world.y,
+						"issuer": 1,
+					})
+			"move":
+				if e.type in ["worker", "soldier", "scout"]:
+					cmds.append({
+						"action": "move",
+						"unit_id": uid,
+						"target_x": tgt_world.x,
+						"target_y": tgt_world.y,
+						"issuer": 1,
+					})
+
+	if cmds.size() > 0:
+		_bridge.submit_commands(cmds)
+
+func _handle_single_click() -> void:
+	var wp := _screen_to_world(_drag_start)
+	var clicked_ent := _ent_at_world_pos(wp)
+	if clicked_ent.is_empty():
+		if not Input.is_key_pressed(KEY_SHIFT):
+			_selected.clear()
+		return
+
+	if not Input.is_key_pressed(KEY_SHIFT):
+		_selected.clear()
+	_selected[clicked_ent.id] = true
+
+func _handle_drag_select() -> void:
+	var tl := _screen_to_world(Vector2(minf(_drag_start.x, _drag_end.x), minf(_drag_start.y, _drag_end.y)))
+	var br := _screen_to_world(Vector2(maxf(_drag_start.x, _drag_end.x), maxf(_drag_start.y, _drag_end.y)))
+	var rect := Rect2(tl, br - tl)
+
+	if not Input.is_key_pressed(KEY_SHIFT):
+		_selected.clear()
+	var selected_ents := _ents_in_world_rect(rect)
+	for e in selected_ents:
+		if e.owner == 1:  # Only select own units
+			_selected[e.id] = true
+
+func _handle_train() -> void:
+	# Train from selected buildings
+	var cmds: Array = []
+	for uid in _selected:
+		var e = _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+		if e.type == "building" and e.owner == 1:
+			# Base → worker, Barracks → soldier
+			var utype := "worker" if e.building_type == "base" else "soldier"
+			cmds.append({
+				"action": "train",
+				"building_id": uid,
+				"unit_type": utype,
 				"issuer": 1,
-				"unit_id": uid,
-				"target_x": target.x,
-				"target_y": target.y,
 			})
-		_bridge.submit_commands(commands)
+	if cmds.size() > 0:
+		_bridge.submit_commands(cmds)
 
-	# Drag selection rect visual
-	if event is InputEventMouseMotion and _is_dragging:
-		var drag_current := _camera.get_global_mouse_position()
-		var rect := Rect2(_drag_start, drag_current - _drag_start).abs()
-		_select_rect_node.visible = true
-		_select_rect_node.position = rect.position
-		_select_rect_node.size = rect.size
+func _get_ent_by_id(eid: String) -> Dictionary:
+	for e in _ents:
+		if e.id == eid:
+			return e
+	return {}
 
+# ─── Bridge callbacks ─────────────────────────────────────
+func _on_start(state: Dictionary) -> void:
+	_map_w = float(state.get("map_width", 64))
+	_map_h = float(state.get("map_height", 64))
+	_parse(state)
+	_camera.position = Vector2(10, 10) * _cell
 
-func _try_select_at(world_pos: Vector2) -> void:
-	var best_id := ""
-	var best_dist := 12.0
-	for eid in _entity_sprites:
-		var sprite: Sprite2D = _entity_sprites[eid]
-		var dist := world_pos.distance_to(sprite.position)
-		if dist < best_dist:
-			best_dist = dist
-			best_id = eid
-	if best_id != "":
-		if best_id not in _selected_ids:
-			_selected_ids.append(best_id)
-	else:
-		_selected_ids.clear()
+func _on_state(state: Dictionary) -> void:
+	_parse(state)
 
+func _on_game_over(winner: int, tick: int) -> void:
+	_game_active = false
+	_game_over_shown = true
+	print("===== GAME OVER: P%d wins at tick %d" % [winner, tick])
 
-func _select_in_rect(rect: Rect2) -> void:
-	for eid in _entity_sprites:
-		var sprite: Sprite2D = _entity_sprites[eid]
-		if rect.has_point(sprite.position):
-			# Only select player-owned units
-			var meta = sprite.get_meta("owner", 0)
-			if meta == 1 and eid not in _selected_ids:
-				_selected_ids.append(eid)
+func _restart_game() -> void:
+	_game_over_shown = false
+	_game_active = true
+	_selected.clear()
+	_bridge._pending_commands.clear()
+	_ents.clear()
+	var new_seed := randi() % 100000
+	_bridge.start_game(new_seed)
 
-
-func _update_selection_highlights() -> void:
-	for eid in _entity_sprites:
-		var sprite: Sprite2D = _entity_sprites[eid]
-		if eid in _selected_ids:
-			sprite.modulate = Color(0.5, 1.0, 0.5)
-		else:
-			sprite.modulate = Color.WHITE
-
-
-# ─── Signal handlers ──────────────────────────────────────────
-
-func _on_game_started(initial_state: Dictionary) -> void:
-	_game_tick = 0
-	# Parse map size from state
-	_map_width = float(initial_state.get("map_width", 64))
-	_map_height = float(initial_state.get("map_height", 64))
-	_render_entities(initial_state)
-	_draw_minimap(initial_state)
-
-
-func _on_state_updated(state: Dictionary) -> void:
-	_game_tick = state.get("tick", _game_tick)
-	_update_hud(state)
-	_render_entities(state)
-	_draw_minimap(state)
-
-
-# ─── HUD ─────────────────────────────────────────────────────
-
-func _update_hud(state: Dictionary) -> void:
-	if _tick_label:
-		_tick_label.text = "Tick: %d" % _game_tick
-	if _resource_label:
-		var res: Dictionary = state.get("resources", {})
-		_resource_label.text = "Mineral: %d | Gas: %d" % [res.get("p1_mineral", 0), res.get("p1_gas", 0)]
-
-
-# ─── Entity rendering ────────────────────────────────────────
-
-func _render_entities(state: Dictionary) -> void:
+func _parse(state: Dictionary) -> void:
+	_ents.clear()
 	var entities: Dictionary = state.get("entities", {})
-	var alive_ids: Array = entities.keys()
-
-	# Remove sprites for dead entities
-	for eid in _entity_sprites.keys():
-		if eid not in alive_ids:
-			_entity_sprites[eid].queue_free()
-			_entity_sprites.erase(eid)
-			if eid in _health_bars:
-				_health_bars[eid].queue_free()
-				_health_bars.erase(eid)
-			if eid in _selected_ids:
-				_selected_ids.remove_at(_selected_ids.find(eid))
-
-	# Create or update sprites
-	for eid in alive_ids:
-		var e: Dictionary = entities[eid]
-		var pos := Vector2(e.get("pos_x", 0.0), e.get("pos_y", 0.0)) * _cell_size
-		var etype: String = e.get("entity_type", "")
-		var owner: int = e.get("owner", 0)
-		var health: float = float(e.get("health", 1))
-		var max_health: float = float(e.get("max_health", 1))
-
-		if eid not in _entity_sprites:
-			var sprite := _create_entity_sprite(eid, e)
-			_map_container.add_child(sprite)
-			_entity_sprites[eid] = sprite
-			# Health bar
-			var bar := _create_health_bar(max_health)
-			_map_container.add_child(bar)
-			_health_bars[eid] = bar
-
-		var sprite: Sprite2D = _entity_sprites[eid]
-		sprite.position = pos
-
-		# Update health bar
-		if eid in _health_bars:
-			var bar: ColorRect = _health_bars[eid]
-			bar.position = pos + Vector2(-8, -10)
-			var fg: ColorRect = bar.get_child(0) as ColorRect
-			if fg and max_health > 0:
-				fg.size.x = 16.0 * (health / max_health)
-				fg.modulate = Color.GREEN if health > max_health * 0.5 else Color.YELLOW if health > max_health * 0.25 else Color.RED
-
-		# Dim damaged entities
-		var health_ratio: float = health / max(max_health, 1.0)
-		if eid not in _selected_ids:
-			sprite.modulate.a = clampf(0.3 + 0.7 * health_ratio, 0.3, 1.0)
-
-	_update_selection_highlights()
-
-
-func _create_entity_sprite(eid: String, e: Dictionary) -> Sprite2D:
-	var sprite := Sprite2D.new()
-	sprite.name = eid
-	sprite.set_meta("owner", e.get("owner", 0))
-
-	var etype: String = e.get("entity_type", "")
-	var owner: int = e.get("owner", 0)
-	var building_type: String = e.get("building_type", "")
-	var unit_type: String = e.get("unit_type", "")
-
-	# Owner colors: P1=cyan, P2=magenta, Neutral=white
-	var color := Color.CYAN if owner == 1 else Color.MAGENTA if owner == 2 else Color.WHITE
-
-	var img := Image.create_empty(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(Color.TRANSPARENT)
-
-	var shape_type := etype
-	if etype == "unit" and unit_type != "":
-		shape_type = unit_type
-	elif etype == "building" and building_type != "":
-		shape_type = building_type
-
-	match shape_type:
-		"worker":
-			var sc := Color.YELLOW if owner != 0 else Color.GREEN
-			img.fill_rect(Rect2i(4, 4, 8, 8), sc)
-		"soldier":
-			var sc := Color.RED if owner != 0 else Color.GRAY
-			_draw_circle_on_image(img, 8, 8, 6, sc)
-		"scout":
-			var sc := Color.BLUE if owner != 0 else Color.WHITE
-			_draw_diamond_on_image(img, 8, 8, 6, sc)
-		"base":
-			img.fill_rect(Rect2i(0, 0, 16, 16), Color.GRAY)
-			img.fill_rect(Rect2i(2, 2, 12, 12), color)
-		"barracks":
-			img.fill_rect(Rect2i(2, 2, 12, 12), Color.GRAY)
-			img.fill_rect(Rect2i(4, 4, 8, 8), color)
-		"resource":
-			_draw_circle_on_image(img, 8, 8, 4, Color.GREEN)
-		_:
-			img.fill_rect(Rect2i(4, 4, 8, 8), color)
-
-	var tex := ImageTexture.create_from_image(img)
-	sprite.texture = tex
-	return sprite
-
-
-func _create_health_bar(max_health: float) -> ColorRect:
-	var bg := ColorRect.new()
-	bg.size = Vector2(16, 3)
-	bg.color = Color(0.1, 0.1, 0.1, 0.7)
-	var fg := ColorRect.new()
-	fg.size = Vector2(16, 3)
-	fg.color = Color.GREEN
-	bg.add_child(fg)
-	return bg
-
-
-# ─── Minimap ─────────────────────────────────────────────────
-
-func _draw_minimap(state: Dictionary) -> void:
-	var entities: Dictionary = state.get("entities", {})
-	var minimap_img := Image.create_empty(150, 112, false, Image.FORMAT_RGBA8)
-	minimap_img.fill(Color(0.05, 0.05, 0.08))
-
-	var sx := 150.0 / _map_width
-	var sy := 112.0 / _map_height
-
 	for eid in entities:
 		var e: Dictionary = entities[eid]
-		var owner: int = e.get("owner", 0)
-		var px := int(e.get("pos_x", 0.0) * sx)
-		var py := int(e.get("pos_y", 0.0) * sy)
-		px = clampi(px, 0, 149)
-		py = clampi(py, 0, 111)
-		var dot_color := Color.CYAN if owner == 1 else Color.MAGENTA if owner == 2 else Color.GREEN
-		# 2x2 dot for visibility
-		for dx in range(2):
-			for dy in range(2):
-				var cx := mini(px + dx, 149)
-				var cy := mini(py + dy, 111)
-				minimap_img.set_pixel(cx, cy, dot_color)
+		var etype: String = str(e.get("entity_type", ""))
+		var btype: String = str(e.get("building_type", ""))
+		var rtype: String = str(e.get("resource_type", ""))
+		_ents.append({
+			"id": str(eid),
+			"owner": int(e.get("owner", 0)),
+			"type": etype,
+			"building_type": btype,
+			"resource_type": rtype,
+			"resource_amount": float(e.get("resource_amount", 0)),
+			"px": float(e.get("pos_x", 0)) * _cell,
+			"py": float(e.get("pos_y", 0)) * _cell,
+			"health": float(e.get("health", 0)),
+			"max_health": float(e.get("max_health", 0)),
+			"is_idle": bool(e.get("is_idle", true)),
+			"carry_amount": float(e.get("carry_amount", 0)),
+			"carry_cap": float(e.get("carry_capacity", 0)),
+			"attack": float(e.get("attack", 0)),
+			"attack_range": float(e.get("attack_range", 1.0)),
+			"attack_target_id": str(e.get("attack_target_id", "")),
+			"target_x": float(e.get("target_x", 0)),
+			"target_y": float(e.get("target_y", 0)),
+		})
 
-	# Draw camera viewport rectangle
-	var cam_x := int(_camera.position.x / (_cell_size) * sx)
-	var cam_y := int(_camera.position.y / (_cell_size) * sy)
-	var cam_w := int(get_viewport().size.x / (_cell_size) * sx)
-	var cam_h := int(get_viewport().size.y / (_cell_size) * sy)
-	for x in range(maxi(cam_x, 0), mini(cam_x + cam_w, 150)):
-		for y in [maxi(cam_y, 0), mini(cam_y + cam_h - 1, 111)]:
-			if 0 <= x and x < 150 and 0 <= y and y < 112:
-				minimap_img.set_pixel(x, y, Color.WHITE)
-	for y in range(maxi(cam_y, 0), mini(cam_y + cam_h, 112)):
-		for x in [maxi(cam_x, 0), mini(cam_x + cam_w - 1, 149)]:
-			if 0 <= x and x < 150 and 0 <= y and y < 112:
-				minimap_img.set_pixel(x, y, Color.WHITE)
+	# Parse fog-of-war for P1
+	var fog: Dictionary = state.get("fog_of_war", {})
+	var p1_fog: Dictionary = fog.get("1", fog)
+	_fog_w = int(p1_fog.get("width", 0))
+	_fog_h = int(p1_fog.get("height", 0))
+	var raw_tiles: Array = p1_fog.get("tiles", [])
+	_fog_tiles.clear()
+	for t in raw_tiles:
+		_fog_tiles.append(int(t))
 
-	var tex := ImageTexture.create_from_image(minimap_img)
-	# Apply to minimap ColorRect via a TextureRect child
-	if _minimap.get_child_count() == 0:
-		var tr := TextureRect.new()
-		tr.name = "MinimapTexture"
-		tr.texture = tex
-		tr.stretch_mode = TextureRect.STRETCH_SCALE
-		_minimap.add_child(tr)
-	else:
-		var tr: TextureRect = _minimap.get_child(0)
-		tr.texture = tex
+	# Detect damage: compare current HP with previous tick
+	for e in _ents:
+		var eid: String = e.id
+		var hp: float = e.health
+		if _prev_hp.has(eid):
+			var prev: float = _prev_hp[eid]
+			if hp < prev and prev > 0:
+				var dmg: float = prev - hp
+				_dmg_floats.append({
+					"id": eid,
+					"x": e.px,
+					"y": e.py - 20.0,
+					"amount": dmg,
+					"ttl": 30,  # frames
+				})
+	_prev_hp.clear()
+	for e in _ents:
+		_prev_hp[e.id] = e.health
 
+# ───────────────────────────────────────────────────────────
+# ─── DRAWING ───────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────
+func _draw() -> void:
+	var co := _cam_offset()
+	_draw_map_background(co)
+	_draw_grid(co)
+	_draw_fog_of_war(co)
+	_draw_entities(co)
+	_draw_combat_effects(co)
+	_draw_health_bars(co)
+	_draw_selection_rings(co)
+	_draw_drag_box()
+	_draw_damage_floats(co)
+	_draw_hud()
+	_draw_minimap()
 
-# ─── Image drawing helpers ───────────────────────────────────
+# ─── Map background ────────────────────────────────────────
+func _draw_map_background(co: Vector2) -> void:
+	draw_rect(
+		Rect2(co, Vector2(_map_w * _cell, _map_h * _cell)),
+		Color(0.15, 0.18, 0.12, 1.0)
+	)
 
-func _draw_circle_on_image(img: Image, cx: int, cy: int, r: int, color: Color) -> void:
-	for x in range(maxi(cx - r, 0), mini(cx + r + 1, 16)):
-		for y in range(maxi(cy - r, 0), mini(cy + r + 1, 16)):
-			if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r:
-				img.set_pixel(x, y, color)
+# ─── Subtle grid ───────────────────────────────────────────
+func _draw_grid(co: Vector2) -> void:
+	var grid_color := Color(0.25, 0.28, 0.22, 0.3)
+	var step := _cell * 8.0
+	var map_px := _map_w * _cell
+	var map_py := _map_h * _cell
+	var x := step
+	while x < map_px:
+		draw_line(Vector2(x, 0) + co, Vector2(x, map_py) + co, grid_color, 1.0)
+		x += step
+	var y := step
+	while y < map_py:
+		draw_line(Vector2(0, y) + co, Vector2(map_px, y) + co, grid_color, 1.0)
+		y += step
 
+# ─── Fog of war ────────────────────────────────────────────
+func _draw_fog_of_war(co: Vector2) -> void:
+	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
+		return
+	var map_px := _map_w * _cell
+	var map_py := _map_h * _cell
+	var tile_w := map_px / float(_fog_w)
+	var tile_h := map_py / float(_fog_h)
+	for gy in range(_fog_h):
+		for gx in range(_fog_w):
+			var idx := gy * _fog_w + gx
+			if idx >= _fog_tiles.size():
+				break
+			var state_val: int = _fog_tiles[idx]
+			# 0=unexplored (dark), 1=explored (semi-dark), 2=visible (no fog)
+			var alpha := 0.0
+			if state_val == 0:
+				alpha = 0.85
+			elif state_val == 1:
+				alpha = 0.45
+			else:
+				continue  # visible = no overlay
+			var px := gx * tile_w + co.x
+			var py := gy * tile_h + co.y
+			draw_rect(Rect2(px, py, tile_w + 1.0, tile_h + 1.0),
+				Color(0.02, 0.02, 0.05, alpha), true)
 
-func _draw_diamond_on_image(img: Image, cx: int, cy: int, r: int, color: Color) -> void:
-	for x in range(maxi(cx - r, 0), mini(cx + r + 1, 16)):
-		for y in range(maxi(cy - r, 0), mini(cy + r + 1, 16)):
-			if absi(x - cx) + absi(y - cy) <= r:
-				img.set_pixel(x, y, color)
+# ─── Entity rendering ─────────────────────────────────────
+func _draw_entities(co: Vector2) -> void:
+	for e in _ents:
+		var pos := Vector2(e.px, e.py) + co
+		var c: Color
+		var radius: float = 8.0
 
+		match e.owner:
+			1: c = Color(0.0, 0.9, 0.9, 1.0)      # P1 cyan
+			2: c = Color(0.9, 0.2, 0.9, 1.0)      # P2 magenta
+			_: c = Color.WHITE                     # Neutral
 
-func _exit_tree() -> void:
-	pass
+		# Different shapes per type
+		match e.type:
+			"worker":
+				radius = 6.0
+				draw_circle(pos, radius, c)
+				# Small tool indicator
+				draw_line(pos + Vector2(-3, -3), pos + Vector2(3, 3), Color.YELLOW, 1.5)
+			"soldier":
+				radius = 8.0
+				# Draw as diamond
+				var pts := PackedVector2Array([
+					pos + Vector2(0, -radius),
+					pos + Vector2(radius, 0),
+					pos + Vector2(0, radius),
+					pos + Vector2(-radius, 0),
+				])
+				draw_colored_polygon(pts, c)
+				# Sword line
+				draw_line(pos, pos + Vector2(radius, 0), Color.WHITE, 2.0)
+			"scout":
+				radius = 5.0
+				draw_circle(pos, radius, c)
+				# Ring for scout
+				draw_arc(pos, radius + 3, 0, TAU, 12, Color(c.r, c.g, c.b, 0.5), 1.0, true)
+			"building":
+				radius = 12.0
+				var half := Vector2(radius, radius * 0.7)
+				draw_rect(Rect2(pos - half, half * 2), c, false, 2.0)
+				if e.building_type == "base":
+					draw_rect(Rect2(pos - half * 0.7, half * 1.4), Color(c.r, c.g, c.b, 0.5), true)
+				# Under construction indicator
+				if e.building_type != "" and e.max_health > 0 and e.health < e.max_health:
+					var frac: float = e.health / e.max_health
+					draw_rect(Rect2(pos - half, half * 2), Color(1, 1, 0, 0.3 * (1.0 - frac)), true)
+			"resource":
+				radius = 6.0
+				if e.resource_type == "mineral":
+					c = Color(1.0, 0.85, 0.0, 1.0)
+					draw_rect(Rect2(pos - Vector2(radius, radius), Vector2(radius * 2, radius * 2)), c, true)
+				elif e.resource_type == "gas":
+					c = Color(0.0, 0.8, 0.0, 1.0)
+					draw_circle(pos, radius, c)
+				else:
+					draw_circle(pos, radius, Color.GRAY)
+			_:
+				draw_circle(pos, radius, c)
+
+	# Attack / move target lines
+	for e in _ents:
+		if e.attack_target_id != "" or not e.is_idle:
+			var lpos := Vector2(e.px, e.py) + co
+			if e.attack_target_id != "":
+				var tgt = _get_ent_by_id(e.attack_target_id)
+				if not tgt.is_empty():
+					var tpos := Vector2(tgt.px, tgt.py) + co
+					draw_line(lpos, tpos, Color(1.0, 0.3, 0.3, 0.5), 1.0, true)
+			elif e.target_x != 0 or e.target_y != 0:
+				var tpos := Vector2(e.target_x, e.target_y) * _cell + co
+				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 1.0, true)
+
+# ─── Combat effects ────────────────────────────────────────
+func _draw_combat_effects(co: Vector2) -> void:
+	# Pulsing red ring on units currently attacking
+	for e in _ents:
+		if e.attack_target_id != "":
+			var pos := Vector2(e.px, e.py) + co
+			var pulse: float = 0.4 + 0.6 * abs(sin(_frame * 0.15))
+			draw_arc(pos, 12.0, 0, TAU, 16, Color(1.0, 0.15, 0.15, pulse), 2.5, true)
+	# Attack flash on targets taking damage this frame
+	for f in _dmg_floats:
+		if f.ttl > 25:  # first few frames = flash
+			var tgt = _get_ent_by_id(f.id)
+			if not tgt.is_empty():
+				var pos := Vector2(tgt.px, tgt.py) + co
+				draw_circle(pos, 14.0, Color(1.0, 0.2, 0.2, 0.35))
+
+# ─── Damage floaters ──────────────────────────────────────
+func _draw_damage_floats(co: Vector2) -> void:
+	for f in _dmg_floats:
+		var alpha: float = clampf(f.ttl / 30.0, 0.0, 1.0)
+		var pos := Vector2(f.x, f.y) + co
+		var txt := "-%d" % int(f.amount)
+		draw_string(_default_font, pos, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(1.0, 0.2, 0.2, alpha))
+
+# ─── Health bars ───────────────────────────────────────────
+func _draw_health_bars(co: Vector2) -> void:
+	for e in _ents:
+		if e.max_health <= 0:
+			continue
+		if e.type == "resource":
+			continue  # No health bar for resources
+		var pos := Vector2(e.px, e.py) + co
+		var bar_w := 20.0
+		var bar_h := 3.0
+		var bar_y := pos.y - 18.0
+		var frac: float = e.health / e.max_health
+		# Background
+		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
+		# Health fill
+		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
+		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * frac, bar_h), hp_color, true)
+
+# ─── Selection rings ───────────────────────────────────────
+func _draw_selection_rings(co: Vector2) -> void:
+	for uid in _selected:
+		var e := _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+		var pos := Vector2(e.px, e.py) + co
+		draw_arc(
+			pos, 14.0,
+			0.0, TAU, 16,
+			Color(0.2, 1.0, 0.2, 0.9), 2.0, true
+		)
+
+# ─── Drag box (screen coords) ─────────────────────────────
+func _draw_drag_box() -> void:
+	if not _dragging:
+		return
+	var tl := Vector2(minf(_drag_start.x, _drag_end.x), minf(_drag_start.y, _drag_end.y))
+	var size := Vector2(absf(_drag_end.x - _drag_start.x), absf(_drag_end.y - _drag_start.y))
+	draw_rect(Rect2(tl, size), Color(0.2, 1.0, 0.2, 0.15), true)
+	draw_rect(Rect2(tl, size), Color(0.2, 1.0, 0.2, 0.6), false, 1.5)
+
+# ─── HUD (fixed screen position) ──────────────────────────
+func _draw_hud() -> void:
+	# Top-left info
+	var res: int = _bridge._tick  # just tick for now
+	var info_lines: Array = [
+		"Tick: %d  Ents: %d  Sel: %d" % [_bridge._tick, _ents.size(), _selected.size()],
+	]
+	# Fog coverage
+	if _fog_w > 0 and _fog_h > 0 and not _fog_tiles.is_empty():
+		var total := _fog_tiles.size()
+		var explored := 0
+		for t in _fog_tiles:
+			if t >= 1:
+				explored += 1
+		var pct := explored * 100 / total
+		info_lines.append("Map explored: %d%%" % pct)
+	# Build mode indicator
+	if _build_mode:
+		info_lines.append("[BUILD MODE] Right-click to place barracks")
+
+	# Selection info
+	var sel_types: Dictionary = {}
+	for uid in _selected:
+		var e = _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+		var key = "%s(%s)" % [e.type, e.building_type if e.building_type else e.resource_type]
+		sel_types[key] = sel_types.get(key, 0) + 1
+
+	if not sel_types.is_empty():
+		var sel_str := "Selected: "
+		for k in sel_types:
+			sel_str += "%s×%d " % [k, sel_types[k]]
+		info_lines.append(sel_str)
+
+	# Action hints
+	if not _selected.is_empty():
+		var hints: Array = []
+		var has_workers := false
+		var has_buildings := false
+		for uid in _selected:
+			var e = _get_ent_by_id(uid)
+			if e.is_empty(): continue
+			if e.type == "worker": has_workers = true
+			if e.type == "building": has_buildings = true
+		if has_workers:
+			hints.append("Right-click: Move/Gather/Attack | B+Right-click: Build")
+		if has_buildings:
+			for uid2 in _selected:
+				var eb = _get_ent_by_id(uid2)
+				if eb.is_empty(): continue
+				if eb.type == "building" and eb.owner == 1:
+					if eb.building_type == "base":
+						hints.append("T→Worker(50$)")
+					elif eb.building_type == "barracks":
+						hints.append("T→Soldier(100$)")
+		if hints.size() > 0:
+			info_lines.append("  ".join(hints))
+
+	for i in info_lines.size():
+		draw_string(_default_font, Vector2(8, 20 + i * 16), info_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.YELLOW)
+
+	# Game over overlay
+	if _game_over_shown:
+		var vp := get_viewport().get_visible_rect().size
+		draw_rect(Rect2(Vector2.ZERO, vp), Color(0, 0, 0, 0.6), true)
+		var winner_text := "YOU WIN!" if _bridge._winner == 1 else "YOU LOSE!"
+		var win_color := Color.GREEN if _bridge._winner == 1 else Color.RED
+		draw_string(_default_font, Vector2(vp.x / 2 - 60, vp.y / 2 - 30), winner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, win_color)
+		draw_string(_default_font, Vector2(vp.x / 2 - 80, vp.y / 2 + 10), "Press R to restart", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+		draw_string(_default_font, Vector2(vp.x / 2 - 80, vp.y / 2 + 30), "Press Q to quit", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.GRAY)
+
+# ─── Minimap (fixed screen position) ───────────────────────
+
+# Minimap region (must match _draw_minimap)
+var _mm_size := Vector2(160, 120)
+var _mm_margin := Vector2(8, 8)
+
+func _minimap_rect() -> Rect2:
+	var vp := get_viewport().get_visible_rect().size
+	var mm_pos := vp - _mm_size - _mm_margin
+	return Rect2(mm_pos, _mm_size)
+
+func _is_minimap_click(screen_pos: Vector2) -> bool:
+	return _minimap_rect().has_point(screen_pos)
+
+func _handle_minimap_click(screen_pos: Vector2) -> void:
+	var mm := _minimap_rect()
+	var local := screen_pos - mm.position
+	var frac_x: float = local.x / mm.size.x
+	var frac_y: float = local.y / mm.size.y
+	# Map world bounds
+	var map_px_w: float = _map_w * _cell
+	var map_px_h: float = _map_h * _cell
+	# Center camera on clicked world position
+	_camera.position = Vector2(frac_x * map_px_w, frac_y * map_px_h)
+
+func _draw_minimap() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	var mm_size := Vector2(160, 120)
+	var mm_pos := vp - mm_size - Vector2(8, 8)
+
+	draw_rect(Rect2(mm_pos, mm_size), Color(0.0, 0.0, 0.0, 0.6), true)
+	draw_rect(Rect2(mm_pos, mm_size), Color(0.5, 0.5, 0.5, 0.8), false, 1.0)
+
+	var sx: float = mm_size.x / (_map_w * _cell)
+	var sy: float = mm_size.y / (_map_h * _cell)
+
+	# Entity dots
+	for e in _ents:
+		var epos := Vector2(e.px * sx, e.py * sy) + mm_pos
+		var c: Color
+		if e.owner == 1: c = Color.CYAN
+		elif e.owner == 2: c = Color.MAGENTA
+		elif e.type == "resource" and e.resource_type == "mineral": c = Color.GOLD
+		elif e.type == "resource" and e.resource_type == "gas": c = Color.GREEN
+		else: c = Color.WHITE
+		var dot_size := 2.0 if e.type != "building" else 3.0
+		draw_circle(epos, dot_size, c)
+
+	# Camera rectangle
+	var cam_tl_x: float = _camera.position.x * sx + mm_pos.x
+	var cam_tl_y: float = _camera.position.y * sy + mm_pos.y
+	var cam_w: float = vp.x * sx
+	var cam_h: float = vp.y * sy
+	draw_rect(Rect2(cam_tl_x, cam_tl_y, cam_w, cam_h), Color(1.0, 1.0, 1.0, 0.5), false, 1.0)
+
+# ─── Canvas jitter monitor ────────────────────────────────
+func _monitor_canvas_transform() -> void:
+	var ct := get_viewport().get_canvas_transform()
+	var origin_x: float = ct.get_origin().x
+	if absf(origin_x) > 2.0:
+		_jitter_count += 1
+		_total_jitter_px += absf(origin_x)
+		if _frame % 60 == 0 or _jitter_count <= 5:
+			print("[Frame %d] ⚠️ CANVAS JITTER: origin_x=%.1f (count=%d)" % [_frame, origin_x, _jitter_count])
+
+# ─── Auto-verification ─────────────────────────────────────
+func _write_analysis() -> void:
+	var positions: Array = []
+	for e in _ents:
+		positions.append("(%.1f, %.1f)" % [e.px, e.py])
+	var pos_count: Dictionary = {}
+	for p in positions:
+		pos_count[p] = pos_count.get(p, 0) + 1
+	var dupes: Array = []
+	for p in pos_count:
+		if pos_count[p] > 1:
+			dupes.append(p)
+
+	var verdict := {
+		"pass": dupes.is_empty() and positions.size() == _ents.size(),
+		"ents_parsed": _ents.size(),
+		"unique_positions": pos_count.size(),
+		"duplicates": dupes.size(),
+		"tree_children": get_tree().root.get_child_count(),
+		"jitter_frames": _jitter_count,
+		"jitter_total_px": _total_jitter_px,
+		"jitter_free": _jitter_count == 0,
+		"camera_anchor": "FIXED_TOP_LEFT",
+		"stretch_mode": "canvas_items",
+	}
+	var vf := FileAccess.open("user://render_verdict.json", FileAccess.WRITE)
+	if vf:
+		vf.store_string(JSON.stringify(verdict, "\t"))
+		vf.close()
+		print("[Verdict] ", "PASS" if verdict["pass"] else "FAIL",
+				" jitter=", "NONE" if verdict["jitter_free"] else str(_jitter_count))
+
+	var img := get_viewport().get_texture().get_image()
+	if img:
+		img.save_png("user://screenshot_frame30.png")
+		print("[Screenshot] Saved")

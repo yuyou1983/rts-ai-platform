@@ -44,6 +44,11 @@ message EntityState {
   // Unit-specific (subtype)
   string unit_type = 18;
 
+  // Movement / attack targeting state
+  string attack_target_id = 19;  // "" if idle, else target entity ID
+  float  target_x          = 20;  // current move/attack target position
+  float  target_y          = 21;
+
   // Resource-specific
   string resource_type = 15;
   float  resource_amount = 16;

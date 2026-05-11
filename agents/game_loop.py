@@ -1,9 +1,9 @@
 """AgentScope game loop — bridges SimCore engine with multi-agent framework.
 
-This is the central runtime for M1:
+This is the central runtime for M1+:
 1. SimCore produces observations per tick
 2. Observations are wrapped as Msg and broadcast via MsgHub
-3. Coordinator arbitrates, delegates to Economy/Combat
+3. Coordinator arbitrates, delegates to Economy/Combat/Scout
 4. Commands are collected and fed back to SimCore
 """
 from __future__ import annotations
@@ -12,9 +12,7 @@ import asyncio
 import time
 from typing import Any
 
-from agents.combat import CombatAgent
 from agents.coordinator import CoordinatorAgent
-from agents.economy import EconomyAgent
 from agentscope_compat import AgentBase, Msg, MsgHub
 from simcore.engine import SimCore
 
@@ -40,7 +38,7 @@ class AgentScopeGameLoop:
         self.max_ticks = max_ticks
         self.tick_rate = tick_rate
 
-        # Build agent teams
+        # Build agent teams — Coordinator now creates sub-agents internally
         self.p1 = player1_agents or self._build_team(player_id=1)
         self.p2 = player2_agents or self._build_team(player_id=2)
 
@@ -50,15 +48,9 @@ class AgentScopeGameLoop:
 
     @staticmethod
     def _build_team(player_id: int) -> dict[str, AgentBase]:
-        """Create default M1 three-core team."""
-        econ = EconomyAgent(player_id=player_id)
-        combat = CombatAgent(player_id=player_id)
-        coord = CoordinatorAgent(
-            player_id=player_id,
-            economy_agent=econ,
-            combat_agent=combat,
-        )
-        return {"coordinator": coord, "economy": econ, "combat": combat}
+        """Create default three-core team."""
+        coord = CoordinatorAgent(player_id=player_id)
+        return {"coordinator": coord}
 
     async def run(self) -> dict[str, Any]:
         """Execute the full game and return result dict."""
@@ -83,14 +75,14 @@ class AgentScopeGameLoop:
         """Single tick: observe → agents decide → step engine."""
         obs = self.engine.state.get_observations()
 
-        # Player 1 commands via MsgHub
+        # Player 1 commands via Coordinator
         p1_commands = await self._agent_decide(
             obs_player=obs[0] if obs else {},
             team=self.p1,
             player_id=1,
         )
 
-        # Player 2 commands via MsgHub
+        # Player 2 commands via Coordinator
         p2_commands = await self._agent_decide(
             obs_player=obs[1] if len(obs) > 1 else {},
             team=self.p2,
@@ -106,7 +98,7 @@ class AgentScopeGameLoop:
         team: dict[str, AgentBase],
         player_id: int,
     ) -> list[dict]:
-        """Run one team's agents through MsgHub and collect commands."""
+        """Run one team's Coordinator through MsgHub and collect commands."""
         coord = team["coordinator"]
         obs_msg = Msg(
             name="simcore",
@@ -116,7 +108,14 @@ class AgentScopeGameLoop:
         )
 
         # MsgHub broadcast: coordinator + sub-agents share observation
-        participants = list(team.values())
+        # Build participant list: coordinator + any sub-agents it owns
+        participants = [coord]
+        # If coordinator has sub-agents as AgentBase, include them
+        for attr in ("economy", "combat", "scout"):
+            sub = getattr(coord, attr, None)
+            if sub is not None and isinstance(sub, AgentBase):
+                participants.append(sub)
+
         async with MsgHub(
             participants=participants,
             announcement=obs_msg,

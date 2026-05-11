@@ -2,9 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import cmd_pb2 as proto_dot_cmd__pb2
-from . import service_pb2 as proto_dot_service__pb2
-from . import state_pb2 as proto_dot_state__pb2
+from simcore.proto_out.proto import cmd_pb2 as proto_dot_cmd__pb2
+from simcore.proto_out.proto import service_pb2 as proto_dot_service__pb2
+from simcore.proto_out.proto import state_pb2 as proto_dot_state__pb2
 
 
 class SimCoreServiceStub(object):

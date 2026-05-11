@@ -3,20 +3,26 @@
 ; since the parameters that go here are not all obvious.
 ;
 ; Format:
-; [section] ; key=value, whitespace and semicolons are ignored
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
 config/name="RTS AI Platform"
 config/description="AI Native RTS Game - Headless SimCore + Godot 4.4 Frontend"
 run/main_scene="res://scenes/main_menu.tscn"
-config/features=PackedStringArray("4.4", "Forward Plus")
+config/features=PackedStringArray("4.6", "Forward Plus")
 
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/mode=2
 window/stretch/mode="canvas_items"
 
 [input]
@@ -58,3 +64,7 @@ command={
 2d_physics/layer_2="buildings"
 2d_physics/layer_3="resources"
 2d_physics/layer_4="terrain"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

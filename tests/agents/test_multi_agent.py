@@ -34,7 +34,7 @@ class TestCompatLayer:
         assert agent.player_id == 1
 
     def test_msghub_broadcast(self):
-        """MsgHub should broadcast announcement to all participants."""
+        """MsgHub should broadcast announcement to all participants (async)."""
         class SpyAgent(AgentBase):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -58,6 +58,28 @@ class TestCompatLayer:
 
         asyncio.run(_test())
 
+    def test_msghub_sync_context(self):
+        """MsgHub should also work as sync context manager."""
+        class SpyAgent(AgentBase):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.observed = []
+
+            async def observe(self, msg):
+                self.observed.append(msg)
+
+            async def reply(self, *args, **kwargs):
+                return Msg(name=self.name, content="ack", role="assistant")
+
+        agents = [SpyAgent(name="a1"), SpyAgent(name="a2")]
+        announcement = Msg(name="world", content="obs", role="user",
+                          metadata={"tick": 0})
+
+        with MsgHub(participants=agents, announcement=announcement):
+            pass
+        assert len(agents[0].observed) == 1
+        assert len(agents[1].observed) == 1
+
 
 class TestEconomyAgent:
     """Test economy sub-agent decisions."""
@@ -73,7 +95,11 @@ class TestEconomyAgent:
                     "w1": {"owner": 1, "entity_type": "worker",
                            "is_idle": True, "pos_x": 10, "pos_y": 10},
                     "m1": {"owner": 0, "entity_type": "resource",
+                           "resource_type": "mineral",
                            "pos_x": 12, "pos_y": 10, "resource_amount": 500},
+                    "base_p1": {"owner": 1, "entity_type": "building",
+                               "building_type": "base", "pos_x": 9.6, "pos_y": 9.6,
+                               "health": 1500},
                 },
             },
         )
@@ -92,12 +118,15 @@ class TestCombatAgent:
             name="simcore", content="obs", role="user",
             metadata={
                 "tick": 5,
+                "budget": {"mineral": 500, "gas": 0},
                 "entities": {
                     "s1": {"owner": 1, "entity_type": "soldier",
                            "is_idle": True, "pos_x": 20, "pos_y": 20,
-                           "attack_range": 3.0},
+                           "attack_range": 3.0, "attack": 15,
+                           "health": 80, "max_health": 80},
                     "e1": {"owner": 2, "entity_type": "soldier",
-                           "pos_x": 21, "pos_y": 20, "health": 50},
+                           "pos_x": 21, "pos_y": 20, "health": 50,
+                           "max_health": 80},
                 },
             },
         )
@@ -111,11 +140,7 @@ class TestCoordinatorAgent:
     """Test coordinator orchestrates sub-agents."""
 
     def test_coordinator_dispatches(self):
-        econ = EconomyAgent(player_id=1)
-        combat = CombatAgent(player_id=1)
-        coord = CoordinatorAgent(
-            player_id=1, economy_agent=econ, combat_agent=combat
-        )
+        coord = CoordinatorAgent(player_id=1)
         obs = Msg(
             name="simcore", content="obs", role="user",
             metadata={
@@ -125,12 +150,18 @@ class TestCoordinatorAgent:
                     "w1": {"owner": 1, "entity_type": "worker",
                            "is_idle": True, "pos_x": 5, "pos_y": 5},
                     "m1": {"owner": 0, "entity_type": "resource",
+                           "resource_type": "mineral",
                            "pos_x": 6, "pos_y": 5, "resource_amount": 500},
+                    "base_p1": {"owner": 1, "entity_type": "building",
+                               "building_type": "base", "pos_x": 4.6, "pos_y": 4.6,
+                               "health": 1500},
                     "s1": {"owner": 1, "entity_type": "soldier",
                            "is_idle": True, "pos_x": 15, "pos_y": 15,
-                           "attack_range": 3.0},
+                           "attack_range": 3.0, "attack": 15,
+                           "health": 80, "max_health": 80},
                     "e1": {"owner": 2, "entity_type": "soldier",
-                           "pos_x": 16, "pos_y": 15, "health": 50},
+                           "pos_x": 16, "pos_y": 15, "health": 50,
+                           "max_health": 80},
                 },
             },
         )

@@ -184,19 +184,48 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                 max_health=e.get("max_health", 0),
                 is_idle=e.get("is_idle", True),
             )
+            # Optional fields — only set when present to avoid proto3 zero-vs-absent confusion
             if "speed" in e:
                 entity.speed = e["speed"]
             if "attack" in e:
                 entity.attack = e["attack"]
             if "attack_range" in e:
                 entity.attack_range = e["attack_range"]
+            if "carry_amount" in e:
+                entity.carry_amount = e["carry_amount"]
             if "building_type" in e:
-                entity.building_type = e.get("building_type", "")
+                entity.building_type = e["building_type"]
+            if "is_constructing" in e:
+                entity.is_constructing = e["is_constructing"]
             if "unit_type" in e:
-                entity.unit_type = e.get("unit_type", "")
+                entity.unit_type = e["unit_type"]
+            if "resource_type" in e:
+                entity.resource_type = e["resource_type"]
+            if "resource_amount" in e:
+                entity.resource_amount = e["resource_amount"]
+            # Movement / attack targeting state
+            if e.get("attack_target_id"):
+                entity.attack_target_id = e["attack_target_id"]
+            if e.get("target_x") is not None:
+                entity.target_x = float(e["target_x"])
+            if e.get("target_y") is not None:
+                entity.target_y = float(e["target_y"])
+            # production_queue
+            if "production_queue" in e and isinstance(e["production_queue"], list):
+                for item in e["production_queue"]:
+                    entity.production_queue.append(str(item))
             snap.entities.append(entity)
         for key, val in state.resources.items():
             snap.resources[key] = val
+        # Fog-of-war per player
+        fog = state.fog_of_war if hasattr(state, "fog_of_war") else {}
+        for pid, field_name in [("1", "fog_p1"), ("2", "fog_p2")]:
+            pf = fog.get(pid, fog) if isinstance(fog, dict) else {}
+            tiles = list(pf.get("tiles", []))
+            w = pf.get("width", 0)
+            h = pf.get("height", 0)
+            grid = state_pb2.FogGrid(tiles=tiles, width=w, height=h)
+            snap.fog_p1.CopyFrom(grid) if field_name == "fog_p1" else snap.fog_p2.CopyFrom(grid)
         return snap
 
     @staticmethod
@@ -215,7 +244,11 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                 pos_x=e.get("pos_x", 0.0),
                 pos_y=e.get("pos_y", 0.0),
                 health=e.get("health", 0),
+                max_health=e.get("max_health", 0),
                 is_idle=e.get("is_idle", True),
+                building_type=e.get("building_type", ""),
+                resource_type=e.get("resource_type", ""),
+                resource_amount=e.get("resource_amount", 0.0),
             ))
         return proto
 

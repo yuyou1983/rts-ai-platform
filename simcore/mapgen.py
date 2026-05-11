@@ -132,6 +132,11 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
                 "is_idle": True,
                 "carry_amount": 0,
                 "carry_capacity": 10.0,
+                "target_x": None,
+                "target_y": None,
+                "returning_to_base": False,
+                "attack_target_id": "",
+                "deposit_pending": False,
             }
 
     # Central mineral patches (contested)
@@ -150,15 +155,15 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
             "resource_amount": int(2000 * resource_density),
         }
 
-    # Fog-of-war: start fully unexplored (0) except near bases
+    # Fog-of-war: per-player, start unexplored (0) except near own base
     fog_width = map_size // 4  # downsampled grid
     fog_height = map_size // 4
     total_tiles = fog_width * fog_height
-    fog_tiles = [0] * total_tiles  # 0=unexplored
-
-    # Reveal area around each base
     reveal_radius = 4  # in fog-grid tiles
-    for bx, by in [(p1_base_x, p1_base_y), (p2_base_x, p2_base_y)]:
+
+    fog_of_war: dict[str, Any] = {}
+    for player_id, bx, by in [(1, p1_base_x, p1_base_y), (2, p2_base_x, p2_base_y)]:
+        tiles = [0] * total_tiles  # 0=unexplored
         fg_x = int(bx / map_size * fog_width)
         fg_y = int(by / map_size * fog_height)
         for dy in range(-reveal_radius, reveal_radius + 1):
@@ -166,18 +171,17 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
                 gx, gy = fg_x + dx, fg_y + dy
                 if (0 <= gx < fog_width and 0 <= gy < fog_height
                         and dx*dx + dy*dy <= reveal_radius*reveal_radius):
-                    fog_tiles[gy * fog_width + gx] = 2  # visible
-
-    fog_data = {
-        "tiles": fog_tiles,
-        "width": fog_width,
-        "height": fog_height,
-    }
+                    tiles[gy * fog_width + gx] = 2  # visible
+        fog_of_war[str(player_id)] = {
+            "tiles": tiles,
+            "width": fog_width,
+            "height": fog_height,
+        }
 
     return GameState(
         tick=0,
         entities=entities,
-        fog_of_war=fog_data,
+        fog_of_war=fog_of_war,
         resources=resources,
         is_terminal=False,
     )

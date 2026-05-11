@@ -2,10 +2,10 @@
 
 Resolution order per tick:
 1. Parse and validate commands
-2. Execute movement
-3. Resolve combat
-4. Process resource gathering
-5. Handle construction/production
+2. Execute movement (including worker return-to-base and attack chase)
+3. Resolve combat (explicit attack + auto-attack with priority scoring)
+4. Process resource gathering (and deposit when worker reaches base)
+5. Handle construction/production (with real timers)
 6. Update fog-of-war
 7. Check win/loss conditions
 """
@@ -18,26 +18,50 @@ from simcore.state import GameState
 
 # ─── Constants ───────────────────────────────────────────────
 
-COMBAT_PRIORITY_RANGE = 6.0  # units within this range can fight each tick
-GATHER_RATE = 5.0            # resources gathered per tick per worker
-BUILD_PROGRESS_PER_TICK = 10 # % per tick for construction
+COMBAT_PRIORITY_RANGE = 6.0
+GATHER_RATE = 5.0
+BUILD_PROGRESS_PER_TICK = 10  # % per tick for construction
 PRODUCTION_TICKS = {
     "worker": 10,
     "soldier": 15,
     "scout": 12,
 }
+WORKER_RETURN_SPEED = 3.0  # slightly faster when carrying
+
+# Auto-attack priority weights (lower score = higher priority)
+PRIORITY_WEIGHT_HEALTH = 0.6   # prefer low-health targets
+PRIORITY_WEIGHT_DIST = 0.3     # prefer nearby targets
+PRIORITY_WEIGHT_THREAT = 0.1   # prefer high-damage targets
+
+
+# ─── Combat Kill Tracking ───────────────────────────────────
+
+class KillFeed:
+    """Lightweight combat statistics tracked per game."""
+    def __init__(self) -> None:
+        self.kills: dict[int, int] = {1: 0, 2: 0}
+        self.deaths: dict[int, int] = {1: 0, 2: 0}
+        self.damage_dealt: dict[int, float] = {1: 0.0, 2: 0.0}
+
+    def record_kill(self, killer_owner: int, victim_owner: int) -> None:
+        self.kills[killer_owner] = self.kills.get(killer_owner, 0) + 1
+        self.deaths[victim_owner] = self.deaths.get(victim_owner, 0) + 1
+
+    def record_damage(self, dealer_owner: int, amount: float) -> None:
+        self.damage_dealt[dealer_owner] = self.damage_dealt.get(dealer_owner, 0.0) + amount
+
+    def to_dict(self) -> dict:
+        return {
+            "kills": dict(self.kills),
+            "deaths": dict(self.deaths),
+            "damage_dealt": dict(self.damage_dealt),
+        }
 
 
 # ─── Command Validation ────────────────────────────────────
 
 def validate_commands(state: GameState, commands: list[dict]) -> list[dict]:
-    """Filter out invalid commands, return only valid ones.
-
-    A command is invalid if:
-    - The referenced entity doesn't exist
-    - The entity doesn't belong to the command issuer
-    - The action is impossible (e.g., attack out of range — soft fail, just skip)
-    """
+    """Filter out invalid commands, return only valid ones."""
     valid: list[dict] = []
     entities = state.entities
 
@@ -45,7 +69,7 @@ def validate_commands(state: GameState, commands: list[dict]) -> list[dict]:
         entity_id = (
             cmd.get("entity_id") or cmd.get("attacker_id")
             or cmd.get("builder_id") or cmd.get("worker_id")
-            or cmd.get("unit_id")
+            or cmd.get("unit_id") or cmd.get("building_id")
         )
         if entity_id and entity_id in entities:
             entity = entities[entity_id]
@@ -59,93 +83,251 @@ def validate_commands(state: GameState, commands: list[dict]) -> list[dict]:
 def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) -> dict[str, Any]:
     """Move units toward their target positions.
 
-    Units move at their speed per tick toward the target.
-    If they reach the target, they stop (is_idle = True).
+    Three sources of movement:
+    - Explicit 'move' commands
+    - Workers returning to base (returning_to_base = True)
+    - Units chasing attack target (attack_target_id set, not yet in range)
     """
     moved = dict(entities)
 
+    # 1. Explicit move commands — clear attack/gather state
     for cmd in commands:
         if cmd.get("action") != "move":
             continue
         uid = cmd.get("unit_id", "")
         if uid not in moved:
             continue
-
         e = moved[uid]
         if e.get("entity_type") not in ("worker", "soldier", "scout"):
             continue
+        moved[uid] = {**e,
+                      "target_x": cmd.get("target_x", e["pos_x"]),
+                      "target_y": cmd.get("target_y", e["pos_y"]),
+                      "is_idle": False,
+                      "returning_to_base": False,
+                      "attack_target_id": ""}
 
-        speed = e.get("speed", 2.0)
-        tx, ty = cmd.get("target_x", 0.0), cmd.get("target_y", 0.0)
+    # 2. Workers returning to base — target = nearest friendly base
+    for uid, e in list(moved.items()):
+        if e.get("entity_type") != "worker" or not e.get("returning_to_base"):
+            continue
+        base = _find_nearest_base(moved, e.get("owner", 0), e["pos_x"], e["pos_y"])
+        if base is None:
+            moved[uid] = {**e, "returning_to_base": False, "is_idle": True}
+            continue
+        moved[uid] = {**e, "target_x": base["pos_x"], "target_y": base["pos_y"]}
+
+    # 3. Units with attack_target_id — chase the target (update position each tick)
+    for uid, e in list(moved.items()):
+        target_id = e.get("attack_target_id", "")
+        if not target_id:
+            continue
+        if target_id not in moved:
+            # Target died or was removed — clear attack state, become idle
+            moved[uid] = {**e, "attack_target_id": "", "is_idle": True,
+                          "target_x": None, "target_y": None}
+            continue
+        target = moved[target_id]
+        moved[uid] = {**e, "target_x": target["pos_x"], "target_y": target["pos_y"]}
+
+    # 4. Execute movement for all units that have a target
+    for uid, e in list(moved.items()):
+        if e.get("entity_type") not in ("worker", "soldier", "scout"):
+            continue
+        tx = e.get("target_x")
+        ty = e.get("target_y")
+        if tx is None or ty is None:
+            continue
+
         cx, cy = e["pos_x"], e["pos_y"]
         dx, dy = tx - cx, ty - cy
         dist = math.sqrt(dx * dx + dy * dy)
 
+        speed = WORKER_RETURN_SPEED if e.get("returning_to_base") else e.get("speed", 2.0)
+
         if dist <= speed:
-            # Arrived
-            moved[uid] = {**e, "pos_x": tx, "pos_y": ty, "is_idle": True}
+            # Arrived at target position
+            updates: dict[str, Any] = {"pos_x": tx, "pos_y": ty}
+
+            # Worker arrived at base → mark deposit
+            if e.get("returning_to_base"):
+                base = _find_nearest_base(moved, e.get("owner", 0), tx, ty)
+                if base and math.hypot(tx - base["pos_x"], ty - base["pos_y"]) < 2.0:
+                    updates["deposit_pending"] = True
+                    updates["returning_to_base"] = False
+                    updates["target_x"] = None
+                    updates["target_y"] = None
+                    updates["is_idle"] = True
+                else:
+                    # Near target but not at base — idle
+                    updates["is_idle"] = True
+                    updates["target_x"] = None
+                    updates["target_y"] = None
+
+            # Attacker arrived at attack target position
+            elif e.get("attack_target_id"):
+                target_id = e["attack_target_id"]
+                if target_id in moved:
+                    target = moved[target_id]
+                    d_to_target = math.hypot(tx - target["pos_x"], ty - target["pos_y"])
+                    if d_to_target <= e.get("attack_range", 1.0):
+                        # In range — combat will resolve, stay here
+                        updates["is_idle"] = False
+                    else:
+                        # Target moved away — keep chasing (target_x updated in step 3 next tick)
+                        updates["is_idle"] = False
+                else:
+                    # Target gone — clear attack
+                    updates["attack_target_id"] = ""
+                    updates["is_idle"] = True
+                    updates["target_x"] = None
+                    updates["target_y"] = None
+
+            else:
+                # Normal move arrival
+                updates["is_idle"] = True
+                updates["target_x"] = None
+                updates["target_y"] = None
+
+            moved[uid] = {**e, **updates}
         else:
             # Move toward target
             moved[uid] = {**e,
                           "pos_x": cx + dx / dist * speed,
                           "pos_y": cy + dy / dist * speed,
                           "is_idle": False}
+
     return moved
 
 
 # ─── Combat ─────────────────────────────────────────────────
 
-def resolve_combat(entities: dict[str, Any], tick: int) -> dict[str, Any]:
-    """Resolve all combat encounters within attack range.
+def resolve_combat(
+    entities: dict[str, Any],
+    resources: dict[str, int],
+    commands: list[dict],
+    tick: int,
+    kill_feed: KillFeed | None = None,
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """Resolve all combat: explicit attack commands + auto-attack with priority.
 
-    For each attack command, if attacker is in range of target, deal damage.
-    Remove destroyed entities.
+    Priority scoring for auto-attack:
+      score = health_frac * W_HEALTH + dist_frac * W_DIST + threat * W_THREAT
+    Lower score = higher priority.
+
+    Returns (updated_entities, updated_resources).
     """
     fought = dict(entities)
+    res = dict(resources)
     to_remove: set[str] = set()
+    if kill_feed is None:
+        kill_feed = KillFeed()
 
-    # Collect attack commands from entity states (set by previous step)
-    # Actually, attacks are handled inline from commands, but we also
-    # auto-attack nearest enemy if idle and in range
+    # 1. Process explicit attack commands → set attack_target_id on units
+    for cmd in commands:
+        if cmd.get("action") != "attack":
+            continue
+        attacker_id = cmd.get("attacker_id", "")
+        target_id = cmd.get("target_id", "")
+        if attacker_id not in fought or target_id not in fought:
+            continue
+        attacker = fought[attacker_id]
+        if attacker.get("entity_type") not in ("worker", "soldier", "scout"):
+            continue
+        fought[attacker_id] = {**attacker, "attack_target_id": target_id, "is_idle": False}
+
+    # 2. For each unit with attack_target_id, if in range → deal damage
+    for uid, e in list(fought.items()):
+        tid = e.get("attack_target_id", "")
+        if not tid or tid not in fought:
+            continue
+        target = fought[tid]
+        dx = e["pos_x"] - target["pos_x"]
+        dy = e["pos_y"] - target["pos_y"]
+        d = math.sqrt(dx * dx + dy * dy)
+        if d <= e.get("attack_range", 1.0):
+            dmg = e.get("attack", 0)
+            new_health = target["health"] - dmg
+            fought[tid] = {**target, "health": new_health}
+            kill_feed.record_damage(e.get("owner", 0), dmg)
+            if new_health <= 0:
+                to_remove.add(tid)
+                kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+                # Clear any units targeting the dead entity
+                for uid2, e2 in list(fought.items()):
+                    if e2.get("attack_target_id") == tid:
+                        fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
+
+    # 3. Auto-attack: idle units in range of enemy → pick best target by priority
     entity_list = list(fought.items())
-
     for eid, e in entity_list:
         if eid in to_remove:
+            continue
+        # Skip resources and dead entities
+        if e.get("entity_type") == "resource":
             continue
         if e.get("health", 0) <= 0:
             to_remove.add(eid)
             continue
 
-        # Auto-attack: if unit is idle and enemy in range
+        # Only auto-attack if idle and no explicit target
         if (e.get("is_idle") and e.get("attack", 0) > 0
+                and not e.get("attack_target_id")
                 and e.get("entity_type") in ("worker", "soldier", "scout")):
             best_target = None
-            best_dist = float("inf")
+            best_score = float("inf")
+            attack_range = e.get("attack_range", 1.0)
+
             for tid, t in entity_list:
                 if tid == eid or tid in to_remove:
                     continue
-                if t.get("owner") == e.get("owner"):
+                # Skip friendly, neutral (owner=0), and resources
+                t_owner = t.get("owner", 0)
+                if t_owner == e.get("owner") or t_owner == 0:
+                    continue
+                if t.get("entity_type") == "resource":
                     continue
                 if t.get("health", 0) <= 0:
                     continue
-                dx = e["pos_x"] - t["pos_x"]
-                dy = e["pos_y"] - t["pos_y"]
-                d = math.sqrt(dx*dx + dy*dy)
-                if d < best_dist and d <= e.get("attack_range", 1.0):
-                    best_dist = d
+
+                d = math.hypot(e["pos_x"] - t["pos_x"], e["pos_y"] - t["pos_y"])
+                if d > attack_range:
+                    continue
+
+                # Priority score: lower = more attractive target
+                health_frac = t.get("health", 0) / max(t.get("max_health", 1), 1)
+                dist_frac = d / max(attack_range, 0.1)
+                threat = t.get("attack", 0) / 50.0  # normalize to 0..~1
+
+                score = (health_frac * PRIORITY_WEIGHT_HEALTH
+                         + dist_frac * PRIORITY_WEIGHT_DIST
+                         - threat * PRIORITY_WEIGHT_THREAT)  # minus: prefer high threat
+
+                if score < best_score:
+                    best_score = score
                     best_target = tid
 
             if best_target and best_target in fought:
                 target = fought[best_target]
-                new_health = target["health"] - e["attack"]
+                dmg = e["attack"]
+                new_health = target["health"] - dmg
                 fought[best_target] = {**target, "health": new_health}
+                kill_feed.record_damage(e.get("owner", 0), dmg)
                 if new_health <= 0:
                     to_remove.add(best_target)
+                    kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+
+    # 4. Deposit carried resources for dead workers
+    for eid in to_remove:
+        e = fought.get(eid)
+        if e and e.get("entity_type") == "worker" and e.get("carry_amount", 0) > 0:
+            pkey = f"p{e['owner']}_mineral"
+            res[pkey] = res.get(pkey, 0) + int(e["carry_amount"])
 
     for eid in to_remove:
         fought.pop(eid, None)
 
-    return fought
+    return fought, res
 
 
 # ─── Economy ────────────────────────────────────────────────
@@ -159,12 +341,56 @@ def process_gathering(
     """Process resource gathering commands.
 
     Workers at a resource node gather GATHER_RATE per tick.
-    When carry_amount reaches carry_capacity, they auto-return to base.
+    When carry_amount reaches carry_capacity, they are flagged to return to base.
+    Workers that arrived at base with deposit_pending=True deposit their cargo.
     """
     gathered = dict(entities)
     res = dict(resources)
     to_remove: set[str] = set()
 
+    for uid, e in list(gathered.items()):
+        # 1. Deposit pending (worker arrived at base)
+        if e.get("deposit_pending"):
+            carried = e.get("carry_amount", 0)
+            if carried > 0:
+                pkey = f"p{e['owner']}_mineral"
+                res[pkey] = res.get(pkey, 0) + int(carried)
+            gathered[uid] = {**e, "carry_amount": 0, "deposit_pending": False, "is_idle": True}
+            continue
+
+    # 2. Process active gathering: workers near resources auto-gather until full
+    for uid, e in list(gathered.items()):
+        if e.get("entity_type") != "worker":
+            continue
+        if e.get("returning_to_base") or e.get("deposit_pending"):
+            continue
+        if e.get("carry_amount", 0) >= e.get("carry_capacity", 10.0):
+            # Full — start returning
+            gathered[uid] = {**e, "is_idle": False, "returning_to_base": True}
+            continue
+        # If already carrying something but not full, auto-continue
+        if e.get("carry_amount", 0) > 0 and not e.get("is_idle", True):
+            for rid, node in gathered.items():
+                if node.get("entity_type") != "resource" or node.get("resource_amount", 0) <= 0:
+                    continue
+                dx = e["pos_x"] - node["pos_x"]
+                dy = e["pos_y"] - node["pos_y"]
+                if math.sqrt(dx*dx + dy*dy) <= 1.5:
+                    amount = min(GATHER_RATE, node.get("resource_amount", 0))
+                    carry = e.get("carry_amount", 0) + amount
+                    cap = e.get("carry_capacity", 10.0)
+                    if carry >= cap:
+                        gathered[uid] = {**e, "carry_amount": cap, "is_idle": False, "returning_to_base": True}
+                    else:
+                        gathered[uid] = {**e, "carry_amount": carry, "is_idle": False}
+                    new_amount = node.get("resource_amount", 0) - amount
+                    if new_amount <= 0:
+                        to_remove.add(rid)
+                    else:
+                        gathered[rid] = {**node, "resource_amount": new_amount}
+                    break
+
+    # 3. Process new gather commands (assign idle workers to resources)
     for cmd in commands:
         if cmd.get("action") != "gather":
             continue
@@ -174,6 +400,11 @@ def process_gathering(
         worker = gathered[wid]
         if worker.get("entity_type") != "worker":
             continue
+        if worker.get("returning_to_base"):
+            continue
+        # Only assign if worker is idle (not already gathering)
+        if not worker.get("is_idle", True):
+            continue
 
         rid = cmd.get("resource_id", "")
         if rid not in gathered:
@@ -182,24 +413,25 @@ def process_gathering(
         if node.get("entity_type") != "resource":
             continue
 
-        # Check proximity (must be within 1.5 tiles)
+        # Check proximity
         dx = worker["pos_x"] - node["pos_x"]
         dy = worker["pos_y"] - node["pos_y"]
-        if math.sqrt(dx*dx + dy*dy) > 1.5:
+        if math.sqrt(dx * dx + dy * dy) > 1.5:
+            # Not at node yet — set target to move there
+            gathered[wid] = {**worker,
+                             "target_x": node["pos_x"],
+                             "target_y": node["pos_y"],
+                             "is_idle": False}
             continue
 
-        # Gather
+        # At node — gather
         amount = min(GATHER_RATE, node.get("resource_amount", 0))
         carry = worker.get("carry_amount", 0) + amount
         cap = worker.get("carry_capacity", 10.0)
 
         if carry >= cap:
-            # Return to base — add to player resources
-            delivered = cap - worker.get("carry_amount", 0)
-            rtype = node.get("resource_type", "mineral")
-            player_key = f"p{worker['owner']}_{rtype}"
-            res[player_key] = res.get(player_key, 0) + int(delivered)
-            gathered[wid] = {**worker, "carry_amount": 0, "is_idle": True}
+            gathered[wid] = {**worker, "carry_amount": cap, "is_idle": False,
+                             "returning_to_base": True}
         else:
             gathered[wid] = {**worker, "carry_amount": carry, "is_idle": False}
 
@@ -224,10 +456,11 @@ def process_construction(
     commands: list[dict],
     tick: int,
 ) -> tuple[dict[str, Any], dict[str, int]]:
-    """Process build and train commands."""
+    """Process build and train commands with real timers."""
     built = dict(entities)
     res = dict(resources)
 
+    # 1. Process build commands
     for cmd in commands:
         if cmd.get("action") == "build":
             bid = cmd.get("builder_id", "")
@@ -238,13 +471,11 @@ def process_construction(
                 continue
 
             btype = cmd.get("building_type", "barracks")
-            # Deduct resources (simplified cost model)
             cost_mineral = 100 if btype == "barracks" else 50
             pkey = f"p{builder['owner']}_mineral"
             if res.get(pkey, 0) >= cost_mineral:
                 res[pkey] -= cost_mineral
-                # Create building at target position
-                new_id = f"{btype}_{tick}"
+                new_id = f"{btype}_{tick}_{bid}"
                 built[new_id] = {
                     "id": new_id,
                     "owner": builder["owner"],
@@ -255,9 +486,13 @@ def process_construction(
                     "health": 100,
                     "max_health": 100,
                     "is_constructing": True,
+                    "build_progress": 0,
                     "production_queue": [],
+                    "production_timers": [],
                 }
-                built[bid] = {**builder, "is_idle": True}
+                built[bid] = {**builder, "is_idle": False,
+                              "target_x": cmd.get("pos_x", builder["pos_x"]),
+                              "target_y": cmd.get("pos_y", builder["pos_y"])}
 
         elif cmd.get("action") == "train":
             building_id = cmd.get("building_id", "")
@@ -266,6 +501,8 @@ def process_construction(
             building = built[building_id]
             if building.get("entity_type") != "building":
                 continue
+            if building.get("is_constructing"):
+                continue
             utype = cmd.get("unit_type", "worker")
             cost_map = {"worker": 50, "soldier": 100, "scout": 75}
             cost = cost_map.get(utype, 50)
@@ -273,63 +510,135 @@ def process_construction(
             if res.get(pkey, 0) >= cost:
                 res[pkey] -= cost
                 queue = list(building.get("production_queue", []))
+                timers = list(building.get("production_timers", []))
                 queue.append(utype)
-                built[building_id] = {**building, "production_queue": queue}
+                timers.append(PRODUCTION_TICKS.get(utype, 10))
+                built[building_id] = {**building, "production_queue": queue, "production_timers": timers}
 
-    # Advance production queues
+    # 2. Advance construction progress
+    for eid, e in list(built.items()):
+        if e.get("entity_type") != "building" or not e.get("is_constructing"):
+            continue
+        progress = e.get("build_progress", 0) + BUILD_PROGRESS_PER_TICK
+        if progress >= 100:
+            built[eid] = {**e, "build_progress": 100, "is_constructing": False}
+        else:
+            built[eid] = {**e, "build_progress": progress}
+
+    # 3. Advance production timers and spawn units
     new_entities: dict[str, Any] = {}
-    for eid, e in built.items():
+    for eid, e in list(built.items()):
         if e.get("entity_type") != "building":
             continue
+        if e.get("is_constructing"):
+            continue
         queue = list(e.get("production_queue", []))
-        if not queue:
+        timers = list(e.get("production_timers", []))
+        if not queue or not timers:
             continue
 
-        # First item in queue progresses
-        # Spawn unit after PRODUCTION_TICKS (simplified: just spawn next tick)
-        if len(queue) > 0:
+        timers[0] -= 1
+        if timers[0] <= 0:
             utype = queue.pop(0)
+            timers.pop(0)
             uid = f"{utype}_{tick}_{eid}"
-            new_entities[uid] = {
-                "id": uid,
-                "owner": e["owner"],
-                "entity_type": utype,
-                "pos_x": e["pos_x"] + 1.0,
-                "pos_y": e["pos_y"] + 1.0,
-                "health": 50 if utype == "worker" else 80,
-                "max_health": 50 if utype == "worker" else 80,
-                "speed": 2.0 if utype == "worker" else 3.0,
-                "attack": 5 if utype == "worker" else 15,
-                "attack_range": 1.0,
-                "is_idle": True,
-                "carry_amount": 0,
-                "carry_capacity": 10.0,
-            }
-            built[eid] = {**e, "production_queue": queue}
+            stats = _unit_stats(utype, e["owner"], e["pos_x"] + 1.0, e["pos_y"] + 1.0)
+            new_entities[uid] = stats
+            built[eid] = {**e, "production_queue": queue, "production_timers": timers}
+        else:
+            built[eid] = {**e, "production_timers": timers}
 
     built.update(new_entities)
     return built, res
 
 
+def _unit_stats(utype: str, owner: int, px: float, py: float) -> dict:
+    """Return entity dict for a newly spawned unit."""
+    stats_map = {
+        "worker":  {"health": 50,  "max_health": 50,  "speed": 2.5, "attack": 5,  "attack_range": 1.0, "carry_capacity": 10.0},
+        "soldier": {"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 1.0, "carry_capacity": 0},
+        "scout":   {"health": 40,  "max_health": 40,  "speed": 4.0, "attack": 8,  "attack_range": 1.5, "carry_capacity": 0},
+    }
+    s = stats_map.get(utype, stats_map["worker"])
+    return {
+        "id": f"{utype}_{owner}_{px:.0f}",
+        "owner": owner,
+        "entity_type": utype,
+        "pos_x": px,
+        "pos_y": py,
+        "health": s["health"],
+        "max_health": s["max_health"],
+        "speed": s["speed"],
+        "attack": s["attack"],
+        "attack_range": s["attack_range"],
+        "is_idle": True,
+        "carry_amount": 0,
+        "carry_capacity": s["carry_capacity"],
+        "target_x": None,
+        "target_y": None,
+        "returning_to_base": False,
+        "attack_target_id": "",
+        "deposit_pending": False,
+    }
+
+
 # ─── Fog of War ─────────────────────────────────────────────
 
 def update_fog_of_war(entities: dict[str, Any], fog: dict[str, Any], tick: int) -> dict[str, Any]:
-    """Update fog-of-war grid per player based on unit visibility.
+    """Update per-player fog-of-war grids based on unit/building visibility.
 
-    Simplified: each unit reveals a radius of 5 tiles around it.
+    Fog states: 0=unexplored, 1=explored (last-known), 2=currently visible.
+    Each tick: all '2' → '1' (expire visibility), then re-illuminate around
+    each friendly unit/building.
     """
-    # TODO: implement proper fog-of-war grid updates
-    return fog
+    fog_data = dict(fog)
+    # Ensure per-player structure
+    for pid in ("1", "2"):
+        if pid not in fog_data:
+            w, h = fog_data.get("width", 16), fog_data.get("height", 16)
+            fog_data[pid] = {"tiles": [0] * w * h, "width": w, "height": h}
+
+    vision_radius_base = 3  # fog-grid tiles
+    for pid_str in ("1", "2"):
+        pf = fog_data[pid_str]
+        tiles = list(pf.get("tiles", []))
+        w = pf.get("width", 16)
+        h = pf.get("height", 16)
+        if not tiles:
+            continue
+        # Expire: 2→1
+        tiles = [1 if t == 2 else t for t in tiles]
+        # Illuminate around each friendly unit/building
+        player_id = int(pid_str)
+        for eid, e in entities.items():
+            if e.get("owner") != player_id:
+                continue
+            etype = e.get("entity_type", "")
+            if etype not in ("worker", "soldier", "scout", "building"):
+                continue
+            if e.get("is_constructing"):
+                continue
+            vr = vision_radius_base + (1 if etype == "scout" else 0)
+            if etype == "building":
+                vr = vision_radius_base - 1  # buildings have slightly less vision
+            fx = int(e["pos_x"] / 64 * w)
+            fy = int(e["pos_y"] / 64 * h)
+            for dy in range(-vr, vr + 1):
+                for dx in range(-vr, vr + 1):
+                    gx, gy = fx + dx, fy + dy
+                    if (0 <= gx < w and 0 <= gy < h
+                            and dx * dx + dy * dy <= vr * vr):
+                        idx = gy * w + gx
+                        if 0 <= idx < len(tiles):
+                            tiles[idx] = 2
+        fog_data[pid_str] = {**pf, "tiles": tiles}
+    return fog_data
 
 
 # ─── Terminal State Check ───────────────────────────────────
 
 def check_terminal(entities: dict[str, Any], tick: int, max_ticks: int) -> tuple[bool, int, str]:
-    """Check if game has ended.
-
-    Returns (is_terminal, winner, reason).
-    Winner: 0=draw, 1=player1, 2=player2
-    """
+    """Check if game has ended."""
     bases_p1 = [
         e for e in entities.values()
         if e.get("owner") == 1
@@ -357,11 +666,10 @@ def check_terminal(entities: dict[str, Any], tick: int, max_ticks: int) -> tuple
 # ─── Main Rule Engine ──────────────────────────────────────
 
 class RuleEngine:
-    """Applies game rules to advance state by one tick.
+    """Applies game rules to advance state by one tick."""
 
-    Pure function of (state, commands, tick) → new_state.
-    No randomness (deterministic), no I/O, no side effects.
-    """
+    def __init__(self) -> None:
+        self.kill_feed = KillFeed()
 
     def apply(self, state: GameState, commands: list[dict], tick: int) -> GameState:
         """Full rule resolution pipeline for one tick."""
@@ -371,11 +679,13 @@ class RuleEngine:
         # 2. Movement
         entities = apply_movement(state.entities, valid, tick)
 
-        # 3. Combat
-        entities = resolve_combat(entities, tick)
+        # 3. Combat (with kill tracking)
+        entities, resources = resolve_combat(
+            entities, state.resources, valid, tick, kill_feed=self.kill_feed,
+        )
 
         # 4. Gathering
-        entities, resources = process_gathering(entities, state.resources, valid, tick)
+        entities, resources = process_gathering(entities, resources, valid, tick)
 
         # 5. Construction & production
         entities, resources = process_construction(entities, resources, valid, tick)
@@ -398,3 +708,18 @@ class RuleEngine:
     @property
     def max_ticks(self) -> int:
         return 10_000
+
+
+# ─── Helpers ────────────────────────────────────────────────
+
+def _find_nearest_base(entities: dict[str, Any], owner: int, px: float, py: float) -> dict | None:
+    """Find the nearest friendly base for the given owner."""
+    best = None
+    best_dist = float("inf")
+    for eid, e in entities.items():
+        if e.get("owner") == owner and e.get("building_type") == "base" and e.get("health", 0) > 0:
+            d = math.hypot(px - e["pos_x"], py - e["pos_y"])
+            if d < best_dist:
+                best_dist = d
+                best = e
+    return best
