@@ -33,7 +33,7 @@ const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.g
 
 # ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
-var _cell: float = 16.0
+var _cell: float = 1.0
 var _map_w: float = 64.0
 var _map_h: float = 64.0
 
@@ -340,7 +340,7 @@ func _handle_right_click() -> void:
 		return
 
 	var world_pos := _screen_to_world(get_viewport().get_mouse_position())
-	var tgt_world := world_pos / _cell
+	var tgt_world := world_pos  # TILE_SIZE=1, world coords ARE tile coords
 	var clicked_ent := _ent_at_world_pos(world_pos, SELECT_RADIUS * 3.0)
 	var cmds: Array = []
 
@@ -444,7 +444,7 @@ func _handle_right_click() -> void:
 			else _calc_formation_fallback(world_pos, moving_ids.size())
 		for i in range(moving_ids.size()):
 			var fpos: Vector2 = formation[i] if i < formation.size() else world_pos
-			var ftgt := fpos / _cell
+			var ftgt := fpos  # TILE_SIZE=1, world coords ARE tile coords
 			cmds.append({
 				"action": "move",
 				"unit_id": moving_ids[i],
@@ -566,7 +566,7 @@ func _set_rally_point(building_id: String, world_pos: Vector2) -> void:
 	indicator.show_indicator()
 
 	# Submit rally point command to SimCore
-	var tgt_world := world_pos / _cell
+	var tgt_world := world_pos  # TILE_SIZE=1, world coords ARE tile coords
 	var cmds: Array = [{
 		"action": "set_rally",
 		"building_id": building_id,
@@ -630,7 +630,7 @@ func _on_start(state: Dictionary) -> void:
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
-	_camera.position = Vector2(10, 10) * _cell
+	_camera.position = Vector2(10, 10)  # TILE_SIZE=1, no _cell multiplier needed
 	if _cam_ctrl:
 		_cam_ctrl.move_to_world_position(_camera.position)
 
@@ -676,8 +676,8 @@ func _parse(state: Dictionary) -> void:
 			"building_type": btype,
 			"resource_type": rtype,
 			"resource_amount": float(e.get("resource_amount", 0)),
-			"px": float(e.get("pos_x", 0)) * _cell,
-			"py": float(e.get("pos_y", 0)) * _cell,
+			"px": float(e.get("pos_x", 0)),  # TILE_SIZE=1, world=tile
+			"py": float(e.get("pos_y", 0)),
 			"pos_x": float(e.get("pos_x", 0)),
 			"pos_y": float(e.get("pos_y", 0)),
 			"health": float(e.get("health", 0)),
@@ -776,13 +776,13 @@ func _draw() -> void:
 	_draw_minimap()
 
 func _draw_map_background(co: Vector2) -> void:
-	draw_rect(Rect2(co, Vector2(_map_w * _cell, _map_h * _cell)), Color(0.15, 0.18, 0.12, 1.0))
+	draw_rect(Rect2(co, Vector2(_map_w, _map_h)), Color(0.15, 0.18, 0.12, 1.0))
 
 func _draw_grid(co: Vector2) -> void:
 	var grid_color := Color(0.25, 0.28, 0.22, 0.3)
-	var step := _cell * 8.0
-	var map_px := _map_w * _cell
-	var map_py := _map_h * _cell
+	var step := 8.0  # TILE_SIZE=1, grid every 8 tiles
+	var map_px := _map_w
+	var map_py := _map_h
 	var x := step
 	while x < map_px:
 		draw_line(Vector2(x, 0) + co, Vector2(x, map_py) + co, grid_color, 1.0)
@@ -797,8 +797,8 @@ func _draw_fog_of_war(co: Vector2) -> void:
 	# The separate FogRenderer node is also updated.
 	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
 		return
-	var map_px := _map_w * _cell
-	var map_py := _map_h * _cell
+	var map_px := _map_w  # TILE_SIZE=1
+	var map_py := _map_h
 	var tile_w := map_px / float(_fog_w)
 	var tile_h := map_py / float(_fog_h)
 
@@ -944,7 +944,7 @@ func _draw_entities(co: Vector2) -> void:
 					var tpos := Vector2(tgt.px, tgt.py) + co
 					draw_line(lpos, tpos, Color(1.0, 0.3, 0.3, 0.5), 1.0, true)
 			elif e.target_x != 0 or e.target_y != 0:
-				var tpos := Vector2(e.target_x, e.target_y) * _cell + co
+				var tpos := Vector2(e.target_x, e.target_y) + co  # TILE_SIZE=1, no _cell multiplier
 				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 1.0, true)
 
 func _is_in_fog(e: Dictionary) -> bool:
@@ -1141,8 +1141,8 @@ func _handle_minimap_click(screen_pos: Vector2) -> void:
 	var local := screen_pos - mm.position
 	var frac_x: float = local.x / mm.size.x
 	var frac_y: float = local.y / mm.size.y
-	var map_px_w: float = _map_w * _cell
-	var map_px_h: float = _map_h * _cell
+	var map_px_w: float = _map_w  # TILE_SIZE=1
+	var map_px_h: float = _map_h
 	var target_pos := Vector2(frac_x * map_px_w, frac_y * map_px_h)
 	if _cam_ctrl:
 		_cam_ctrl.move_to_world_position(target_pos)
@@ -1154,8 +1154,8 @@ func _draw_minimap() -> void:
 	var mm_pos := vp - _mm_size - _mm_margin
 	draw_rect(Rect2(mm_pos, _mm_size), Color(0.0, 0.0, 0.0, 0.6), true)
 	draw_rect(Rect2(mm_pos, _mm_size), Color(0.5, 0.5, 0.5, 0.8), false, 1.0)
-	var sx: float = _mm_size.x / (_map_w * _cell)
-	var sy: float = _mm_size.y / (_map_h * _cell)
+	var sx: float = _mm_size.x / _map_w  # TILE_SIZE=1
+	var sy: float = _mm_size.y / _map_h
 
 	# Draw fog of war on minimap
 	if _fog_w > 0 and _fog_h > 0 and not _fog_tiles.is_empty():

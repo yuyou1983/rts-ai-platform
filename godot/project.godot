@@ -24,6 +24,7 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
+window/dpi/allow_hidpi=true
 
 [input]
 
@@ -65,6 +66,14 @@ command={
 2d_physics/layer_3="resources"
 2d_physics/layer_4="terrain"
 
+[autoload]
+
+AudioManager="*res://scripts/audio_manager.gd"
+
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true
+
+[internationalization]
+
+rendering/text_url_lookup=true

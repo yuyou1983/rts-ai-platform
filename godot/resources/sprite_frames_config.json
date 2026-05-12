@@ -21,13 +21,13 @@
     },
     "Marine": {
       "file": "res://assets/sprites/units/Marine.png",
-      "frame_width": 44,
-      "frame_height": 44,
+      "frame_width": 128,
+      "frame_height": 128,
       "directions": 8,
       "animations": {
         "idle": 1,
-        "moving": 4,
-        "attack": 4,
+        "moving": 9,
+        "attack": 7,
         "die": 1
       }
     },
@@ -176,8 +176,8 @@
     },
     "Drone": {
       "file": "res://assets/sprites/units/Drone.png",
-      "frame_width": 40,
-      "frame_height": 44,
+      "frame_width": 48,
+      "frame_height": 86,
       "directions": 8,
       "animations": {
         "idle": 1,
@@ -189,20 +189,20 @@
     },
     "Zergling": {
       "file": "res://assets/sprites/units/Zergling.png",
-      "frame_width": 34,
-      "frame_height": 28,
+      "frame_width": 42,
+      "frame_height": 86,
       "directions": 8,
       "animations": {
         "idle": 1,
-        "moving": 6,
-        "attack": 4,
+        "moving": 7,
+        "attack": 5,
         "die": 1
       }
     },
     "Hydralisk": {
       "file": "res://assets/sprites/units/Hydralisk.png",
       "frame_width": 50,
-      "frame_height": 50,
+      "frame_height": 86,
       "directions": 8,
       "animations": {
         "idle": 1,
@@ -367,13 +367,13 @@
     },
     "Zealot": {
       "file": "res://assets/sprites/units/Zealot.png",
-      "frame_width": 42,
-      "frame_height": 44,
+      "frame_width": 44,
+      "frame_height": 84,
       "directions": 8,
       "animations": {
         "idle": 1,
-        "moving": 6,
-        "attack": 4,
+        "moving": 8,
+        "attack": 5,
         "die": 1
       }
     },

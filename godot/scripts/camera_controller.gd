@@ -24,7 +24,7 @@ signal zoom_changed(zoom: Vector2)
 @export_group("Bounds")
 @export var map_width: float = 64.0
 @export var map_height: float = 64.0
-@export var cell_size: float = 16.0
+@export var cell_size: float = 1.0
 
 # ── Internal State ───────────────────────────────────────────────────────────
 var _camera: Camera2D
@@ -45,6 +45,13 @@ func setup(camera: Camera2D) -> void:
 	_camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
 	_camera.position_smoothing_enabled = false
 	_target_zoom = _camera.zoom
+	# DPI-aware default zoom for Retina displays
+	var screen_dpi := DisplayServer.screen_get_dpi()
+	if screen_dpi >= 192:  # Retina or higher
+		_target_zoom = Vector2(2.0, 2.0)
+		_camera.zoom = _target_zoom
+	keyboard_speed *= float(_target_zoom.x)
+	edge_scroll_speed *= float(_target_zoom.x)
 
 func _process(delta: float) -> void:
 	if _camera == null:
@@ -182,8 +189,8 @@ func _get_entity_position(entity_id: String) -> Vector2:
 # ── Bounds ───────────────────────────────────────────────────────────────────
 func _clamp_camera() -> void:
 	var vp_size := get_viewport().get_visible_rect().size / _camera.zoom
-	var map_px_w: float = map_width * cell_size
-	var map_px_h: float = map_height * cell_size
+	var map_px_w: float = map_width  # no cell_size multiplier needed since TILE_SIZE=1
+	var map_px_h: float = map_height
 	_camera.position.x = clampf(_camera.position.x, 0, maxf(0, map_px_w - vp_size.x))
 	_camera.position.y = clampf(_camera.position.y, 0, maxf(0, map_px_h - vp_size.y))
 

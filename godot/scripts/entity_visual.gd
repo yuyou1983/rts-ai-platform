@@ -56,6 +56,10 @@ func _ready() -> void:
 	_sprite_loader = load("res://scripts/sprite_loader.gd").new()
 	_load_sprite_frames()
 	animation_finished.connect(_on_animation_finished)
+	if Engine.has_singleton("AudioManager") or get_node_or_null("/root/AudioManager"):
+		var am = get_node_or_null("/root/AudioManager")
+		if am:
+			am.play_selection_sound(entity_name)
 
 func _load_sprite_frames() -> void:
 	if entity_name.is_empty() or _sprite_loader == null:
@@ -177,10 +181,15 @@ func sync_from_state(state: Dictionary) -> void:
 # ─── Callbacks ────────────────────────────────────────────────────────────────
 func _on_animation_finished() -> void:
 	var current: String = animation
+	var am = get_node_or_null("/root/AudioManager")
 	if current.begins_with("die"):
+		if am:
+			am.play_death_sound(entity_name)
 		death_animation_finished.emit()
 		pause()
 	elif current.begins_with("attack") or current.begins_with("cast") or current.begins_with("gather"):
+		if current.begins_with("attack") and am:
+			am.play_attack_sound(entity_name)
 		animation_cycle_finished.emit(current)
 		if current_state == State.ATTACKING or current_state == State.CASTING:
 			current_state = State.IDLE
