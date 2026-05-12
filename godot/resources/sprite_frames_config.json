@@ -1,0 +1,1184 @@
+{
+  "_meta": {
+    "description": "Sprite frame configuration for StarCraft unit/building sprites",
+    "directions": 8,
+    "tick_ms": 100,
+    "note": "frame_width/height from units.json; building offsets estimated from combined sprite sheet dimensions"
+  },
+  "units": {
+    "SCV": {
+      "file": "res://assets/sprites/units/SCV.png",
+      "frame_width": 40,
+      "frame_height": 44,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 2,
+        "gather": 4,
+        "die": 1
+      }
+    },
+    "Marine": {
+      "file": "res://assets/sprites/units/Marine.png",
+      "frame_width": 44,
+      "frame_height": 44,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Firebat": {
+      "file": "res://assets/sprites/units/Firebat.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Ghost": {
+      "file": "res://assets/sprites/units/Ghost.png",
+      "frame_width": 43,
+      "frame_height": 39,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Medic": {
+      "file": "res://assets/sprites/units/Medic.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Vulture": {
+      "file": "res://assets/sprites/units/Vulture.png",
+      "frame_width": 80,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Tank": {
+      "file": "res://assets/sprites/units/Tank.png",
+      "frame_width": 80,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Goliath": {
+      "file": "res://assets/sprites/units/Goliath.png",
+      "frame_width": 76,
+      "frame_height": 76,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Wraith": {
+      "file": "res://assets/sprites/units/Wraith.png",
+      "frame_width": 50,
+      "frame_height": 41,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Dropship": {
+      "file": "res://assets/sprites/units/Dropship.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "die": 1
+      }
+    },
+    "Vessel": {
+      "file": "res://assets/sprites/units/Vessel.png",
+      "frame_width": 70,
+      "frame_height": 55,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Valkyrie": {
+      "file": "res://assets/sprites/units/Valkyrie.png",
+      "frame_width": 58,
+      "frame_height": 58,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "BattleCruiser": {
+      "file": "res://assets/sprites/units/BattleCruiser.png",
+      "frame_width": 94,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Civilian": {
+      "file": "res://assets/sprites/units/Civilian.png",
+      "frame_width": 21,
+      "frame_height": 31,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Drone": {
+      "file": "res://assets/sprites/units/Drone.png",
+      "frame_width": 40,
+      "frame_height": 44,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 2,
+        "gather": 4,
+        "die": 1
+      }
+    },
+    "Zergling": {
+      "file": "res://assets/sprites/units/Zergling.png",
+      "frame_width": 34,
+      "frame_height": 28,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Hydralisk": {
+      "file": "res://assets/sprites/units/Hydralisk.png",
+      "frame_width": 50,
+      "frame_height": 50,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Lurker": {
+      "file": "res://assets/sprites/units/Lurker.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Ultralisk": {
+      "file": "res://assets/sprites/units/Ultralisk.png",
+      "frame_width": 101,
+      "frame_height": 108,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Broodling": {
+      "file": "res://assets/sprites/units/Broodling.png",
+      "frame_width": 38,
+      "frame_height": 38,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 2,
+        "die": 1
+      }
+    },
+    "InfestedTerran": {
+      "file": "res://assets/sprites/units/InfestedTerran.png",
+      "frame_width": 41,
+      "frame_height": 44,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 1,
+        "die": 1
+      }
+    },
+    "Overlord": {
+      "file": "res://assets/sprites/units/Overlord.png",
+      "frame_width": 68,
+      "frame_height": 72,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "die": 1
+      }
+    },
+    "Queen": {
+      "file": "res://assets/sprites/units/Queen.png",
+      "frame_width": 78,
+      "frame_height": 71,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Defiler": {
+      "file": "res://assets/sprites/units/Defiler.png",
+      "frame_width": 72,
+      "frame_height": 62,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Mutalisk": {
+      "file": "res://assets/sprites/units/Mutalisk.png",
+      "frame_width": 66,
+      "frame_height": 75,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Guardian": {
+      "file": "res://assets/sprites/units/Guardian.png",
+      "frame_width": 81,
+      "frame_height": 74,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Devourer": {
+      "file": "res://assets/sprites/units/Devourer.png",
+      "frame_width": 73,
+      "frame_height": 86,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Scourge": {
+      "file": "res://assets/sprites/units/Scourge.png",
+      "frame_width": 34,
+      "frame_height": 30,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 1,
+        "die": 1
+      }
+    },
+    "Larva": {
+      "file": "res://assets/sprites/units/Larva.png",
+      "frame_width": 32,
+      "frame_height": 28,
+      "directions": 8,
+      "animations": {
+        "idle": 4,
+        "die": 1
+      }
+    },
+    "Probe": {
+      "file": "res://assets/sprites/units/Probe.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 2,
+        "gather": 4,
+        "die": 1
+      }
+    },
+    "Zealot": {
+      "file": "res://assets/sprites/units/Zealot.png",
+      "frame_width": 42,
+      "frame_height": 44,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Dragoon": {
+      "file": "res://assets/sprites/units/Dragoon.png",
+      "frame_width": 56,
+      "frame_height": 56,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Templar": {
+      "file": "res://assets/sprites/units/Templar.png",
+      "frame_width": 68,
+      "frame_height": 68,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "DarkTemplar": {
+      "file": "res://assets/sprites/units/DarkTemplar.png",
+      "frame_width": 57,
+      "frame_height": 62,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Archon": {
+      "file": "res://assets/sprites/units/Archon.png",
+      "frame_width": 80,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "DarkArchon": {
+      "file": "res://assets/sprites/units/DarkArchon.png",
+      "frame_width": 80,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Reaver": {
+      "file": "res://assets/sprites/units/Reaver.png",
+      "frame_width": 84,
+      "frame_height": 84,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Shuttle": {
+      "file": "res://assets/sprites/units/Shuttle.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "die": 1
+      }
+    },
+    "Observer": {
+      "file": "res://assets/sprites/units/Observer.png",
+      "frame_width": 40,
+      "frame_height": 40,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "die": 1
+      }
+    },
+    "Arbiter": {
+      "file": "res://assets/sprites/units/Arbiter.png",
+      "frame_width": 76,
+      "frame_height": 76,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Scout": {
+      "file": "res://assets/sprites/units/Scout.png",
+      "frame_width": 56,
+      "frame_height": 56,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Carrier": {
+      "file": "res://assets/sprites/units/Carrier.png",
+      "frame_width": 128,
+      "frame_height": 128,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Corsair": {
+      "file": "res://assets/sprites/units/Corsair.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Sarah": {
+      "file": "res://assets/sprites/units/Sarah.png",
+      "frame_width": 56,
+      "frame_height": 58,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "Kerrigan": {
+      "file": "res://assets/sprites/units/Kerrigan.png",
+      "frame_width": 56,
+      "frame_height": 58,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 4,
+        "cast": 3,
+        "die": 1
+      }
+    },
+    "HeroCruiser": {
+      "file": "res://assets/sprites/units/HeroCruiser.png",
+      "frame_width": 94,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "attack": 4,
+        "die": 1
+      }
+    },
+    "Bengalaas": {
+      "file": "res://assets/sprites/units/Bengalaas.png",
+      "frame_width": 80,
+      "frame_height": 80,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 3,
+        "die": 1
+      }
+    },
+    "Kakaru": {
+      "file": "res://assets/sprites/units/Kakaru.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 2,
+        "die": 1
+      }
+    },
+    "Ragnasaur": {
+      "file": "res://assets/sprites/units/Ragnasaur.png",
+      "frame_width": 72,
+      "frame_height": 72,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 3,
+        "die": 1
+      }
+    },
+    "Rhynsdon": {
+      "file": "res://assets/sprites/units/Rhynsdon.png",
+      "frame_width": 72,
+      "frame_height": 72,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 6,
+        "attack": 3,
+        "die": 1
+      }
+    },
+    "Scantid": {
+      "file": "res://assets/sprites/units/Scantid.png",
+      "frame_width": 60,
+      "frame_height": 60,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 2,
+        "die": 1
+      }
+    },
+    "Ursadon": {
+      "file": "res://assets/sprites/units/Ursadon.png",
+      "frame_width": 72,
+      "frame_height": 72,
+      "directions": 8,
+      "animations": {
+        "idle": 1,
+        "moving": 4,
+        "attack": 3,
+        "die": 1
+      }
+    }
+  },
+  "buildings": {
+    "CommandCenter": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 0,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "SupplyDepot": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 191,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Refinery": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 382,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Barracks": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 573,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "EngineeringBay": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 764,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "MissileTurret": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 955,
+      "offset_y": 0,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Academy": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 0,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Bunker": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 191,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Factory": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 382,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Starport": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 573,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ScienceFacility": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 764,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Armory": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 955,
+      "offset_y": 266,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ComstatStation": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 0,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "NuclearSilo": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 191,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "MachineShop": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 382,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ControlTower": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 573,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "PhysicsLab": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 764,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ConvertOps": {
+      "file": "res://assets/sprites/buildings/TerranBuilding.png",
+      "offset_x": 955,
+      "offset_y": 532,
+      "frame_width": 191,
+      "frame_height": 266,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Hatchery": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 0,
+      "offset_y": 0,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Lair": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 486,
+      "offset_y": 0,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Hive": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 972,
+      "offset_y": 0,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "CreepColony": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 1458,
+      "offset_y": 0,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "SunkenColony": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 0,
+      "offset_y": 362,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "SporeColony": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 486,
+      "offset_y": 362,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Extractor": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 972,
+      "offset_y": 362,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "SpawningPool": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 1458,
+      "offset_y": 362,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "EvolutionChamber": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 0,
+      "offset_y": 724,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "HydraliskDen": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 486,
+      "offset_y": 724,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Spire": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 972,
+      "offset_y": 724,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "GreaterSpire": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 1458,
+      "offset_y": 724,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "QueenNest": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 0,
+      "offset_y": 1086,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "NydusCanal": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 486,
+      "offset_y": 1086,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "UltraliskCavern": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 972,
+      "offset_y": 1086,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "DefilerMound": {
+      "file": "res://assets/sprites/buildings/ZergBuilding.png",
+      "offset_x": 1458,
+      "offset_y": 1086,
+      "frame_width": 486,
+      "frame_height": 362,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Nexus": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 0,
+      "offset_y": 0,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Pylon": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 209,
+      "offset_y": 0,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Assimilator": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 418,
+      "offset_y": 0,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Gateway": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 627,
+      "offset_y": 0,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Forge": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 0,
+      "offset_y": 200,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "PhotonCannon": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 209,
+      "offset_y": 200,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "CyberneticsCore": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 418,
+      "offset_y": 200,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ShieldBattery": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 627,
+      "offset_y": 200,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "RoboticsFacility": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 0,
+      "offset_y": 400,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "StarGate": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 209,
+      "offset_y": 400,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "CitadelOfAdun": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 418,
+      "offset_y": 400,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "RoboticsSupportBay": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 627,
+      "offset_y": 400,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "FleetBeacon": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 0,
+      "offset_y": 600,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "TemplarArchives": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 209,
+      "offset_y": 600,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "Observatory": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 418,
+      "offset_y": 600,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    },
+    "ArbiterTribunal": {
+      "file": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "offset_x": 627,
+      "offset_y": 600,
+      "frame_width": 209,
+      "frame_height": 200,
+      "animations": {
+        "idle": 1,
+        "build": 4
+      }
+    }
+  }
+}

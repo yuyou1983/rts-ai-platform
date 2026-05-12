@@ -1,0 +1,2115 @@
+{
+  "_meta": {
+    "source": "https://github.com/asdwsx1234/StarCraft/",
+    "attackTypes": {
+      "NORMAL": 0,
+      "BURST": 1,
+      "WAVE": 2
+    },
+    "unitTypes": {
+      "SMALL": 0,
+      "MIDDLE": 1,
+      "BIG": 2
+    },
+    "directions": 8,
+    "tick_ms": 100
+  },
+  "terran": {
+    "SCV": {
+      "name": "SCV",
+      "race": "terran",
+      "hp": 60,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        5,
+        5
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 12,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 0,
+        "man": 1,
+        "time": 200
+      },
+      "width": 40,
+      "height": 44,
+      "sprite": "SCV",
+      "items": {
+        "4": "repair",
+        "5": "gather",
+        "7": "BasicBuilding",
+        "8": "AdvancedBuilding"
+      }
+    },
+    "Marine": {
+      "name": "Marine",
+      "race": "terran",
+      "hp": 40,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        6,
+        6
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 0,
+        "man": 1,
+        "time": 240
+      },
+      "width": 44,
+      "height": 44,
+      "sprite": "Marine",
+      "items": {
+        "4": "stimpack",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Firebat": {
+      "name": "Firebat",
+      "race": "terran",
+      "hp": 50,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        16,
+        16
+      ],
+      "attackRange": [
+        32,
+        32
+      ],
+      "attackInterval": [
+        2200,
+        2200
+      ],
+      "attackType": 2,
+      "unitType": 1,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 25,
+        "man": 1,
+        "time": 240
+      },
+      "width": 32,
+      "height": 32,
+      "sprite": "Firebat",
+      "items": {
+        "4": "stimpack",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Ghost": {
+      "name": "Ghost",
+      "race": "terran",
+      "hp": 45,
+      "sp": 0,
+      "mp": 50,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        10,
+        10
+      ],
+      "attackRange": [
+        170,
+        170
+      ],
+      "attackInterval": [
+        2200,
+        2200
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 10,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 25,
+        "gas": 75,
+        "man": 1,
+        "time": 400
+      },
+      "width": 43,
+      "height": 39,
+      "sprite": "Ghost",
+      "items": {
+        "4": "cloaking",
+        "5": "lockdown",
+        "6": "nuclearstrike",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Medic": {
+      "name": "Medic",
+      "race": "terran",
+      "hp": 60,
+      "sp": 0,
+      "mp": 50,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 25,
+        "man": 1,
+        "time": 300
+      },
+      "width": 32,
+      "height": 32,
+      "sprite": "Medic",
+      "items": {
+        "4": "heal",
+        "5": "restoration",
+        "6": "opticalflare",
+        "7": "move"
+      }
+    },
+    "Vulture": {
+      "name": "Vulture",
+      "race": "terran",
+      "hp": 80,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        20,
+        20
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 1,
+      "speed": 16,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 75,
+        "gas": 0,
+        "man": 2,
+        "time": 300
+      },
+      "width": 80,
+      "height": 80,
+      "sprite": "Vulture",
+      "items": {
+        "4": "spidermines",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Tank": {
+      "name": "Tank",
+      "race": "terran",
+      "hp": 150,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        30,
+        30
+      ],
+      "attackRange": [
+        170,
+        170
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": "ground",
+      "attackMode": {
+        "ground": {
+          "damage": [
+            30,
+            30
+          ],
+          "attackRange": [
+            170,
+            170
+          ],
+          "attackInterval": [
+            1500,
+            1500
+          ],
+          "attackType": 1
+        },
+        "siege": {
+          "damage": [
+            70,
+            70
+          ],
+          "attackRange": [
+            384,
+            384
+          ],
+          "attackInterval": [
+            3750,
+            3750
+          ],
+          "attackType": 1
+        }
+      },
+      "cost": {
+        "mine": 150,
+        "gas": 100,
+        "man": 2,
+        "time": 500
+      },
+      "width": 80,
+      "height": 80,
+      "sprite": "Tank",
+      "items": {
+        "4": "siegemode",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Goliath": {
+      "name": "Goliath",
+      "race": "terran",
+      "hp": 125,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        12,
+        12
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 2,
+      "speed": 11,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": {
+        "ground": {
+          "damage": [
+            12,
+            12
+          ],
+          "attackRange": [
+            140,
+            140
+          ],
+          "attackInterval": [
+            1500,
+            1500
+          ],
+          "attackType": 0
+        },
+        "flying": {
+          "damage": [
+            20,
+            20
+          ],
+          "attackRange": [
+            175,
+            175
+          ],
+          "attackInterval": [
+            2200,
+            2200
+          ],
+          "attackType": 1
+        }
+      },
+      "cost": {
+        "mine": 100,
+        "gas": 50,
+        "man": 2,
+        "time": 400
+      },
+      "width": 76,
+      "height": 76,
+      "sprite": "Goliath",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Wraith": {
+      "name": "Wraith",
+      "race": "terran",
+      "hp": 120,
+      "sp": 0,
+      "mp": 50,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        8,
+        8
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 1,
+      "speed": 16,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": {
+        "ground": {
+          "damage": [
+            8,
+            8
+          ],
+          "attackRange": [
+            140,
+            140
+          ],
+          "attackInterval": [
+            1500,
+            1500
+          ],
+          "attackType": 0
+        },
+        "flying": {
+          "damage": [
+            20,
+            20
+          ],
+          "attackRange": [
+            175,
+            175
+          ],
+          "attackInterval": [
+            2200,
+            2200
+          ],
+          "attackType": 1
+        }
+      },
+      "cost": {
+        "mine": 150,
+        "gas": 100,
+        "man": 2,
+        "time": 600
+      },
+      "width": 50,
+      "height": 41,
+      "sprite": "Wraith",
+      "items": {
+        "4": "cloaking",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Dropship": {
+      "name": "Dropship",
+      "race": "terran",
+      "hp": 150,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 2,
+      "speed": 13,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 100,
+        "man": 2,
+        "time": 500
+      },
+      "width": 60,
+      "height": 60,
+      "sprite": "Dropship",
+      "items": {
+        "4": "load",
+        "5": "unload",
+        "7": "move",
+        "8": "stop"
+      }
+    },
+    "Vessel": {
+      "name": "Vessel",
+      "race": "terran",
+      "hp": 200,
+      "sp": 0,
+      "mp": 50,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        350,
+        350
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 225,
+        "man": 2,
+        "time": 800
+      },
+      "width": 70,
+      "height": 55,
+      "sprite": "Vessel",
+      "items": {
+        "4": "defensivematrix",
+        "5": "empshockwave",
+        "6": "irradiate",
+        "7": "move"
+      }
+    },
+    "Valkyrie": {
+      "name": "Valkyrie",
+      "race": "terran",
+      "hp": 200,
+      "sp": 0,
+      "mp": 0,
+      "armor": 2,
+      "plasma": 0,
+      "damage": [
+        6,
+        6
+      ],
+      "attackRange": [
+        175,
+        175
+      ],
+      "attackInterval": [
+        3000,
+        3000
+      ],
+      "attackType": 0,
+      "unitType": 2,
+      "speed": 16,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": "flying",
+      "attackMode": null,
+      "cost": {
+        "mine": 250,
+        "gas": 125,
+        "man": 3,
+        "time": 600
+      },
+      "width": 58,
+      "height": 58,
+      "sprite": "Valkyrie",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "BattleCruiser": {
+      "name": "BattleCruiser",
+      "race": "terran",
+      "hp": 500,
+      "sp": 0,
+      "mp": 50,
+      "armor": 3,
+      "plasma": 0,
+      "damage": [
+        25,
+        25
+      ],
+      "attackRange": [
+        190,
+        190
+      ],
+      "attackInterval": [
+        3000,
+        3000
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 6,
+      "sight": [
+        385,
+        385
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 400,
+        "gas": 300,
+        "man": 6,
+        "time": 1333
+      },
+      "width": 94,
+      "height": 80,
+      "sprite": "BattleCruiser",
+      "items": {
+        "4": "yamatogun",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Civilian": {
+      "name": "Civilian",
+      "race": "terran",
+      "hp": 200,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 8,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 21,
+      "height": 31,
+      "sprite": "Civilian",
+      "items": {}
+    }
+  },
+  "zerg": {
+    "Drone": {
+      "name": "Drone",
+      "race": "zerg",
+      "hp": 40,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        5,
+        5
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 0,
+        "man": 1,
+        "time": 200
+      },
+      "width": 40,
+      "height": 44,
+      "sprite": "Drone",
+      "items": {
+        "5": "gather",
+        "7": "BasicBuilding",
+        "8": "AdvancedBuilding"
+      }
+    },
+    "Zergling": {
+      "name": "Zergling",
+      "race": "zerg",
+      "hp": 35,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        5,
+        5
+      ],
+      "attackRange": [
+        15,
+        15
+      ],
+      "attackInterval": [
+        800,
+        800
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 15,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 0,
+        "man": 0.5,
+        "time": 280
+      },
+      "width": 34,
+      "height": 28,
+      "sprite": "Zergling",
+      "items": {
+        "4": "burrow",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Hydralisk": {
+      "name": "Hydralisk",
+      "race": "zerg",
+      "hp": 80,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        10,
+        10
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 1,
+      "unitType": 1,
+      "speed": 9,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 75,
+        "gas": 25,
+        "man": 1,
+        "time": 330
+      },
+      "width": 50,
+      "height": 50,
+      "sprite": "Hydralisk",
+      "items": {
+        "4": "burrow",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Lurker": {
+      "name": "Lurker",
+      "race": "zerg",
+      "hp": 125,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        20,
+        20
+      ],
+      "attackRange": [
+        245,
+        245
+      ],
+      "attackInterval": [
+        2200,
+        2200
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 9,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 100,
+        "man": 2,
+        "time": 400
+      },
+      "width": 60,
+      "height": 60,
+      "sprite": "Lurker",
+      "items": {
+        "4": "burrow",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Ultralisk": {
+      "name": "Ultralisk",
+      "race": "zerg",
+      "hp": 400,
+      "sp": 0,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        20,
+        20
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 2,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 200,
+        "gas": 200,
+        "man": 4,
+        "time": 600
+      },
+      "width": 101,
+      "height": 108,
+      "sprite": "Ultralisk",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Broodling": {
+      "name": "Broodling",
+      "race": "zerg",
+      "hp": 30,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        4,
+        4
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 15,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 38,
+      "height": 38,
+      "sprite": "Broodling",
+      "items": {}
+    },
+    "InfestedTerran": {
+      "name": "InfestedTerran",
+      "race": "zerg",
+      "hp": 60,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        500,
+        500
+      ],
+      "attackRange": [
+        15,
+        15
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 8,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 50,
+        "man": 1,
+        "time": 0
+      },
+      "width": 41,
+      "height": 44,
+      "sprite": "InfestedTerran",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Overlord": {
+      "name": "Overlord",
+      "race": "zerg",
+      "hp": 200,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 2,
+      "speed": 2,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 68,
+      "height": 72,
+      "sprite": "Overlord",
+      "items": {
+        "4": "load",
+        "5": "unload"
+      },
+      "isDetector": true,
+      "manPlus": 8
+    },
+    "Queen": {
+      "name": "Queen",
+      "race": "zerg",
+      "hp": 120,
+      "sp": 0,
+      "mp": 50,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 1,
+      "speed": 16,
+      "sight": [
+        350,
+        350
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 100,
+        "man": 2,
+        "time": 500
+      },
+      "width": 78,
+      "height": 71,
+      "sprite": "Queen",
+      "items": {
+        "4": "parasite",
+        "5": "spawnbroodling",
+        "6": "ensnare",
+        "7": "move"
+      }
+    },
+    "Defiler": {
+      "name": "Defiler",
+      "race": "zerg",
+      "hp": 80,
+      "sp": 0,
+      "mp": 50,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 1,
+      "speed": 10,
+      "sight": [
+        350,
+        350
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 150,
+        "man": 2,
+        "time": 500
+      },
+      "width": 72,
+      "height": 62,
+      "sprite": "Defiler",
+      "items": {
+        "4": "darkswarm",
+        "5": "plague",
+        "6": "consume",
+        "7": "move"
+      }
+    },
+    "Mutalisk": {
+      "name": "Mutalisk",
+      "race": "zerg",
+      "hp": 120,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        9,
+        9
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 16,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 100,
+        "man": 2,
+        "time": 600
+      },
+      "width": 66,
+      "height": 75,
+      "sprite": "Mutalisk",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Guardian": {
+      "name": "Guardian",
+      "race": "zerg",
+      "hp": 150,
+      "sp": 0,
+      "mp": 0,
+      "armor": 2,
+      "plasma": 0,
+      "damage": [
+        20,
+        20
+      ],
+      "attackRange": [
+        350,
+        350
+      ],
+      "attackInterval": [
+        3000,
+        3000
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 8,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 100,
+        "man": 2,
+        "time": 400
+      },
+      "width": 81,
+      "height": 74,
+      "sprite": "Guardian",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Devourer": {
+      "name": "Devourer",
+      "race": "zerg",
+      "hp": 250,
+      "sp": 0,
+      "mp": 0,
+      "armor": 2,
+      "plasma": 0,
+      "damage": [
+        25,
+        25
+      ],
+      "attackRange": [
+        245,
+        245
+      ],
+      "attackInterval": [
+        3000,
+        3000
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": "flying",
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 150,
+        "man": 2,
+        "time": 400
+      },
+      "width": 73,
+      "height": 86,
+      "sprite": "Devourer",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Scourge": {
+      "name": "Scourge",
+      "race": "zerg",
+      "hp": 25,
+      "sp": 0,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        110,
+        110
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 20,
+      "sight": [
+        175,
+        175
+      ],
+      "isFlying": true,
+      "meleeAttack": true,
+      "attackLimit": "flying",
+      "attackMode": null,
+      "cost": {
+        "mine": 25,
+        "gas": 75,
+        "man": 0.5,
+        "time": 300
+      },
+      "width": 34,
+      "height": 30,
+      "sprite": "Scourge",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Larva": {
+      "name": "Larva",
+      "race": "zerg",
+      "hp": 25,
+      "sp": 0,
+      "mp": 0,
+      "armor": 10,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 0,
+      "sight": [
+        70,
+        70
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 32,
+      "height": 28,
+      "sprite": "Larva",
+      "items": {}
+    }
+  },
+  "protoss": {
+    "Probe": {
+      "name": "Probe",
+      "race": "protoss",
+      "hp": 20,
+      "sp": 20,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        5,
+        5
+      ],
+      "attackRange": [
+        22,
+        22
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 0,
+      "speed": 12,
+      "sight": [
+        280,
+        280
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 0,
+        "man": 1,
+        "time": 200
+      },
+      "width": 32,
+      "height": 32,
+      "sprite": "Probe",
+      "items": {
+        "5": "gather",
+        "7": "BasicBuilding",
+        "8": "AdvancedBuilding"
+      }
+    },
+    "Zealot": {
+      "name": "Zealot",
+      "race": "protoss",
+      "hp": 100,
+      "sp": 60,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        16,
+        16
+      ],
+      "attackRange": [
+        15,
+        15
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 1,
+      "speed": 10,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 0,
+        "man": 2,
+        "time": 300
+      },
+      "width": 42,
+      "height": 44,
+      "sprite": "Zealot",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Dragoon": {
+      "name": "Dragoon",
+      "race": "protoss",
+      "hp": 100,
+      "sp": 80,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        20,
+        20
+      ],
+      "attackRange": [
+        160,
+        160
+      ],
+      "attackInterval": [
+        2200,
+        2200
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 8,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 125,
+        "gas": 50,
+        "man": 2,
+        "time": 400
+      },
+      "width": 56,
+      "height": 56,
+      "sprite": "Dragoon",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Templar": {
+      "name": "Templar",
+      "race": "protoss",
+      "hp": 40,
+      "sp": 40,
+      "mp": 50,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 8,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 50,
+        "gas": 150,
+        "man": 2,
+        "time": 500
+      },
+      "width": 68,
+      "height": 68,
+      "sprite": "Templar",
+      "items": {
+        "4": "psistorm",
+        "5": "hallucination",
+        "6": "meld",
+        "7": "move"
+      }
+    },
+    "DarkTemplar": {
+      "name": "DarkTemplar",
+      "race": "protoss",
+      "hp": 40,
+      "sp": 80,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        40,
+        40
+      ],
+      "attackRange": [
+        15,
+        15
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 1,
+      "speed": 12,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": false,
+      "meleeAttack": true,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 57,
+      "height": 62,
+      "sprite": "DarkTemplar",
+      "isInvisible": true,
+      "items": {
+        "6": "darkmeld",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Archon": {
+      "name": "Archon",
+      "race": "protoss",
+      "hp": 10,
+      "sp": 350,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        30,
+        30
+      ],
+      "attackRange": [
+        32,
+        32
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 2,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 80,
+      "height": 80,
+      "sprite": "Archon",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "DarkArchon": {
+      "name": "DarkArchon",
+      "race": "protoss",
+      "hp": 25,
+      "sp": 200,
+      "mp": 50,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        350,
+        350
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 0,
+        "gas": 0,
+        "man": 0,
+        "time": 0
+      },
+      "width": 80,
+      "height": 80,
+      "sprite": "DarkArchon",
+      "items": {
+        "4": "feedback",
+        "5": "maelstrom",
+        "6": "mindcontrol",
+        "7": "move"
+      }
+    },
+    "Reaver": {
+      "name": "Reaver",
+      "race": "protoss",
+      "hp": 100,
+      "sp": 80,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        100,
+        100
+      ],
+      "attackRange": [
+        245,
+        245
+      ],
+      "attackInterval": [
+        3000,
+        3000
+      ],
+      "attackType": 1,
+      "unitType": 2,
+      "speed": 4,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": false,
+      "meleeAttack": false,
+      "attackLimit": "ground",
+      "attackMode": null,
+      "cost": {
+        "mine": 200,
+        "gas": 100,
+        "man": 4,
+        "time": 700
+      },
+      "width": 84,
+      "height": 84,
+      "sprite": "Reaver",
+      "items": {
+        "4": "buildscarab",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Shuttle": {
+      "name": "Shuttle",
+      "race": "protoss",
+      "hp": 80,
+      "sp": 60,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 2,
+      "speed": 12,
+      "sight": [
+        245,
+        245
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 200,
+        "gas": 0,
+        "man": 2,
+        "time": 600
+      },
+      "width": 60,
+      "height": 60,
+      "sprite": "Shuttle",
+      "items": {
+        "4": "load",
+        "5": "unload",
+        "7": "move"
+      }
+    },
+    "Observer": {
+      "name": "Observer",
+      "race": "protoss",
+      "hp": 40,
+      "sp": 20,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        0,
+        0
+      ],
+      "attackRange": [
+        0,
+        0
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": -1,
+      "unitType": 0,
+      "speed": 8,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 25,
+        "gas": 75,
+        "man": 1,
+        "time": 400
+      },
+      "width": 40,
+      "height": 40,
+      "sprite": "Observer",
+      "isInvisible": true,
+      "isDetector": true,
+      "items": {
+        "7": "move"
+      }
+    },
+    "Arbiter": {
+      "name": "Arbiter",
+      "race": "protoss",
+      "hp": 200,
+      "sp": 150,
+      "mp": 50,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        10,
+        10
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        2200,
+        2200
+      ],
+      "attackType": 0,
+      "unitType": 2,
+      "speed": 8,
+      "sight": [
+        385,
+        385
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 100,
+        "gas": 350,
+        "man": 4,
+        "time": 1600
+      },
+      "width": 76,
+      "height": 76,
+      "sprite": "Arbiter",
+      "hasCloakField": true,
+      "items": {
+        "4": "recall",
+        "5": "stasisfield",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Scout": {
+      "name": "Scout",
+      "race": "protoss",
+      "hp": 150,
+      "sp": 100,
+      "mp": 0,
+      "armor": 0,
+      "plasma": 0,
+      "damage": [
+        8,
+        8
+      ],
+      "attackRange": [
+        140,
+        140
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 2,
+      "speed": 14,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": {
+        "ground": {
+          "damage": [
+            8,
+            8
+          ],
+          "attackRange": [
+            140,
+            140
+          ],
+          "attackInterval": [
+            1500,
+            1500
+          ],
+          "attackType": 0
+        },
+        "flying": {
+          "damage": [
+            28,
+            28
+          ],
+          "attackRange": [
+            175,
+            175
+          ],
+          "attackInterval": [
+            2200,
+            2200
+          ],
+          "attackType": 1
+        }
+      },
+      "cost": {
+        "mine": 300,
+        "gas": 150,
+        "man": 3,
+        "time": 800
+      },
+      "width": 56,
+      "height": 56,
+      "sprite": "Scout",
+      "items": {
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Carrier": {
+      "name": "Carrier",
+      "race": "protoss",
+      "hp": 300,
+      "sp": 150,
+      "mp": 0,
+      "armor": 4,
+      "plasma": 0,
+      "damage": [
+        6,
+        6
+      ],
+      "attackRange": [
+        245,
+        245
+      ],
+      "attackInterval": [
+        0,
+        0
+      ],
+      "attackType": 0,
+      "unitType": 2,
+      "speed": 8,
+      "sight": [
+        385,
+        385
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": null,
+      "attackMode": null,
+      "cost": {
+        "mine": 350,
+        "gas": 250,
+        "man": 6,
+        "time": 1400
+      },
+      "width": 128,
+      "height": 128,
+      "sprite": "Carrier",
+      "items": {
+        "4": "buildinterceptor",
+        "7": "move",
+        "8": "attack"
+      }
+    },
+    "Corsair": {
+      "name": "Corsair",
+      "race": "protoss",
+      "hp": 100,
+      "sp": 80,
+      "mp": 0,
+      "armor": 1,
+      "plasma": 0,
+      "damage": [
+        10,
+        10
+      ],
+      "attackRange": [
+        175,
+        175
+      ],
+      "attackInterval": [
+        1500,
+        1500
+      ],
+      "attackType": 0,
+      "unitType": 1,
+      "speed": 16,
+      "sight": [
+        315,
+        315
+      ],
+      "isFlying": true,
+      "meleeAttack": false,
+      "attackLimit": "flying",
+      "attackMode": null,
+      "cost": {
+        "mine": 150,
+        "gas": 100,
+        "man": 2,
+        "time": 400
+      },
+      "width": 60,
+      "height": 60,
+      "sprite": "Corsair",
+      "items": {
+        "4": "disruptionweb",
+        "7": "move",
+        "8": "attack"
+      }
+    }
+  }
+}
