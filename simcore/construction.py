@@ -123,21 +123,21 @@ _DEFAULT_UNIT_STATS = {
     "Drone":    {"health": 40,  "max_health": 40,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
     "Probe":    {"health": 20,  "max_health": 20,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
     # Terran army
-    "Marine":   {"health": 40,  "max_health": 40,  "speed": 3.0, "attack": 6,  "attack_range": 6.0, "carry_capacity": 0},
+    "Marine":   {"health": 40,  "max_health": 40,  "speed": 3.0, "attack": 6,  "attack_range": 5.0, "carry_capacity": 0},
     "Firebat":  {"health": 50,  "max_health": 50,  "speed": 3.0, "attack": 16, "attack_range": 1.5, "carry_capacity": 0},
     "Ghost":    {"health": 45,  "max_health": 45,  "speed": 3.0, "attack": 10, "attack_range": 8.0, "carry_capacity": 0},
     "Medic":    {"health": 60,  "max_health": 60,  "speed": 3.0, "attack": 0,  "attack_range": 0,   "carry_capacity": 0},
     "Vulture":  {"health": 80,  "max_health": 80,  "speed": 5.0, "attack": 20, "attack_range": 5.0, "carry_capacity": 0},
     "Tank":     {"health": 150, "max_health": 150, "speed": 2.5, "attack": 30, "attack_range": 10.0, "carry_capacity": 0},
     "Goliath":  {"health": 125, "max_health": 125, "speed": 3.0, "attack": 12, "attack_range": 7.0, "carry_capacity": 0},
-    # Zerg army — Zerglings attack in pairs → double damage
-    "Zergling": {"health": 35,  "max_health": 35,  "speed": 4.5, "attack": 10, "attack_range": 1.5, "carry_capacity": 0},
+ # Zerg army — Zerglings spawn in pairs, need stat buff for simplified combat
+    "Zergling": {"health": 40,  "max_health": 40,  "speed": 4.0, "attack": 7,   "attack_range": 1.5, "carry_capacity": 0},
     "Hydralisk":{"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 6.0, "carry_capacity": 0},
     "Lurker":   {"health": 125, "max_health": 125, "speed": 2.5, "attack": 20, "attack_range": 8.0, "carry_capacity": 0},
     "Ultralisk":{"health": 400, "max_health": 400, "speed": 2.5, "attack": 40, "attack_range": 1.5, "carry_capacity": 0},
     "Overlord": {"health": 200, "max_health": 200, "speed": 1.5, "attack": 0,  "attack_range": 0,   "carry_capacity": 0},
     # Protoss army
-    "Zealot":   {"health": 160, "max_health": 160, "speed": 3.5, "attack": 16, "attack_range": 1.5, "carry_capacity": 0},
+    "Zealot":   {"health": 100, "max_health": 100, "speed": 3.0, "attack": 12, "attack_range": 1.5, "carry_capacity": 0},
     "Dragoon":  {"health": 100, "max_health": 100, "speed": 2.5, "attack": 20, "attack_range": 6.0, "carry_capacity": 0},
 }
 

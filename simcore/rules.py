@@ -702,7 +702,7 @@ def _unit_stats(utype: str, owner: int, px: float, py: float) -> dict:
     """Return entity dict for a newly spawned unit."""
     stats_map = {
         "worker":  {"health": 50,  "max_health": 50,  "speed": 2.5, "attack": 5,  "attack_range": 1.5,  "carry_capacity": 10.0},
-        "soldier": {"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 6.0,  "carry_capacity": 0},
+        "soldier": {"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 5.0,  "carry_capacity": 0},
         "scout":   {"health": 40,  "max_health": 40,  "speed": 4.0, "attack": 8,  "attack_range": 6.0,  "carry_capacity": 0},
     }
     s = stats_map.get(utype, stats_map["worker"])

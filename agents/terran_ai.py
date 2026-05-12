@@ -1,38 +1,42 @@
-"""Terran ScriptAI — rule-based Terran opponent.
+"""Terran ScriptAI — ranged turtle, timing push.
 
 Strategy:
 - Supply Depot → Barracks → Factory progression
-- Marine timing pushes, Tank support
-- Attack with rally groups toward enemy base
+- Mass Marines with range advantage
+- Tanks for siege support
+- Delay attack to build up a strong force (RALLY_SIZE=6)
+- Defend base if threatened
 """
 from __future__ import annotations
 from agents.race_ai_base import RaceAIBase
 
 
 class TerranAI(RaceAIBase):
-    """Rule-based Terran AI."""
+    """Rule-based Terran AI — ranged turtle + timing push."""
 
     NAME = "TerranAI"
     RACE = "terran"
 
     BUILD_ORDER = [
-        ("SupplyDepot", 3),
+        ("SupplyDepot", 2),
         ("Barracks", 2),
         ("Refinery", 1),
         ("Factory", 1),
         ("Academy", 1),
-        ("Bunker", 2),
     ]
-    MAX_WORKERS = 16
-    MAX_BUILDINGS = 15
-    ATTACK_DELAY = 200
-    RALLY_SIZE = 5
+    MAX_WORKERS = 14
+    MAX_BUILDINGS = 12
+    ATTACK_DELAY = 300
+    RALLY_SIZE = 6
 
     def decide(self, observation: dict) -> dict:
         cat = self._categorize(observation)
         cmds: list[dict] = []
         tick = observation.get("tick", 0)
         mineral, gas, supply_used, supply_cap = self._get_resources(observation)
+        n_workers = self._count_workers(cat)
+        has_rax = self._count_building_type(cat, "Barracks") >= 1
+        has_fac = self._count_building_type(cat, "Factory") >= 1
 
         # ── 1. Build ──
         idle_w = cat["idle_workers"]
@@ -43,15 +47,16 @@ class TerranAI(RaceAIBase):
                 if self._count_building_type(cat, btype) >= max_n:
                     continue
                 cost = {"SupplyDepot": 100, "Barracks": 150, "Refinery": 100,
-                        "Factory": 200, "Academy": 150, "Bunker": 100}.get(btype, 150)
+                        "Factory": 200, "Academy": 150}.get(btype, 150)
                 if mineral < cost:
                     continue
                 bx = w.get("pos_x", 9.6) + n_bldgs * 2
                 by = w.get("pos_y", 9.6) + 1
                 cmds.append(self._cmd_build(wid, btype, bx, by))
+                mineral -= cost
                 break
 
-        # ── 2. Supply Depot at threshold ──
+        # ── 2. Supply at threshold ──
         if supply_cap - supply_used <= 3 and mineral >= 100:
             if idle_w:
                 wid, w = idle_w[-1]
@@ -64,10 +69,7 @@ class TerranAI(RaceAIBase):
             if wid != build_wid:
                 self._assign_workers_to_minerals(cmds, cat)
 
-        # ── 4. Military (Marines + Tanks) ──
-        has_rax = self._count_building_type(cat, "Barracks") >= 1
-        has_fac = self._count_building_type(cat, "Factory") >= 1
-
+        # ── 4. Military — Marines + Tanks ──
         for eid, ent in cat["my_buildings"].items():
             bt = ent.get("building_type", "")
             if bt == "Barracks" and has_rax and mineral >= 50:
@@ -75,21 +77,23 @@ class TerranAI(RaceAIBase):
                     cmds.append(self._cmd_train(eid, "Marine"))
                     mineral -= 50
                     continue
-            if bt == "Factory" and has_fac and mineral >= 150:
+            if bt == "Factory" and has_fac and mineral >= 150 and gas >= 50:
                 if not self._building_has_queue(cat, eid):
                     cmds.append(self._cmd_train(eid, "Tank"))
                     mineral -= 150
+                    gas -= 50
                     continue
 
         # ── 5. Workers ──
-        if self._count_workers(cat) < self.MAX_WORKERS and mineral >= 50:
+        if n_workers < self.MAX_WORKERS and mineral >= 50:
             for eid, ent in cat["my_buildings"].items():
-                if ent.get("building_type", "") in ("base", "CommandCenter"):
-                    if not self._building_has_queue(cat, eid):
-                        cmds.append(self._cmd_train(eid, "SCV"))
-                        break
+                bt = ent.get("building_type", "")
+                if bt in ("base", "CommandCenter") and not self._building_has_queue(cat, eid):
+                    cmds.append(self._cmd_train(eid, "SCV"))
+                    mineral -= 50
+                    break
 
-        # ── 6. Attack ──
+        # ── 6. Attack — defend if threatened, otherwise timing push ──
         idle_combat = cat["idle_combat"]
         base_threatened = any(
             "base" in eid for eid, _ in cat.get("enemies", [])

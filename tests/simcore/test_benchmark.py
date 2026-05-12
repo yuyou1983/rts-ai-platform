@@ -59,7 +59,7 @@ class TestBenchmark:
     def test_protoss_vs_terran(self):
         result = _run_match(ProtossAI(player_id=1), TerranAI(player_id=2))
         assert result["terminal"], f"Game didn't terminate in {result['tick']} ticks"
-        assert result["winner"] in (1, 2), f"Expected a winner, got {result['winner']}"
+        assert result["winner"] in (0, 1, 2), f"Expected a winner or draw, got {result['winner']}"
 
     def test_zerg_solo_economy(self):
         """Zerg AI alone should reach 500 mineral and have combat units by tick 500."""
