@@ -11,7 +11,9 @@ Resolution order per tick:
 """
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 from simcore.state import GameState
@@ -32,6 +34,117 @@ WORKER_RETURN_SPEED = 3.0  # slightly faster when carrying
 PRIORITY_WEIGHT_HEALTH = 0.6   # prefer low-health targets
 PRIORITY_WEIGHT_DIST = 0.3     # prefer nearby targets
 PRIORITY_WEIGHT_THREAT = 0.1   # prefer high-damage targets
+
+# ─── Damage Matrix ──────────────────────────────────────────
+
+_DAMAGE_MATRIX_DATA: dict | None = None
+
+# Weapon type to attack type index mapping (from data/combat.json attackTypes)
+_WEAPON_TYPE_MAP: dict[str, int] = {
+    "normal": 2,      # WAVE → 100% to all
+    "explosive": 1,   # BURST → 50% small, 75% medium, 100% large
+    "concussive": 0,  # NORMAL → 100% small, 50% medium, 25% large
+    "spells": 2,      # WAVE → 100% to all (spells ignore armor type)
+    "splash": 2,      # WAVE → 100% to all
+    "melee": 2,       # WAVE → 100% to all (melee does full damage)
+}
+
+# Armor type to unit type index mapping (from data/combat.json unitTypes)
+_ARMOR_TYPE_MAP: dict[str, int] = {
+    "light": 0,   # SMALL
+    "medium": 1,  # MIDDLE
+    "heavy": 2,   # BIG
+}
+
+
+def _load_damage_matrix() -> dict:
+    """Load damage matrix from data/combat.json (cached)."""
+    global _DAMAGE_MATRIX_DATA
+    if _DAMAGE_MATRIX_DATA is None:
+        path = Path(__file__).resolve().parent.parent / "data" / "combat.json"
+        with open(path) as f:
+            _DAMAGE_MATRIX_DATA = json.load(f)
+    return _DAMAGE_MATRIX_DATA
+
+
+def calculate_damage(
+    base_damage: float,
+    weapon_type: str,
+    target_armor: int,
+    target_armor_type: str,
+) -> float:
+    """Calculate final damage using the damage matrix.
+
+    Formula: final = (base_damage × damageMatrix[attackType][unitType] - armor) × 0.01
+    Minimum: 0.5 (from combat.json minDamage)
+
+    Args:
+        base_damage: Base damage value of the attack.
+        weapon_type: One of "normal", "explosive", "concussive", "spells", "splash", "melee".
+        target_armor: Target's armor value.
+        target_armor_type: One of "light", "medium", "heavy".
+
+    Returns:
+        Final damage value (minimum 0.5).
+    """
+    data = _load_damage_matrix()
+    matrix = data.get("damageMatrix", [[100, 50, 25], [50, 75, 100], [100, 100, 100]])
+    min_damage = data.get("minDamage", 0.5)
+
+    attack_idx = _WEAPON_TYPE_MAP.get(weapon_type, 2)  # default: normal (full damage)
+    armor_idx = _ARMOR_TYPE_MAP.get(target_armor_type, 1)  # default: medium
+
+    # Get multiplier percentage from matrix
+    if 0 <= attack_idx < len(matrix) and 0 <= armor_idx < len(matrix[attack_idx]):
+        multiplier_pct = matrix[attack_idx][armor_idx]
+    else:
+        multiplier_pct = 100
+
+    # Apply formula: (base_damage × multiplier% / 100 - armor)
+    raw_damage = base_damage * multiplier_pct / 100.0 - target_armor
+
+    # Minimum damage
+    return max(min_damage, raw_damage)
+
+
+def get_armor_type(entity: dict[str, Any]) -> str:
+    """Determine armor type for an entity based on its unit/building type.
+
+    Default mapping follows StarCraft conventions:
+      - light: workers, small units (Zergling, Marine, Ghost, etc.)
+      - medium: mid-size units (Hydralisk, Vulture, Dragoon, etc.)
+      - heavy: large units (Tank, Ultralisk, BattleCruiser, buildings, etc.)
+    """
+    etype = entity.get("entity_type", "")
+    utype = entity.get("unit_type", "").lower() if entity.get("unit_type") else ""
+
+    # Buildings are heavy
+    if etype == "building":
+        return "heavy"
+
+    light_units = {"worker", "soldier", "scout", "zergling", "marine", "ghost",
+                   "firebat", "medic", "scourge", "broodling", "larva",
+                   "probe", "zealot", "darktemplar", "observer",
+                   "scv", "drone"}
+    medium_units = {"hydralisk", "vulture", "goliath", "wraith", "valkyrie",
+                    "mutalisk", "queen", "defiler", "corsair", "dropship",
+                    "shuttle", "lurker", "infestedterran", "overlord"}
+    heavy_units = {"tank", "ultralisk", "battlecruiser", "carrier", "arbitr",
+                   "archon", "darkarchon", "reaver", "guardian", "devourer",
+                   "vessel", "behemoth"}
+
+    if utype in light_units or etype in light_units:
+        return "light"
+    elif utype in medium_units:
+        return "medium"
+    elif utype in heavy_units:
+        return "heavy"
+
+    # Default: workers and small infantry are light, everything else medium
+    if etype in ("worker", "scout"):
+        return "light"
+
+    return "medium"
 
 
 # ─── Combat Kill Tracking ───────────────────────────────────
@@ -255,7 +368,11 @@ def resolve_combat(
         dy = e["pos_y"] - target["pos_y"]
         d = math.sqrt(dx * dx + dy * dy)
         if d <= e.get("attack_range", 16.0):
-            dmg = e.get("attack", 0)
+            base_dmg = e.get("attack", 0)
+            weapon_type = e.get("weapon_type", "normal")
+            target_armor = target.get("armor", 0)
+            target_armor_type = get_armor_type(target)
+            dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
             new_health = target["health"] - dmg
             fought[tid] = {**target, "health": new_health}
             kill_feed.record_damage(e.get("owner", 0), dmg)
@@ -320,7 +437,11 @@ def resolve_combat(
 
             if best_target and best_target in fought:
                 target = fought[best_target]
-                dmg = e["attack"]
+                base_dmg = e.get("attack", 0)
+                weapon_type = e.get("weapon_type", "normal")
+                target_armor = target.get("armor", 0)
+                target_armor_type = get_armor_type(target)
+                dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
                 new_health = target["health"] - dmg
                 fought[best_target] = {**target, "health": new_health}
                 kill_feed.record_damage(e.get("owner", 0), dmg)

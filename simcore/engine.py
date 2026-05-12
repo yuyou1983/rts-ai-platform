@@ -29,6 +29,7 @@ from simcore.rules import (
     check_terminal, KillFeed, _find_nearest_base, _unit_stats,
     GATHER_RATE, BUILD_PROGRESS_PER_TICK, PRODUCTION_TICKS,
     WORKER_RETURN_SPEED,
+    calculate_damage, get_armor_type,
 )
 from simcore.economy import (
     process_gathering as economy_process_gathering,
@@ -39,6 +40,9 @@ from simcore.economy import (
 from simcore.construction import (
     process_construction as new_process_construction,
 )
+from simcore.projectile import process_projectiles
+from simcore.spells import process_spells, regen_energy
+from simcore.upgrades import apply_upgrade_effects
 from simcore.state import GameState
 
 
@@ -101,14 +105,18 @@ class SimCore:
           3. Apply ATTACK/GATHER/BUILD/TRAIN via old rule engine
           4. Move entities: old system for chase/return + new system for A* paths
           5. Collision separation
-          6. Process attacks (combat)
-          7. Process gathering (economy system)
-          8. Process construction (new construction system with tech tree)
-          9. Zerg larva spawning
-         10. Protoss shield regeneration
-         11. Update resource counters (supply used/cap)
-         12. Update fog-of-war
-         13. Check terminal state
+          6. Process attacks (combat with damage matrix)
+          7. Process projectiles
+          8. Process spells
+          9. Process gathering (economy system)
+         10. Process construction (new construction system with tech tree)
+         11. Apply upgrade effects
+         12. Zerg larva spawning
+         13. Protoss shield regeneration
+         14. Energy regeneration
+         15. Update resource counters (supply used/cap)
+         16. Update fog-of-war
+         17. Check terminal state
 
         Args:
             commands: List of command dicts matching cmd.proto schema.
@@ -211,13 +219,34 @@ class SimCore:
         # 8. Construction (use new construction system with tech tree validation)
         entities, resources = new_process_construction(entities, resources, other_cmds, self._tick)
 
-        # 9. Zerg larva spawning
+        # 9. Process projectiles
+        entities = process_projectiles(entities, self._tick)
+
+        # 10. Process spells
+        spell_cmds = [c for c in other_cmds if c.get("action") == "spell"]
+        entities, resources = process_spells(entities, resources, spell_cmds, self._tick)
+
+        # 11. Apply upgrade effects (from completed upgrades)
+        completed_upgrades = self._state.entities.get("__completed_upgrades__", {})
+        upgrade_list = []
+        if isinstance(completed_upgrades, dict):
+            for owner, upg_list in completed_upgrades.items():
+                if isinstance(upg_list, list):
+                    upgrade_list.extend(upg_list)
+        elif isinstance(completed_upgrades, list):
+            upgrade_list = completed_upgrades
+        entities = apply_upgrade_effects(entities, upgrade_list)
+
+        # 12. Zerg larva spawning
         entities = process_larva_spawn(entities, self._tick)
 
-        # 10. Protoss shield regeneration
+        # 13. Protoss shield regeneration
         entities = process_shield_regen(entities, self._tick)
 
-        # 11. Update resource counters (supply used/cap)
+        # 14. Energy regeneration (for casters)
+        entities = regen_energy(entities, self._tick)
+
+        # 15. Update resource counters (supply used/cap)
         temp_state2 = GameState(
             tick=self._tick,
             entities=entities,
@@ -238,10 +267,10 @@ class SimCore:
                     )
                     self._tile_map.occupy([(tx, ty)])
 
-        # 12. Fog-of-war
+        # 16. Fog-of-war
         fog = update_fog_of_war(entities, temp_state.fog_of_war, self._tick)
 
-        # 13. Terminal check
+        # 17. Terminal check
         is_terminal, winner, reason = check_terminal(entities, self._tick, self.max_ticks)
 
         self._state = GameState(
