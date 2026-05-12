@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AbilityResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ability_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"train_worker"
+display_name = "Train Worker"
+description = "Train worker unit"
+hotkey = 87
+cooldown = 0.0
+ap_cost = 1
+is_chainable = true
+allow_trigger_multiple = true
+activate_as_group = false
+target_type = 0
+cast_max_range = 999.0
+auto_move_to_cast = false
+dont_clear_targets = false

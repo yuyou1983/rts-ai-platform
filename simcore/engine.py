@@ -2,13 +2,32 @@
 
 Produces immutable state snapshots per tick. No rendering, no I/O delays.
 Designed for: parallel batch simulation, deterministic replay, RL training.
+
+Pipeline per tick:
+  step(commands) → validate → move → collision_separate → process_attacks
+                 → gather → build → train → fog → check_terminal
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
-from typing import Protocol
+from pathlib import Path
+from typing import Any, Protocol
 
-from simcore.rules import RuleEngine
+from simcore.map import TileMap, generate_tile_map, PLAIN, WATER, MOUNTAIN
+from simcore.commands import (
+    validate_command, apply_command,
+    MOVE, STOP, ATTACK, GATHER, BUILD, TRAIN, HOLD, PATROL,
+)
+from simcore.movement import move_entities, collision_separate, is_at_target
+from simcore.pathfinder import find_path as astar_find_path
+from simcore.rules import (
+    RuleEngine, validate_commands, apply_movement, resolve_combat,
+    process_gathering, process_construction, update_fog_of_war,
+    check_terminal, KillFeed, _find_nearest_base, _unit_stats,
+    GATHER_RATE, BUILD_PROGRESS_PER_TICK, PRODUCTION_TICKS,
+    WORKER_RETURN_SPEED,
+)
 from simcore.state import GameState
 
 
@@ -35,6 +54,7 @@ class SimCore:
     _tick: int = field(default=0, init=False)
     _state: GameState | None = field(default=None, init=False)
     _replay: list[dict] = field(default_factory=list, init=False)
+    _tile_map: TileMap | None = field(default=None, init=False)
 
     def initialize(self, map_seed: int = 42, config: dict | None = None) -> None:
         """Initialize game state from seed + config (deterministic).
@@ -49,8 +69,33 @@ class SimCore:
         self._tick = 0
         self._replay = [self._state.to_snapshot()]
 
+        # Generate tile map for pathfinding
+        self._tile_map = generate_tile_map(seed=map_seed, config=config or {})
+
+        # Sync building positions to tile map occupied set
+        if self._tile_map and self._state:
+            for eid, e in self._state.entities.items():
+                if e.get("entity_type") == "building":
+                    tx, ty = self._tile_map.world_to_tile(
+                        e.get("pos_x", 0), e.get("pos_y", 0)
+                    )
+                    self._tile_map.occupy([(tx, ty)])
+
     def step(self, commands: list[dict]) -> GameState:
         """Advance one tick: apply commands → resolve rules → snapshot state.
+
+        Pipeline:
+          1. Validate commands (both old and new systems)
+          2. Apply MOVE/STOP commands via new command system (sets A* paths)
+          3. Apply ATTACK/GATHER/BUILD/TRAIN via old rule engine
+          4. Move entities: old system for chase/return + new system for A* paths
+          5. Collision separation
+          6. Process attacks (combat)
+          7. Process gathering
+          8. Process construction/build
+          9. Process training
+          10. Update fog-of-war
+          11. Check terminal state
 
         Args:
             commands: List of command dicts matching cmd.proto schema.
@@ -62,7 +107,123 @@ class SimCore:
             raise RuntimeError("SimCore not initialized. Call initialize() first.")
 
         self._tick += 1
-        self._state = self.rule_engine.apply(self._state, commands, self._tick)
+
+        # 1. Validate commands using old system
+        valid = validate_commands(self._state, commands)
+
+        # Separate commands by type for dual-system processing
+        move_cmds = [c for c in valid if c.get("action") == MOVE]
+        other_cmds = [c for c in valid if c.get("action") != MOVE]
+
+        entities = dict(self._state.entities)
+
+        # 2. Apply MOVE commands via new command system (sets path + target)
+        for cmd in move_cmds:
+            entity_id = cmd.get("unit_id", "")
+            if not entity_id or entity_id not in entities:
+                continue
+            entity = entities[entity_id]
+            if validate_command(cmd, entity, self._state):
+                if self._tile_map is not None:
+                    entities[entity_id] = apply_command(
+                        cmd, entity, self._tile_map
+                    )
+                else:
+                    # Fallback: just set target without path
+                    entities[entity_id] = {
+                        **entity,
+                        "target_x": cmd.get("target_x", entity["pos_x"]),
+                        "target_y": cmd.get("target_y", entity["pos_y"]),
+                        "is_idle": False,
+                        "returning_to_base": False,
+                        "attack_target_id": "",
+                    }
+
+        # 2b. Apply STOP commands via new command system
+        for cmd in valid:
+            if cmd.get("action") == STOP:
+                entity_id = cmd.get("unit_id", "")
+                if entity_id and entity_id in entities:
+                    entity = entities[entity_id]
+                    if validate_command(cmd, entity, self._state):
+                        entities[entity_id] = apply_command(cmd, entity)
+
+        # 3. Apply ATTACK commands — set attack_target_id on entities
+        for cmd in other_cmds:
+            if cmd.get("action") == ATTACK:
+                attacker_id = cmd.get("attacker_id", "")
+                if attacker_id and attacker_id in entities:
+                    entity = entities[attacker_id]
+                    if validate_command(cmd, entity, self._state):
+                        entities[attacker_id] = {
+                            **entity,
+                            "attack_target_id": cmd.get("target_id", ""),
+                            "is_idle": False,
+                            "returning_to_base": False,
+                            "deposit_pending": False,
+                        }
+
+        # Build temp state for old rule engine movement
+        temp_state = GameState(
+            tick=self._state.tick,
+            entities=entities,
+            fog_of_war=self._state.fog_of_war,
+            resources=self._state.resources,
+            is_terminal=self._state.is_terminal,
+            winner=self._state.winner,
+        )
+
+        # 4. Movement
+        # Old system handles: worker return-to-base, attack chase
+        # It also handles any remaining move commands in other_cmds,
+        # but we already processed move_cmds above.
+        # Pass only non-move commands to old system's apply_movement
+        entities = apply_movement(temp_state.entities, other_cmds, self._tick)
+
+        # New system: advance entities along A* paths
+        entities = move_entities(entities, dt=1.0, tile_map=self._tile_map)
+
+        # 5. Collision separation
+        entities = collision_separate(entities)
+
+        # 6. Combat
+        entities, resources = resolve_combat(
+            entities, temp_state.resources, other_cmds, self._tick,
+            kill_feed=self.rule_engine.kill_feed,
+        )
+
+        # 7. Gathering
+        entities, resources = process_gathering(entities, resources, other_cmds, self._tick)
+
+        # 8. Construction
+        entities, resources = process_construction(entities, resources, other_cmds, self._tick)
+
+        # 9. (Training is handled inside process_construction)
+
+        # Update tile map occupied set from current buildings
+        if self._tile_map is not None:
+            self._tile_map.occupied.clear()
+            for eid, e in entities.items():
+                if e.get("entity_type") == "building" and e.get("health", 0) > 0:
+                    tx, ty = self._tile_map.world_to_tile(
+                        e.get("pos_x", 0), e.get("pos_y", 0)
+                    )
+                    self._tile_map.occupy([(tx, ty)])
+
+        # 10. Fog-of-war
+        fog = update_fog_of_war(entities, temp_state.fog_of_war, self._tick)
+
+        # 11. Terminal check
+        is_terminal, winner, reason = check_terminal(entities, self._tick, self.max_ticks)
+
+        self._state = GameState(
+            tick=self._tick,
+            entities=entities,
+            fog_of_war=fog,
+            resources=resources,
+            is_terminal=is_terminal,
+            winner=winner,
+        )
         self._replay.append(self._state.to_snapshot())
         return self._state
 
@@ -81,6 +242,28 @@ class SimCore:
             commands = [a.decide(o) for a, o in zip(agents, obs, strict=True)]
             self.step(commands)
         return self._state
+
+    def get_observations(self, player_id: int) -> dict:
+        """Get fog-filtered view for a specific player.
+
+        Args:
+            player_id: Player ID (1 or 2).
+
+        Returns:
+            Observation dict filtered by fog-of-war.
+        """
+        if self._state is None:
+            return {}
+        obs_list = self._state.get_observations()
+        idx = player_id - 1
+        if 0 <= idx < len(obs_list):
+            return obs_list[idx]
+        return {}
+
+    @property
+    def tile_map(self) -> TileMap | None:
+        """Current tile map."""
+        return self._tile_map
 
     @property
     def tick(self) -> int:

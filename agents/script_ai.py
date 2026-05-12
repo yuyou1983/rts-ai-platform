@@ -135,7 +135,14 @@ class ScriptAI:
                     "issuer": self.player_id,
                 })
 
-        # ─── Rule 2: Focus fire — all idle soldiers target weakest enemy ──
+# ─── Rule 2: Focus fire — all idle soldiers target weakest enemy ──
+        # Determine enemy base location for push
+        enemy_base_x, enemy_base_y = 54.0, 54.0  # default: far corner
+        if self.player_id == 1:
+            enemy_base_x, enemy_base_y = 54.0, 54.0
+        else:
+            enemy_base_x, enemy_base_y = 10.0, 10.0
+
         if idle_soldiers and enemies:
             # Find weakest enemy (lowest health fraction)
             target_eid, target_e = min(
@@ -156,6 +163,17 @@ class ScriptAI:
                         "target_id": target_eid,
                         "issuer": self.player_id,
                     })
+
+        elif idle_soldiers and tick > 800:
+            # No visible enemies but late game → push toward enemy base area
+            for uid, _ in idle_soldiers:
+                commands.append({
+                    "action": "move",
+                    "unit_id": uid,
+                    "target_x": enemy_base_x,
+                    "target_y": enemy_base_y,
+                    "issuer": self.player_id,
+                })
 
         # ─── Rule 3: Scouts patrol toward enemy base ──────────────
         for sid, scout in idle_scouts:
