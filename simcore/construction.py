@@ -118,23 +118,27 @@ _UNIT_TYPE_MAP = {
 
 # Default unit stats for spawning
 _DEFAULT_UNIT_STATS = {
-    "SCV": {"health": 60, "max_health": 60, "speed": 2.5, "attack": 5, "attack_range": 1.0, "carry_capacity": 10.0},
-    "Drone": {"health": 40, "max_health": 40, "speed": 2.5, "attack": 5, "attack_range": 1.0, "carry_capacity": 10.0},
-    "Probe": {"health": 20, "max_health": 20, "speed": 2.5, "attack": 5, "attack_range": 1.0, "carry_capacity": 10.0},
-    "Marine": {"health": 40, "max_health": 40, "speed": 3.0, "attack": 6, "attack_range": 4.0, "carry_capacity": 0},
-    "Firebat": {"health": 50, "max_health": 50, "speed": 3.0, "attack": 16, "attack_range": 1.0, "carry_capacity": 0},
-    "Ghost": {"health": 45, "max_health": 45, "speed": 3.0, "attack": 10, "attack_range": 6.0, "carry_capacity": 0},
-    "Medic": {"health": 60, "max_health": 60, "speed": 3.0, "attack": 0, "attack_range": 0, "carry_capacity": 0},
-    "Vulture": {"health": 80, "max_health": 80, "speed": 4.0, "attack": 20, "attack_range": 4.0, "carry_capacity": 0},
-    "Tank": {"health": 150, "max_health": 150, "speed": 2.5, "attack": 30, "attack_range": 6.0, "carry_capacity": 0},
-    "Goliath": {"health": 125, "max_health": 125, "speed": 3.0, "attack": 12, "attack_range": 5.0, "carry_capacity": 0},
-    "Zealot": {"health": 100, "max_health": 100, "speed": 3.0, "attack": 16, "attack_range": 1.0, "carry_capacity": 0},
-    "Dragoon": {"health": 100, "max_health": 100, "speed": 2.5, "attack": 20, "attack_range": 4.0, "carry_capacity": 0},
-    "Zergling": {"health": 35, "max_health": 35, "speed": 4.0, "attack": 5, "attack_range": 1.0, "carry_capacity": 0},
-    "Hydralisk": {"health": 80, "max_health": 80, "speed": 3.0, "attack": 15, "attack_range": 4.0, "carry_capacity": 0},
-    "Lurker": {"health": 125, "max_health": 125, "speed": 2.5, "attack": 20, "attack_range": 6.0, "carry_capacity": 0},
-    "Ultralisk": {"health": 400, "max_health": 400, "speed": 2.5, "attack": 40, "attack_range": 1.0, "carry_capacity": 0},
-    "Overlord": {"health": 200, "max_health": 200, "speed": 1.5, "attack": 0, "attack_range": 0, "carry_capacity": 0},
+    # Workers — melee
+    "SCV":      {"health": 60,  "max_health": 60,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
+    "Drone":    {"health": 40,  "max_health": 40,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
+    "Probe":    {"health": 20,  "max_health": 20,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
+    # Terran army
+    "Marine":   {"health": 40,  "max_health": 40,  "speed": 3.0, "attack": 6,  "attack_range": 6.0, "carry_capacity": 0},
+    "Firebat":  {"health": 50,  "max_health": 50,  "speed": 3.0, "attack": 16, "attack_range": 1.5, "carry_capacity": 0},
+    "Ghost":    {"health": 45,  "max_health": 45,  "speed": 3.0, "attack": 10, "attack_range": 8.0, "carry_capacity": 0},
+    "Medic":    {"health": 60,  "max_health": 60,  "speed": 3.0, "attack": 0,  "attack_range": 0,   "carry_capacity": 0},
+    "Vulture":  {"health": 80,  "max_health": 80,  "speed": 5.0, "attack": 20, "attack_range": 5.0, "carry_capacity": 0},
+    "Tank":     {"health": 150, "max_health": 150, "speed": 2.5, "attack": 30, "attack_range": 10.0, "carry_capacity": 0},
+    "Goliath":  {"health": 125, "max_health": 125, "speed": 3.0, "attack": 12, "attack_range": 7.0, "carry_capacity": 0},
+    # Zerg army — Zerglings attack in pairs → double damage
+    "Zergling": {"health": 35,  "max_health": 35,  "speed": 4.5, "attack": 10, "attack_range": 1.5, "carry_capacity": 0},
+    "Hydralisk":{"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 6.0, "carry_capacity": 0},
+    "Lurker":   {"health": 125, "max_health": 125, "speed": 2.5, "attack": 20, "attack_range": 8.0, "carry_capacity": 0},
+    "Ultralisk":{"health": 400, "max_health": 400, "speed": 2.5, "attack": 40, "attack_range": 1.5, "carry_capacity": 0},
+    "Overlord": {"health": 200, "max_health": 200, "speed": 1.5, "attack": 0,  "attack_range": 0,   "carry_capacity": 0},
+    # Protoss army
+    "Zealot":   {"health": 160, "max_health": 160, "speed": 3.5, "attack": 16, "attack_range": 1.5, "carry_capacity": 0},
+    "Dragoon":  {"health": 100, "max_health": 100, "speed": 2.5, "attack": 20, "attack_range": 6.0, "carry_capacity": 0},
 }
 
 
@@ -226,12 +230,75 @@ def check_train_prerequisites(
     json_name = _BUILDING_TYPE_MAP.get(bt, bt)
     bdata = _load_building_data().get(json_name)
 
-    # Simplified building types: base can train workers, barracks trains soldiers/scouts
+# Simplified building types: base can train workers, barracks trains soldiers/scouts
     simplified_train = {
-        "base": ["worker"],
-        "barracks": ["soldier", "scout", "worker"],
+        "base": ["worker", "soldier", "scout",
+                  # Zerg from base/Hatchery
+                  "Drone", "Overlord", "Zergling", "Hydralisk", "Lurker",
+                  "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian",
+                  "Devourer", "Scourge", "Broodling", "InfestedTerran",
+                  # Protoss from base/Nexus
+                  "Probe", "Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
+                  "Reaver", "Shuttle", "Observer", "Arbiter", "Scout_ship",
+                  "Carrier", "Corsair", "Archon", "DarkArchon",
+                  # Terran from base/CommandCenter
+                  "SCV", "Marine", "Firebat", "Ghost", "Medic",
+                  "Vulture", "Tank", "Goliath", "Wraith", "Dropship",
+                  "Vessel", "BattleCruiser", "Valkyrie"],
+        "barracks": ["soldier", "scout", "worker",
+                     "Marine", "Firebat", "Ghost", "Medic",
+                     "Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
+                     "Zergling", "Hydralisk", "Drone", "Overlord"],
         "factory": ["soldier", "scout"],
         "starport": ["scout"],
+        # Zerg buildings (JSON names)
+        "Hatchery": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
+        "Lair": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
+        "Hive": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
+        "SpawningPool": ["ZerglingSpeed", "ZerglingAdrenalGlands"],
+        "EvolutionChamber": ["MeleeAttacks", "MissileAttacks", "Carapace"],
+        "HydraliskDen": ["Hydralisk", "GroovedSpines", "HydraliskSpeed", "LurkerAspect"],
+        "Spire": ["Mutalisk", "Guardian", "Devourer", "Scourge", "FlyerAttacks", "FlyerArmor"],
+        "QueenNest": ["Queen"],
+        "DefilerMound": ["Defiler", "Plague", "Consume"],
+        "UltraliskCavern": ["Ultralisk", "UltraliskSpeed", "UltraliskArmor"],
+        "CreepColony": [],
+        "SunkenColony": [],
+        "SporeColony": [],
+        "Extractor": [],
+        # Protoss buildings (JSON names)
+        "Nexus": ["Probe", "Zealot", "Dragoon", "HighTemplar", "DarkTemplar", "Reaver", "Shuttle", "Observer", "Arbiter", "Scout", "Carrier", "Corsair", "Archon", "DarkArchon"],
+        "Gateway": ["Zealot", "Dragoon", "HighTemplar", "DarkTemplar"],
+        "CyberneticsCore": ["SingularityCharge", "AirWeapons", "AirArmor"],
+        "Forge": ["GroundWeapons", "GroundArmor", "PlasmaShields"],
+        "RoboticsFacility": ["Reaver", "Shuttle"],
+        "StarGate": ["Scout", "Carrier", "Corsair", "Arbiter"],
+        "CitadelOfAdun": ["LegEnhancement"],
+        "TemplarArchives": ["HighTemplar", "PsionicStorm", "Hallucination", "KhaydarinAmulet"],
+        "RoboticsSupportBay": ["Reaver", "ScarabDamage"],
+        "FleetBeacon": ["Carrier", "CarrierCapacity", "ScoutSpeed", "CorsairDisruptionWeb"],
+        "Observatory": ["Observer", "ObserverSpeed", "ObserverSight"],
+        "ArbiterTribunal": ["Arbiter", "StasisField", "Recall"],
+        "Pylon": [],
+        "Assimilator": [],
+        "PhotonCannon": [],
+        "ShieldBattery": [],
+        # Terran buildings (JSON names)
+        "CommandCenter": ["SCV", "Marine", "Firebat", "Ghost", "Medic", "Vulture", "Tank", "Goliath", "Wraith", "Dropship", "Vessel", "BattleCruiser", "Valkyrie"],
+        "Barracks": ["Marine", "Firebat", "Ghost", "Medic"],
+        "Factory": ["Vulture", "Tank", "Goliath"],
+        "Starport": ["Wraith", "Dropship", "Vessel", "BattleCruiser", "Valkyrie"],
+        "Academy": ["StimPack", "U238Shells", "Medic"],
+        "EngineeringBay": ["InfantryWeapons", "InfantryArmor"],
+        "Armory": ["VehicleWeapons", "VehiclePlating", "ShipWeapons", "ShipPlating"],
+        "ScienceFacility": ["Vessel", "EMPShockwave", "Irradiate", "TitanReactor", "ApolloReactor"],
+        "SupplyDepot": [],
+        "Refinery": [],
+        "MissileTurret": [],
+        "Bunker": [],
+        "ComstatStation": ["ComsatScan"],
+        "MachineShop": ["SpiderMines", "IonThrusters", "SiegeTech"],
+        "NuclearSilo": ["NuclearStrike"],
     }
 
     if bt in simplified_train:
@@ -325,6 +392,7 @@ def process_construction(
     resources: dict[str, int],
     commands: list[dict],
     tick: int,
+    player_races: dict[int, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Process build, train, and upgrade commands with tech tree validation.
 
@@ -348,7 +416,11 @@ def process_construction(
 
     def get_race(owner: int) -> str:
         if owner not in race_cache:
-            race_cache[owner] = _detect_race(built, owner)
+            # Prefer explicit player_races config over heuristic detection
+            if player_races and owner in player_races:
+                race_cache[owner] = player_races[owner]
+            else:
+                race_cache[owner] = _detect_race(built, owner)
         return race_cache[owner]
 
     # ─── 1. Process BUILD commands ──────────────────────────
@@ -537,18 +609,27 @@ def process_construction(
                         and not le.get("morph_target", "")):
                     larva_id = lid
                     break
-            if larva_id is None:
-                continue  # no available larva
 
-            # Deduct cost and start morph
-            res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
-            if cost_gas > 0:
-                res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
-
-            built[larva_id] = {**built[larva_id],
-                               "morph_target": json_unit,
-                               "morph_timer": train_ticks,
-                               "is_idle": False}
+            if larva_id is not None:
+                # Standard path: morph from larva
+                res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
+                if cost_gas > 0:
+                    res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
+                built[larva_id] = {**built[larva_id],
+                                   "morph_target": json_unit,
+                                   "morph_timer": train_ticks,
+                                   "is_idle": False}
+            else:
+                # Fallback: direct queue (no larva available yet)
+                # This allows training even before larva spawn stabilizes
+                res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
+                if cost_gas > 0:
+                    res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
+                queue = list(building.get("production_queue", []))
+                timers = list(building.get("production_timers", []))
+                queue.append(json_unit)
+                timers.append(train_ticks)
+                built[building_id] = {**building, "production_queue": queue, "production_timers": timers}
         else:
             # Terran/Protoss: add to production queue
             res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
@@ -573,7 +654,7 @@ def process_construction(
         "Tank": "soldier",
         "Scout_ship": "scout", "Shuttle": "scout", "Reaver": "soldier",
         "Observer": "scout", "Arbiter": "scout", "Carrier": "scout", "Corsair": "scout",
-        "Overlord": "scout", "Queen": "scout", "Defiler": "scout",
+        "Overlord": "worker", "Queen": "scout", "Defiler": "scout",
         "Mutalisk": "scout", "Guardian": "scout", "Devourer": "scout",
         "Scourge": "scout", "Broodling": "soldier", "InfestedTerran": "soldier",
         "Ultralisk": "soldier", "Templar": "soldier",
@@ -644,6 +725,13 @@ def process_construction(
                 unit["max_shield"] = sp
 
             spawn_entities[uid] = unit
+
+            # Zerg: Zergling spawns as a pair (2 for 50 minerals)
+            if utype == "Zergling" and race == "zerg":
+                uid2 = f"{utype}_{tick+1}_{eid}"
+                unit2 = {**unit, "id": uid2, "pos_x": e["pos_x"] + 1.5, "pos_y": e["pos_y"] + 1.5}
+                spawn_entities[uid2] = unit2
+
             built[eid] = {**e, "production_queue": queue, "production_timers": timers}
         else:
             built[eid] = {**e, "production_timers": timers}
@@ -691,6 +779,13 @@ def process_construction(
                 "is_flying": False,
             }
             morph_entities[uid] = unit
+
+            # Zerg: Zergling spawns as a pair (2 for 50 minerals)
+            if utype == "Zergling":
+                uid2 = f"{utype}_{tick+1}_{eid}"
+                unit2 = {**unit, "id": uid2, "pos_x": e["pos_x"] + 0.5, "pos_y": e["pos_y"] + 0.5}
+                morph_entities[uid2] = unit2
+
             built.pop(eid, None)
         else:
             built[eid] = {**e, "morph_timer": timer}

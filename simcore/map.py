@@ -20,7 +20,7 @@ TERRAIN_NAMES = {PLAIN: "plain", WATER: "water", MOUNTAIN: "mountain", CREEP: "c
 class TileMap:
     width: int = 64
     height: int = 64
-    tile_size: int = 16
+    tile_size: int = 1  # world coords = tile coords (no pixel scaling)
     terrain: list = field(default_factory=list)
     occupied: set = field(default_factory=set)  # tiles blocked by buildings
 
@@ -30,8 +30,13 @@ class TileMap:
 
     @classmethod
     def generate(cls, seed: int = 42, width: int = 64, height: int = 64,
-                 water_pct: float = 0.05, mountain_pct: float = 0.03) -> "TileMap":
-        """Procedurally generate a map with water and mountain patches."""
+                 water_pct: float = 0.003, mountain_pct: float = 0.003) -> "TileMap":
+        """Procedurally generate a map with water and mountain patches.
+        
+        water_pct / mountain_pct control the NUMBER of patch centers as a
+        fraction of total tiles.  Actual coverage depends on patch radius.
+        Keep these very low (≤0.005) to avoid blocking the map.
+        """
         rng = random.Random(seed)
         tm = cls(width=width, height=height)
         # Place water patches
@@ -131,7 +136,7 @@ class TileMap:
     @classmethod
     def from_dict(cls, d: dict) -> "TileMap":
         """Reconstruct TileMap from serialized dict."""
-        tm = cls(width=d["width"], height=d["height"], tile_size=d.get("tile_size", 16))
+        tm = cls(width=d["width"], height=d["height"], tile_size=d.get("tile_size", 1))
         tm.terrain = d.get("terrain", [[PLAIN] * tm.width for _ in range(tm.height)])
         occ = d.get("occupied", [])
         for t in occ:
@@ -154,6 +159,6 @@ def generate_tile_map(seed: int = 42, config: dict | None = None) -> TileMap:
         seed=seed,
         width=cfg.get("map_width", 64),
         height=cfg.get("map_height", 64),
-        water_pct=cfg.get("water_pct", 0.05),
-        mountain_pct=cfg.get("mountain_pct", 0.03),
+        water_pct=cfg.get("water_pct", 0.003),
+        mountain_pct=cfg.get("mountain_pct", 0.003),
     )

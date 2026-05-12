@@ -70,6 +70,7 @@ class SimCore:
     _state: GameState | None = field(default=None, init=False)
     _replay: list[dict] = field(default_factory=list, init=False)
     _tile_map: TileMap | None = field(default=None, init=False)
+    _player_races: dict[int, str] = field(default_factory=dict, init=False)
 
     def initialize(self, map_seed: int = 42, config: dict | None = None) -> None:
         """Initialize game state from seed + config (deterministic).
@@ -83,6 +84,10 @@ class SimCore:
         self._state = generate_map(seed=map_seed, config=config or {})
         self._tick = 0
         self._replay = [self._state.to_snapshot()]
+
+        # Player race configuration (default: P1=zerg, P2=protoss if not specified)
+        cfg = config or {}
+        self._player_races = cfg.get("player_races", {1: "zerg", 2: "protoss"})
 
         # Generate tile map for pathfinding
         self._tile_map = generate_tile_map(seed=map_seed, config=config or {})
@@ -194,7 +199,7 @@ class SimCore:
             winner=self._state.winner,
         )
 
-        # 4. Movement
+# 4. Movement
         # Old system handles: worker return-to-base, attack chase
         # It also handles any remaining move commands in other_cmds,
         # but we already processed move_cmds above.
@@ -217,7 +222,7 @@ class SimCore:
         entities, resources = economy_process_gathering(entities, temp_state.resources, other_cmds, self._tick)
 
         # 8. Construction (use new construction system with tech tree validation)
-        entities, resources = new_process_construction(entities, resources, other_cmds, self._tick)
+        entities, resources = new_process_construction(entities, resources, other_cmds, self._tick, player_races=self._player_races)
 
         # 9. Process projectiles
         entities = process_projectiles(entities, self._tick)

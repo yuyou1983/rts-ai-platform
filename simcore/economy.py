@@ -336,6 +336,9 @@ def process_gathering(
             continue
         if e.get("carry_amount", 0) > 0:
             continue
+        # Skip workers with explicit move/attack targets (player-assigned)
+        if e.get("target_x") is not None or e.get("attack_target_id", ""):
+            continue
         owner = e.get("owner", 0)
         nearest = _find_nearest_resource(gathered, owner, e["pos_x"], e["pos_y"], "mineral")
         if nearest is None:
@@ -440,14 +443,29 @@ def process_larva_spawn(
 
     Returns updated entities dict.
     """
-    hatchery_types = {"Hatchery", "Lair", "Hive"}
+    hatchery_types = {"Hatchery", "Lair", "Hive", "base"}
     result = dict(entities)
 
     for eid, e in list(result.items()):
         if e.get("entity_type") != "building":
             continue
-        if e.get("building_type", "") not in hatchery_types:
+        bt = e.get("building_type", "")
+        # Only treat "base" as hatchery for Zerg players
+        if bt not in hatchery_types:
             continue
+        if bt == "base":
+            # Detect if this is a Zerg player (has Zerg buildings or is configured as Zerg)
+            owner = e.get("owner", 0)
+            is_zerg = False
+            for eid2, e2 in result.items():
+                if e2.get("owner") == owner and e2.get("entity_type") == "building":
+                    bt2 = e2.get("building_type", "")
+                    if bt2 in {"SpawningPool", "HydraliskDen", "EvolutionChamber",
+                               "CreepColony", "SunkenColony", "SporeColony", "Extractor"}:
+                        is_zerg = True
+                        break
+            if not is_zerg:
+                continue
         if e.get("is_constructing", False):
             continue
         if e.get("health", 0) <= 0:

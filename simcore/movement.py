@@ -12,7 +12,7 @@ from typing import Any
 
 from simcore.map import TileMap
 
-TILE_SIZE = 16  # pixels per tile edge
+TILE_SIZE = 1  # world coords are tile coords (no pixel scaling)
 
 
 def move_entities(
@@ -64,13 +64,12 @@ def move_entities(
                 path = path[1:]
 
         if not path:
-            # Already at all waypoints — arrived
+            # Already at all waypoints — arrived but keep target for apply_movement
             moved[uid] = {
                 **e,
                 "path": [],
                 "is_idle": True,
-                "target_x": None,
-                "target_y": None,
+                # Keep target_x/y intact for apply_movement to continue
             }
             continue
 
@@ -93,13 +92,13 @@ def move_entities(
             e = {**e, "pos_x": target_wx, "pos_y": target_wy}
             new_path = path[1:]
             if not new_path:
-                # Reached final waypoint — stop
+                # Reached final A* waypoint — become idle but keep target_x/y
+                # so apply_movement can continue direct-line movement to target
                 moved[uid] = {
                     **e,
                     "path": [],
                     "is_idle": True,
-                    "target_x": None,
-                    "target_y": None,
+                    # Keep target_x/y intact for apply_movement to continue
                 }
             else:
                 moved[uid] = {**e, "path": new_path, "is_idle": False}

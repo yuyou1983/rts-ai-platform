@@ -247,7 +247,7 @@ def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) ->
     for uid, e in list(moved.items()):
         if e.get("entity_type") not in ("worker", "soldier", "scout"):
             continue
-        # Skip entities following A* paths — they are handled by move_entities()
+        # Skip units still following A* paths — move_entities handles them
         if e.get("path"):
             continue
         tx = e.get("target_x")
@@ -286,7 +286,7 @@ def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) ->
                 if target_id in moved:
                     target = moved[target_id]
                     d_to_target = math.hypot(tx - target["pos_x"], ty - target["pos_y"])
-                    if d_to_target <= e.get("attack_range", 16.0):
+                    if d_to_target <= e.get("attack_range", 6.0):
                         # In range — combat will resolve, stay here
                         updates["is_idle"] = False
                     else:
@@ -305,16 +305,30 @@ def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) ->
                     updates["is_idle"] = False
                 else:
                     updates["is_idle"] = True
-                    updates["target_x"] = None
-                    updates["target_y"] = None
+                    # Keep target_x/y intact so AI/auto-attack can still reference them
 
             moved[uid] = {**e, **updates}
         else:
             # Move toward target
-            moved[uid] = {**e,
-                          "pos_x": cx + dx / dist * speed,
-                          "pos_y": cy + dy / dist * speed,
-                          "is_idle": False}
+            new_x = cx + dx / dist * speed
+            new_y = cy + dy / dist * speed
+            atk_range = e.get("attack_range", 6.0)
+            # When reaching target position (or overshooting), snap to target
+            # and become idle so auto-attack can trigger
+            if dist <= speed:
+                is_arrived = True
+                moved[uid] = {**e,
+                              "pos_x": tx,
+                              "pos_y": ty,
+                              "is_idle": is_arrived}
+            else:
+                # Check if new position is within attack range
+                remaining = math.sqrt((tx - new_x) ** 2 + (ty - new_y) ** 2)
+                is_arrived = remaining <= atk_range and not e.get("gather_target_id", "")
+                moved[uid] = {**e,
+                              "pos_x": new_x,
+                              "pos_y": new_y,
+                              "is_idle": is_arrived}
 
     return moved
 
@@ -367,7 +381,7 @@ def resolve_combat(
         dx = e["pos_x"] - target["pos_x"]
         dy = e["pos_y"] - target["pos_y"]
         d = math.sqrt(dx * dx + dy * dy)
-        if d <= e.get("attack_range", 16.0):
+        if d <= e.get("attack_range", 6.0):
             base_dmg = e.get("attack", 0)
             weapon_type = e.get("weapon_type", "normal")
             target_armor = target.get("armor", 0)
@@ -404,7 +418,7 @@ def resolve_combat(
                 and e.get("entity_type") in ("worker", "soldier", "scout")):
             best_target = None
             best_score = float("inf")
-            attack_range = e.get("attack_range", 16.0)
+            attack_range = e.get("attack_range", 6.0)
 
             for tid, t in entity_list:
                 if tid == eid or tid in to_remove:
@@ -687,9 +701,9 @@ def process_construction(
 def _unit_stats(utype: str, owner: int, px: float, py: float) -> dict:
     """Return entity dict for a newly spawned unit."""
     stats_map = {
-        "worker":  {"health": 50,  "max_health": 50,  "speed": 2.5, "attack": 5,  "attack_range": 16.0, "carry_capacity": 10.0},
-        "soldier": {"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 64.0, "carry_capacity": 0},
-        "scout":   {"health": 40,  "max_health": 40,  "speed": 4.0, "attack": 8,  "attack_range": 48.0, "carry_capacity": 0},
+        "worker":  {"health": 50,  "max_health": 50,  "speed": 2.5, "attack": 5,  "attack_range": 1.5,  "carry_capacity": 10.0},
+        "soldier": {"health": 80,  "max_health": 80,  "speed": 3.0, "attack": 15, "attack_range": 6.0,  "carry_capacity": 0},
+        "scout":   {"health": 40,  "max_health": 40,  "speed": 4.0, "attack": 8,  "attack_range": 6.0,  "carry_capacity": 0},
     }
     s = stats_map.get(utype, stats_map["worker"])
     return {
