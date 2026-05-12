@@ -245,6 +245,17 @@ make smoke-test-mvp # MVP 端到端冒烟验证
 - 冒烟测试 `make smoke-test-mvp`
 - **125 tests 全过**
 
+### M4 — 三族 AI + 对战终结 (2026-05-12) ✅
+- **三族完整 AI**: ZergAI / ProtossAI / TerranAI — 各自独特策略
+- **坐标系统一**: TILE_SIZE=1 全系统统一，消除 pixel/tile 不匹配
+- **地图生成修复**: water_pct 0.05→0.003，可通行区 40%→94%
+- **寻路+移动闭环**: A* 寻路 → move_entities 沿路推进 → apply_movement 接力直线
+- **自动攻击修复**: 到达攻击范围后正确触发 auto-attack
+- **Zergling 双生**: 训练1次出2只（SC 原版机制）
+- **对战终结**: 全部9场 <250 ticks 终结，无死循环
+- **三族平衡**: ZvP 6:4, TvZ 6:4, PvT 5:4 — 无 10:0 一边倒
+- **224 tests 全过**
+
 ## Agent 体系
 
 ### 运行时 Agent（游戏内实时决策）
