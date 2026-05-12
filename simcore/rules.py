@@ -187,10 +187,13 @@ def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) ->
                     updates["target_y"] = None
 
             else:
-                # Normal move arrival
-                updates["is_idle"] = True
-                updates["target_x"] = None
-                updates["target_y"] = None
+                # Normal move arrival — but not idle if gathering
+                if e.get("gather_target_id", ""):
+                    updates["is_idle"] = False
+                else:
+                    updates["is_idle"] = True
+                    updates["target_x"] = None
+                    updates["target_y"] = None
 
             moved[uid] = {**e, **updates}
         else:
@@ -245,6 +248,9 @@ def resolve_combat(
         if not tid or tid not in fought:
             continue
         target = fought[tid]
+        # Don't attack buildings under construction
+        if target.get("is_constructing"):
+            continue
         dx = e["pos_x"] - target["pos_x"]
         dy = e["pos_y"] - target["pos_y"]
         d = math.sqrt(dx * dx + dy * dy)
@@ -266,8 +272,10 @@ def resolve_combat(
     for eid, e in entity_list:
         if eid in to_remove:
             continue
-        # Skip resources and dead entities
+        # Skip resources, dead entities, and buildings under construction
         if e.get("entity_type") == "resource":
+            continue
+        if e.get("is_constructing"):
             continue
         if e.get("health", 0) <= 0:
             to_remove.add(eid)

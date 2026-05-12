@@ -23,10 +23,21 @@ from simcore.movement import move_entities, collision_separate, is_at_target
 from simcore.pathfinder import find_path as astar_find_path
 from simcore.rules import (
     RuleEngine, validate_commands, apply_movement, resolve_combat,
-    process_gathering, process_construction, update_fog_of_war,
+    process_gathering as rules_process_gathering,
+    process_construction as rules_process_construction,
+    update_fog_of_war,
     check_terminal, KillFeed, _find_nearest_base, _unit_stats,
     GATHER_RATE, BUILD_PROGRESS_PER_TICK, PRODUCTION_TICKS,
     WORKER_RETURN_SPEED,
+)
+from simcore.economy import (
+    process_gathering as economy_process_gathering,
+    process_resources,
+    process_larva_spawn,
+    process_shield_regen,
+)
+from simcore.construction import (
+    process_construction as new_process_construction,
 )
 from simcore.state import GameState
 
@@ -91,11 +102,13 @@ class SimCore:
           4. Move entities: old system for chase/return + new system for A* paths
           5. Collision separation
           6. Process attacks (combat)
-          7. Process gathering
-          8. Process construction/build
-          9. Process training
-          10. Update fog-of-war
-          11. Check terminal state
+          7. Process gathering (economy system)
+          8. Process construction (new construction system with tech tree)
+          9. Zerg larva spawning
+         10. Protoss shield regeneration
+         11. Update resource counters (supply used/cap)
+         12. Update fog-of-war
+         13. Check terminal state
 
         Args:
             commands: List of command dicts matching cmd.proto schema.
@@ -192,13 +205,28 @@ class SimCore:
             kill_feed=self.rule_engine.kill_feed,
         )
 
-        # 7. Gathering
-        entities, resources = process_gathering(entities, resources, other_cmds, self._tick)
+# 7. Gathering (use new economy system)
+        entities, resources = economy_process_gathering(entities, temp_state.resources, other_cmds, self._tick)
 
-        # 8. Construction
-        entities, resources = process_construction(entities, resources, other_cmds, self._tick)
+        # 8. Construction (use new construction system with tech tree validation)
+        entities, resources = new_process_construction(entities, resources, other_cmds, self._tick)
 
-        # 9. (Training is handled inside process_construction)
+        # 9. Zerg larva spawning
+        entities = process_larva_spawn(entities, self._tick)
+
+        # 10. Protoss shield regeneration
+        entities = process_shield_regen(entities, self._tick)
+
+        # 11. Update resource counters (supply used/cap)
+        temp_state2 = GameState(
+            tick=self._tick,
+            entities=entities,
+            fog_of_war=temp_state.fog_of_war,
+            resources=resources,
+            is_terminal=temp_state.is_terminal,
+            winner=temp_state.winner,
+        )
+        resources = process_resources(temp_state2)
 
         # Update tile map occupied set from current buildings
         if self._tile_map is not None:
@@ -210,10 +238,10 @@ class SimCore:
                     )
                     self._tile_map.occupy([(tx, ty)])
 
-        # 10. Fog-of-war
+        # 12. Fog-of-war
         fog = update_fog_of_war(entities, temp_state.fog_of_war, self._tick)
 
-        # 11. Terminal check
+        # 13. Terminal check
         is_terminal, winner, reason = check_terminal(entities, self._tick, self.max_ticks)
 
         self._state = GameState(
