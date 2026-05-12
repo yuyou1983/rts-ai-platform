@@ -16,6 +16,9 @@ signal control_group_created(index: int, ids: Array)
 signal control_group_selected(index: int, ids: Array)
 signal camera_focus_requested(center: Vector2)
 
+# ── Constants ───────────────────────────────────────────────────────────────────
+const MAX_SELECTION_SIZE := 12  ## SC1-style selection cap
+
 # ── State ───────────────────────────────────────────────────────────────────────
 ## Currently selected entity IDs: {entity_id: true}
 var selection: Dictionary = {}
@@ -46,6 +49,11 @@ var entity_type_provider: Callable
 ## Whether buildings have higher priority than units for highest_selected (SC1 style).
 var building_priority: bool = true
 
+## Double-click detection
+var _last_click_time: float = 0.0
+var _last_clicked_id: String = ""
+const DOUBLE_CLICK_INTERVAL := 0.4  ## seconds
+
 # ── Selection Methods ───────────────────────────────────────────────────────────
 
 ## Add multiple entity_ids to the selection at once.
@@ -53,9 +61,12 @@ func add_to_selection_bulk(ids: Array) -> void:
 	var actually_added: Array = []
 	for eid in ids:
 		var key: String = str(eid)
-		if not selection.has(key):
-			selection[key] = true
-			actually_added.append(key)
+		if selection.has(key):
+			continue
+		if selection.size() >= MAX_SELECTION_SIZE:
+			break
+		selection[key] = true
+		actually_added.append(key)
 	if actually_added.is_empty():
 		return
 	added_to_selection.emit(actually_added)
@@ -102,10 +113,12 @@ func remove_all_selection() -> void:
 
 ## Replace the current selection with a new set of entity_ids.
 func set_selection(ids: Array) -> void:
+	# Enforce cap
+	var capped_ids := ids.slice(0, MAX_SELECTION_SIZE)
 	var removed: Array = selection.keys()
 	var added: Array = []
 	selection.clear()
-	for eid in ids:
+	for eid in capped_ids:
 		var key: String = str(eid)
 		selection[key] = true
 		if not key in removed:
@@ -123,10 +136,8 @@ func set_selection(ids: Array) -> void:
 func add_to_hovered(entity_id: String) -> void:
 	hovered[str(entity_id)] = true
 
-
 func remove_from_hovered(entity_id: String) -> void:
 	hovered.erase(str(entity_id))
-
 
 func remove_all_hovered() -> void:
 	hovered.clear()
@@ -170,9 +181,7 @@ func select_hotkey_group(key: int) -> void:
 		if selectables_on_screen.has(eid):
 			valid_ids.append(eid)
 	# Also keep entities that might be off-screen but still in the game state
-	# (the selectables_on_screen check is just a quick filter)
 	if valid_ids.is_empty() and not ids.is_empty():
-		# All entities off-screen; still select them if they exist in game state
 		valid_ids = ids.duplicate()
 	set_selection(valid_ids)
 	control_group_selected.emit(key, valid_ids)
@@ -187,7 +196,6 @@ func jump_to_hotkey_group(key: int) -> void:
 	var ids: Array = hotkey_groups[key]
 	if ids.is_empty():
 		return
-	# Calculate center position of the group
 	var center := Vector2.ZERO
 	var count: int = 0
 	for eid in ids:
@@ -198,7 +206,6 @@ func jump_to_hotkey_group(key: int) -> void:
 	if count > 0:
 		center /= float(count)
 		camera_focus_requested.emit(center)
-	# Also select the group
 	select_hotkey_group(key)
 
 
@@ -221,17 +228,59 @@ func select_all_similar_on_screen(entity_id: String) -> void:
 		var etype: String = _get_entity_type(eid)
 		if etype != target_type:
 			continue
-		# For buildings, match building_type as well
 		if target_type == "building":
 			var btype: String = _get_entity_building_type(eid)
 			if btype != target_building_type:
 				continue
-		# Only select own entities (owner == local player)
 		if not _is_own_entity(eid):
 			continue
 		similar_ids.append(eid)
+		if similar_ids.size() >= MAX_SELECTION_SIZE:
+			break
 
 	set_selection(similar_ids)
+
+
+## Handle single click with double-click detection.
+## Returns true if it was a double-click (select all same-type on screen).
+func handle_click_with_double_select(entity_id: String) -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	var is_double := false
+
+	if entity_id == _last_clicked_id and (now - _last_click_time) < DOUBLE_CLICK_INTERVAL:
+		# Double-click detected: select all same-type on screen
+		select_all_similar_on_screen(entity_id)
+		is_double = true
+		_last_clicked_id = ""
+		_last_click_time = 0.0
+	else:
+		_last_clicked_id = entity_id
+		_last_click_time = now
+
+	return is_double
+
+
+# ── Formation Helpers ─────────────────────────────────────────────────────────
+
+## Calculate formation positions for a group of units moving to a target.
+## Returns an Array of Vector2 positions in a grid formation.
+static func calculate_formation_positions(center: Vector2, count: int, spacing: float = 32.0) -> Array:
+	var positions: Array = []
+	if count == 0:
+		return positions
+
+	var cols: int = int(ceilf(sqrt(float(count))))
+	var start_offset := Vector2(
+		-(float(cols - 1) * spacing) / 2.0,
+		-(float(ceilf(float(count) / float(cols)) - 1) * spacing) / 2.0
+	)
+
+	for i in range(count):
+		var row: int = i / cols
+		var col: int = i % cols
+		positions.append(center + start_offset + Vector2(col * spacing, row * spacing))
+
+	return positions
 
 
 # ── Query Methods ───────────────────────────────────────────────────────────────
@@ -239,22 +288,20 @@ func select_all_similar_on_screen(entity_id: String) -> void:
 func get_selected_ids() -> Array:
 	return selection.keys()
 
-
 func is_selected(entity_id: String) -> bool:
 	return selection.has(str(entity_id))
-
 
 func get_selection_size() -> int:
 	return selection.size()
 
+func get_max_selection_size() -> int:
+	return MAX_SELECTION_SIZE
+
 
 # ── Highest Selected ───────────────────────────────────────────────────────────
 
-## Determine the "primary" selected entity. Buildings take priority over units
-## in SC1 style (building_priority = true).
 func update_highest_selected() -> void:
 	_update_highest_selected()
-
 
 func _update_highest_selected() -> void:
 	if selection.is_empty():
@@ -274,13 +321,10 @@ func _update_highest_selected() -> void:
 			continue
 
 		if building_priority:
-			# Buildings beat units
 			if is_building and not best_is_building:
 				best_id = eid
 				best_is_building = true
-			# If same category, keep first (or could compare health, etc.)
 		else:
-			# Units beat buildings (reverse priority)
 			if not is_building and best_is_building:
 				best_id = eid
 				best_is_building = false
@@ -322,20 +366,18 @@ func _is_own_entity(entity_id: String) -> bool:
 	if entity_data_provider.is_valid():
 		var data: Dictionary = entity_data_provider.call(entity_id)
 		if not data.is_empty():
-			return int(data.get("owner", 0)) == 1  # P1 = local human
+			return int(data.get("owner", 0)) == 1
 	return false
 
 
-# ── Cleanup ────────────────────────────────────────────────────────────────────
+# ── Cleanup ──────────────────────────────────────────────────────────────────────
 
 ## Remove entity IDs from selection/hover/groups that no longer exist.
-## Call this periodically or when entities are destroyed.
 func purge_invalid_ids(valid_ids: Array) -> void:
 	var valid_set: Dictionary = {}
 	for vid in valid_ids:
 		valid_set[str(vid)] = true
 
-	# Purge selection
 	var removed: Array = []
 	for eid in selection:
 		if not valid_set.has(eid):
@@ -348,12 +390,10 @@ func purge_invalid_ids(valid_ids: Array) -> void:
 		selection_changed.emit(selection)
 		_update_highest_selected()
 
-	# Purge hovered
 	for eid in hovered.keys():
 		if not valid_set.has(eid):
 			hovered.erase(eid)
 
-	# Purge hotkey groups
 	for key in hotkey_groups:
 		var group: Array = hotkey_groups[key]
 		hotkey_groups[key] = group.filter(_is_id_valid.bind(valid_set))

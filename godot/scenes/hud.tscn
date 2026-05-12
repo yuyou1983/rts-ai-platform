@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1"]
+
+[node name="HUD" type="Control"]
+offset_right = 1280.0
+offset_bottom = 140.0
+script = ExtResource("1")

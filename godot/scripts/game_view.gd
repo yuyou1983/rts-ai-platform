@@ -1,27 +1,35 @@
 extends Node2D
 
 ## RTS Game View — Full interactive RTS prototype.
-## Now uses 6 adapted addon patterns: CallableStateMachine, EventBus,
-## ObjectPool, SelectionManager, AbilityManager, ControlGroups.
+## Sprint 4: Integrates CameraController, HUD, RallyPointIndicator,
+## enhanced SelectionManager (caps, double-click, formation),
+## enhanced FogRenderer (gradient edges), enhanced Minimap (fog, attack indicators).
 ##
 ## Controls:
 ##   WASD / Arrow keys     Move camera
+##   Mouse edge scroll     Move camera
+##   Scroll wheel          Zoom (0.5x - 2.0x)
+##   Middle-click drag     Pan camera
+##   F key                 Camera follow selected group
 ##   Left click / drag     Select units
 ##   Shift+click           Add to selection
-##   Ctrl+click            Select all same-type on screen
+##   Ctrl+click / Double-click  Select all same-type on screen
 ##   1-9                   Recall control group
 ##   Ctrl+1-9              Create control group
 ##   Shift+1-9             Add to control group
 ##   Double-tap 1-9        Jump camera to group
-##   Right click           Context action (move / attack / gather)
+##   Right click           Context action (move / attack / gather / build / rally)
 ##   M / S / A / P / H     Ability hotkeys (move/stop/attack/patrol/hold)
 ##   G + click             Gather (workers)
-##   B + right-click       Build barracks (with worker selected)
+##   B                     Toggle build menu (with worker selected)
 ##   T                     Train worker/soldier (with building selected)
 ##   Esc                   Deselect all
 
 const GrpcBridgeScript := preload("res://scripts/grpc_bridge.gd")
 const CallableStateMachine = preload("res://scripts/callable_state_machine.gd")
+const CameraControllerScript = preload("res://scripts/camera_controller.gd")
+const HUDScene := preload("res://scenes/hud.tscn")
+const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
 
 # ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
@@ -46,9 +54,6 @@ var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 const SELECT_RADIUS := 20.0
 
-# ─── Camera ────────────────────────────────────────────────
-var _cam_speed := 500.0
-
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
 
@@ -70,13 +75,23 @@ var _mm_size := Vector2(160, 120)
 var _mm_margin := Vector2(8, 8)
 
 # ─── Integrated Pattern References ─────────────────────────
-# These are fetched via /root/ autoloads or created locally
 var _selection: Node  # SelectionManager autoload
 var _event_bus: Node  # EventBus autoload
 var _ability_mgr: Node  # AbilityManager autoload
 
-# ─── Entity Data Provider (bridges SimCore state → SelectionManager) ──
-var _entity_cache_by_id: Dictionary = {}  # {entity_id: entity_dict}
+# ─── Sprint 4 Components ──────────────────────────────────
+var _cam_ctrl: Node = null  # CameraController
+var _hud: Control = null    # HUD
+var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
+
+# ─── Entity Data Provider ──────────────────────────────────
+var _entity_cache_by_id: Dictionary = {}
+
+# ─── Resources state ──────────────────────────────────────
+var _p1_minerals: int = 0
+var _p1_gas: int = 0
+var _p1_supply_used: int = 0
+var _p1_supply_cap: int = 0
 
 func _get_entity_data(entity_id: String) -> Dictionary:
 	return _entity_cache_by_id.get(entity_id, {})
@@ -90,8 +105,6 @@ func _get_entity_type(entity_id: String) -> String:
 # ───────────────────────────────────────────────────────────
 func _ready() -> void:
 	_default_font = ThemeDB.fallback_font
-	_camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
-	_camera.position_smoothing_enabled = false
 
 	_bridge = GrpcBridgeScript.new()
 	_bridge.ai_player = 2
@@ -102,7 +115,7 @@ func _ready() -> void:
 	_bridge.start_game(42)
 	_game_active = true
 
-	# Connect to autoloads (may not exist yet in standalone test)
+	# Connect to autoloads
 	_event_bus = get_node_or_null("/root/EventBus")
 	_selection = get_node_or_null("/root/SelectionManager")
 	_ability_mgr = get_node_or_null("/root/AbilityManager")
@@ -118,37 +131,82 @@ func _ready() -> void:
 	if _ability_mgr:
 		_ability_mgr.set_entity_data_provider(_get_entity_data)
 
-	print("===== GameView ready (Human P1 vs AI P2) path=", get_path())
+	# ─── Sprint 4: Create CameraController ───
+	_cam_ctrl = CameraControllerScript.new()
+	add_child(_cam_ctrl)
+	_cam_ctrl.setup(_camera)
+	_cam_ctrl.set_entity_data_provider(_get_entity_data)
+	_cam_ctrl.set_map_size(_map_w, _map_h)
+
+	# ─── Sprint 4: Create HUD ───
+	_hud = HUDScene.instantiate()
+	add_child(_hud)
+	_hud.set_entity_data_provider(_get_entity_data)
+
+	# Connect HUD signals
+	if _hud.has_signal("ability_clicked"):
+		_hud.ability_clicked.connect(_on_hud_ability_clicked)
+	if _hud.has_signal("build_clicked"):
+		_hud.build_clicked.connect(_on_hud_build_clicked)
+	if _hud.has_signal("train_clicked"):
+		_hud.train_clicked.connect(_on_hud_train_clicked)
+
+	print("===== GameView ready (Human P1 vs AI P2) Sprint 4 path=", get_path())
 
 # ─── Bridge between old _selected and new SelectionManager ──
-var _selected: Dictionary = {}  # Kept for backward compat with drawing code
+var _selected: Dictionary = {}
 
 func _sync_selected_from_manager() -> void:
 	if _selection:
 		_selected = _selection.selection.duplicate()
-	else:
-		# Fallback: _selected managed directly
-		pass
 
 func _on_selection_changed(selection: Dictionary) -> void:
 	_sync_selected_from_manager()
 	if _ability_mgr:
 		_ability_mgr.on_selection_changed(selection)
+	# Update camera follow entities
+	if _cam_ctrl:
+		_cam_ctrl.set_follow_entities(_selection.get_selected_ids() if _selection else [])
+	# Update rally point indicators visibility
+	_update_rally_indicator_visibility()
 
 func _on_camera_focus_requested(center: Vector2) -> void:
-	_camera.position = center - get_viewport().get_visible_rect().size / 2.0
+	if _cam_ctrl:
+		_cam_ctrl.move_to_world_position(center)
+
+# ─── Sprint 4: HUD Signal Handlers ──────────────────────────
+func _on_hud_ability_clicked(ability_id: StringName) -> void:
+	if _ability_mgr:
+		var sel := _selected.duplicate()
+		var mpos := _screen_to_world(get_viewport().get_mouse_position())
+		_ability_mgr.process_ability_input(
+			InputEventKey.new(), sel, mpos
+		)
+
+func _on_hud_build_clicked(building_type: String) -> void:
+	_build_mode = true
+	# Will be used when right-click places building
+
+func _on_hud_train_clicked(unit_type: String) -> void:
+	_handle_train()
 
 # ───────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
 	_frame += 1
-	_move_camera()
-	_monitor_canvas_transform()
-	_build_mode = Input.is_key_pressed(KEY_B)
+	# CameraController handles all camera movement now
+	_build_mode = Input.is_key_pressed(KEY_B) or (_hud and _hud.is_build_panel_visible())
+
 	# Decay damage floaters
 	for f in _dmg_floats:
 		f.ttl -= 1
 		f.y -= 0.5
 	_dmg_floats = _dmg_floats.filter(func(f): return f.ttl > 0)
+
+	# Tick minimap attack indicators
+	var minimap_node = get_node_or_null("MinimapRect")
+	if minimap_node and minimap_node.has_method("tick_attack_indicators"):
+		minimap_node.tick_attack_indicators()
+
 	queue_redraw()
 	if _frame == 30 and not _analysis_written:
 		_analysis_written = true
@@ -160,29 +218,15 @@ func _process(_delta: float) -> void:
 		elif Input.is_key_pressed(KEY_Q):
 			get_tree().quit()
 
-# ─── Camera ────────────────────────────────────────────────
-func _move_camera() -> void:
-	var dt := get_process_delta_time()
-	if Input.is_action_pressed("move_camera_up"):
-		_camera.position.y -= _cam_speed * dt
-	if Input.is_action_pressed("move_camera_down"):
-		_camera.position.y += _cam_speed * dt
-	if Input.is_action_pressed("move_camera_left"):
-		_camera.position.x -= _cam_speed * dt
-	if Input.is_action_pressed("move_camera_right"):
-		_camera.position.x += _cam_speed * dt
-	var vp := get_viewport().get_visible_rect().size
-	_camera.position.x = clampf(_camera.position.x, 0, maxf(0, _map_w * _cell - vp.x))
-	_camera.position.y = clampf(_camera.position.y, 0, maxf(0, _map_h * _cell - vp.y))
-
+# ─── Camera helpers (delegated to CameraController) ────────
 func _cam_offset() -> Vector2:
 	return -_camera.position
 
 func _screen_to_world(sp: Vector2) -> Vector2:
-	return sp + _camera.position
+	return sp / _camera.zoom + _camera.position
 
 func _world_to_screen(wp: Vector2) -> Vector2:
-	return wp - _camera.position
+	return (wp - _camera.position) * _camera.zoom
 
 # ─── Entity helpers ────────────────────────────────────────
 func _ent_at_world_pos(wp: Vector2, radius: float = SELECT_RADIUS) -> Dictionary:
@@ -228,6 +272,9 @@ func _input(event: InputEvent) -> void:
 	# Left-click: check minimap first, then selection
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var mpos := get_viewport().get_mouse_position()
+		# Don't handle if clicking on HUD
+		if _hud and _hud.get_global_rect().has_point(mpos):
+			return
 		if _is_minimap_click(mpos):
 			_handle_minimap_click(mpos)
 			return
@@ -252,7 +299,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		var key: int = event.keycode
 		if key >= KEY_1 and key <= KEY_9:
-			var group_idx: int = key - KEY_1 + 1  # 1-9
+			var group_idx: int = key - KEY_1 + 1
 			if _selection:
 				if event.ctrl_pressed:
 					_selection.create_hotkey_group(group_idx)
@@ -261,9 +308,6 @@ func _input(event: InputEvent) -> void:
 				else:
 					_selection.select_hotkey_group(group_idx)
 			return
-		# Double-tap detection for jump (simplified: Ctrl+number = jump)
-		if key >= KEY_1 + 512 and key <= KEY_9 + 512:  # physical keys
-			pass
 
 	# Ability hotkeys (if AbilityManager is loaded)
 	if event is InputEventKey and event.pressed:
@@ -281,6 +325,9 @@ func _input(event: InputEvent) -> void:
 				_selection.remove_all_selection()
 			else:
 				_selected.clear()
+			# Also hide build panel
+			if _hud:
+				_hud.hide_build_panel()
 
 func _handle_right_click() -> void:
 	var selected_ids: Array = []
@@ -315,6 +362,16 @@ func _handle_right_click() -> void:
 		elif e.type == "building":
 			buildings_selected = true
 
+	# ─── Sprint 4: Rally point for buildings ───
+	if buildings_selected and not workers_selected and not combat_selected:
+		for uid in selected_ids:
+			var e = _get_ent_by_id(uid)
+			if e.is_empty():
+				continue
+			if e.type == "building" and e.owner == 1:
+				_set_rally_point(uid, world_pos)
+				return
+
 	# Smart context
 	if not clicked_ent.is_empty():
 		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
@@ -329,7 +386,8 @@ func _handle_right_click() -> void:
 	if _build_mode and workers_selected:
 		action = "build"
 
-	# Generate commands per selected unit
+	# Generate commands per selected unit (with formation for moves)
+	var moving_ids: Array = []
 	for uid in selected_ids:
 		var e = _get_ent_by_id(uid)
 		if e.is_empty():
@@ -344,6 +402,7 @@ func _handle_right_click() -> void:
 						"target_id": clicked_ent.id,
 						"issuer": 1,
 					})
+					_emit_attack_indicator(Vector2(e.px, e.py))
 			"attack_nearest":
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
@@ -354,14 +413,9 @@ func _handle_right_click() -> void:
 							"target_id": nearest_enemy.id,
 							"issuer": 1,
 						})
+						_emit_attack_indicator(Vector2(e.px, e.py))
 					else:
-						cmds.append({
-							"action": "move",
-							"unit_id": uid,
-							"target_x": tgt_world.x,
-							"target_y": tgt_world.y,
-							"issuer": 1,
-						})
+						moving_ids.append(uid)
 			"gather":
 				if e.type == "worker":
 					cmds.append({
@@ -382,13 +436,22 @@ func _handle_right_click() -> void:
 					})
 			"move":
 				if e.type in ["worker", "soldier", "scout"]:
-					cmds.append({
-						"action": "move",
-						"unit_id": uid,
-						"target_x": tgt_world.x,
-						"target_y": tgt_world.y,
-						"issuer": 1,
-					})
+					moving_ids.append(uid)
+
+	# Formation-based move commands
+	if not moving_ids.is_empty():
+		var formation: Array = _selection.calculate_formation_positions(world_pos, moving_ids.size()) if _selection \
+			else _calc_formation_fallback(world_pos, moving_ids.size())
+		for i in range(moving_ids.size()):
+			var fpos: Vector2 = formation[i] if i < formation.size() else world_pos
+			var ftgt := fpos / _cell
+			cmds.append({
+				"action": "move",
+				"unit_id": moving_ids[i],
+				"target_x": ftgt.x,
+				"target_y": ftgt.y,
+				"issuer": 1,
+			})
 
 	if cmds.size() > 0:
 		_bridge.submit_commands(cmds)
@@ -397,6 +460,10 @@ func _handle_right_click() -> void:
 	if _event_bus and cmds.size() > 0:
 		for cmd in cmds:
 			_event_bus.emit_command_issued(cmd)
+
+	# Hide build panel after placing
+	if _build_mode and _hud:
+		_hud.hide_build_panel()
 
 func _handle_single_click() -> void:
 	var wp := _screen_to_world(_drag_start)
@@ -409,11 +476,14 @@ func _handle_single_click() -> void:
 			return
 		if not Input.is_key_pressed(KEY_SHIFT):
 			_selection.remove_all_selection()
-		# Ctrl+click = select all same type on screen
-		if Input.is_key_pressed(KEY_CTRL):
-			_selection.select_all_similar_on_screen(clicked_ent.id)
-		else:
-			_selection.add_to_selection_bulk([clicked_ent.id])
+		# Sprint 4: Double-click detection
+		var was_double: bool = _selection.handle_click_with_double_select(clicked_ent.id)
+		if not was_double:
+			# Ctrl+click = select all same type on screen
+			if Input.is_key_pressed(KEY_CTRL):
+				_selection.select_all_similar_on_screen(clicked_ent.id)
+			else:
+				_selection.add_to_selection_bulk([clicked_ent.id])
 	else:
 		# Fallback without SelectionManager
 		if clicked_ent.is_empty():
@@ -482,12 +552,87 @@ func _get_ent_by_id(eid: String) -> Dictionary:
 			return e
 	return {}
 
-# ─── Bridge callbacks ─────────────────────────────────────
+# ─── Sprint 4: Rally Point System ──────────────────────────
+func _set_rally_point(building_id: String, world_pos: Vector2) -> void:
+	if not _rally_indicators.has(building_id):
+		var indicator = RallyPointIndicatorScript.new()
+		add_child(indicator)
+		_rally_indicators[building_id] = indicator
+		var e = _get_ent_by_id(building_id)
+		if not e.is_empty():
+			indicator.set_building_position(Vector2(e.px, e.py))
+	var indicator = _rally_indicators[building_id]
+	indicator.set_rally_point(world_pos)
+	indicator.show_indicator()
+
+	# Submit rally point command to SimCore
+	var tgt_world := world_pos / _cell
+	var cmds: Array = [{
+		"action": "set_rally",
+		"building_id": building_id,
+		"target_x": tgt_world.x,
+		"target_y": tgt_world.y,
+		"issuer": 1,
+	}]
+	_bridge.submit_commands(cmds)
+	if _event_bus:
+		_event_bus.emit_rally_point_set(building_id, world_pos)
+
+func _clear_rally_point(building_id: String) -> void:
+	if _rally_indicators.has(building_id):
+		var indicator = _rally_indicators[building_id]
+		indicator.clear_rally_point()
+		indicator.hide_indicator()
+	if _event_bus:
+		_event_bus.emit_rally_point_cleared(building_id)
+
+func _update_rally_indicator_visibility() -> void:
+	# Show rally indicators only for selected buildings
+	for bid in _rally_indicators:
+		var indicator = _rally_indicators[bid]
+		if _selection and _selection.is_selected(bid):
+			indicator.show_indicator()
+		else:
+			indicator.hide_indicator()
+		# Update building position from current entity data
+		var e = _get_ent_by_id(bid)
+		if not e.is_empty():
+			indicator.set_building_position(Vector2(e.px, e.py))
+
+# ─── Sprint 4: Attack Indicators on Minimap ─────────────────
+func _emit_attack_indicator(world_pos: Vector2) -> void:
+	var minimap_node = get_node_or_null("MinimapRect")
+	if minimap_node and minimap_node.has_method("add_attack_indicator"):
+		minimap_node.add_attack_indicator(world_pos)
+	if _event_bus:
+		_event_bus.emit_attack_occurred(world_pos, 1)
+
+# ─── Formation Fallback ────────────────────────────────────
+static func _calc_formation_fallback(center: Vector2, count: int, spacing: float = 32.0) -> Array:
+	var positions: Array = []
+	if count == 0:
+		return positions
+	var cols: int = int(ceilf(sqrt(float(count))))
+	for i in range(count):
+		var row: int = i / cols
+		var col: int = i % cols
+		var offset := Vector2(
+			(float(col) - float(cols - 1) * 0.5) * spacing,
+			(float(row) - float(count / cols - 1) * 0.5) * spacing
+		)
+		positions.append(center + offset)
+	return positions
+
+# ─── Bridge callbacks ──────────────────────────────────────
 func _on_start(state: Dictionary) -> void:
 	_map_w = float(state.get("map_width", 64))
 	_map_h = float(state.get("map_height", 64))
+	if _cam_ctrl:
+		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
 	_camera.position = Vector2(10, 10) * _cell
+	if _cam_ctrl:
+		_cam_ctrl.move_to_world_position(_camera.position)
 
 func _on_state(state: Dictionary) -> void:
 	_parse(state)
@@ -507,6 +652,10 @@ func _restart_game() -> void:
 	_bridge._pending_commands.clear()
 	_ents.clear()
 	_entity_cache_by_id.clear()
+	# Clear rally indicators
+	for bid in _rally_indicators:
+		_rally_indicators[bid].queue_free()
+	_rally_indicators.clear()
 	var new_seed := randi() % 100000
 	_bridge.start_game(new_seed)
 
@@ -542,6 +691,8 @@ func _parse(state: Dictionary) -> void:
 			"target_x": float(e.get("target_x", 0)),
 			"target_y": float(e.get("target_y", 0)),
 			"speed": float(e.get("speed", 0)),
+			"energy": float(e.get("energy", 0)),
+			"max_energy": float(e.get("max_energy", 0)),
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
@@ -556,7 +707,19 @@ func _parse(state: Dictionary) -> void:
 	for t in raw_tiles:
 		_fog_tiles.append(int(t))
 
-	# Detect damage
+	# Parse resources for P1
+	var resources: Dictionary = state.get("resources", {})
+	var p1_res: Dictionary = resources.get("1", resources)
+	_p1_minerals = int(p1_res.get("minerals", _p1_minerals))
+	_p1_gas = int(p1_res.get("gas", _p1_gas))
+	_p1_supply_used = int(p1_res.get("supply_used", _p1_supply_used))
+	_p1_supply_cap = int(p1_res.get("supply_cap", _p1_supply_cap))
+
+	# Update HUD resources
+	if _hud:
+		_hud.update_resources(_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap)
+
+	# Detect damage and attack events
 	for e in _ents:
 		var eid_str: String = e.id
 		var hp: float = e.health
@@ -571,6 +734,8 @@ func _parse(state: Dictionary) -> void:
 					"amount": dmg,
 					"ttl": 30,
 				})
+				# Attack indicator on minimap
+				_emit_attack_indicator(Vector2(e.px, e.py))
 	_prev_hp.clear()
 	for e in _ents:
 		_prev_hp[e.id] = e.health
@@ -586,6 +751,13 @@ func _parse(state: Dictionary) -> void:
 	if _selection:
 		_selection.selectables_on_screen = _entity_cache_by_id.duplicate()
 
+	# Update rally indicator building positions
+	for bid in _rally_indicators:
+		var indicator = _rally_indicators[bid]
+		var e = _get_ent_by_id(bid)
+		if not e.is_empty():
+			indicator.set_building_position(Vector2(e.px, e.py))
+
 # ───────────────────────────────────────────────────────────
 # ─── DRAWING ───────────────────────────────────────────────
 # ───────────────────────────────────────────────────────────
@@ -598,9 +770,9 @@ func _draw() -> void:
 	_draw_combat_effects(co)
 	_draw_health_bars(co)
 	_draw_selection_rings(co)
+	_draw_rally_lines(co)
 	_draw_drag_box()
 	_draw_damage_floats(co)
-	_draw_hud()
 	_draw_minimap()
 
 func _draw_map_background(co: Vector2) -> void:
@@ -621,31 +793,100 @@ func _draw_grid(co: Vector2) -> void:
 		y += step
 
 func _draw_fog_of_war(co: Vector2) -> void:
+	# Sprint 4: Uses FogRenderer's gradient approach directly inline for performance.
+	# The separate FogRenderer node is also updated.
 	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
 		return
 	var map_px := _map_w * _cell
 	var map_py := _map_h * _cell
 	var tile_w := map_px / float(_fog_w)
 	var tile_h := map_py / float(_fog_h)
+
+	# Pre-build grid for neighbor lookup
+	var fog_grid: Array = []
+	fog_grid.resize(_fog_h)
 	for gy in range(_fog_h):
+		fog_grid[gy] = []
+		fog_grid[gy].resize(_fog_w)
 		for gx in range(_fog_w):
 			var idx := gy * _fog_w + gx
-			if idx >= _fog_tiles.size():
-				break
-			var state_val: int = _fog_tiles[idx]
-			var alpha := 0.0
-			if state_val == 0:
-				alpha = 0.85
-			elif state_val == 1:
-				alpha = 0.45
+			if idx < _fog_tiles.size():
+				fog_grid[gy][gx] = _fog_tiles[idx]
 			else:
+				fog_grid[gy][gx] = 0
+
+	for gy in range(_fog_h):
+		for gx in range(_fog_w):
+			var state_val: int = fog_grid[gy][gx]
+			var base_alpha: float
+			match state_val:
+				0: base_alpha = 0.88
+				1: base_alpha = 0.50
+				2: base_alpha = 0.0
+				_: base_alpha = 0.88
+
+			if base_alpha < 0.01:
 				continue
-			var px := gx * tile_w + co.x
-			var py := gy * tile_h + co.y
-			draw_rect(Rect2(px, py, tile_w + 1.0, tile_h + 1.0), Color(0.02, 0.02, 0.05, alpha), true)
+
+			# Gradient smoothing at boundaries
+			var is_boundary := false
+			var neighbor_sum: float = 0.0
+			var neighbor_count: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					var nx: int = gx + dx
+					var ny: int = gy + dy
+					if nx < 0 or nx >= _fog_w or ny < 0 or ny >= _fog_h:
+						neighbor_sum += 0.88
+						neighbor_count += 1
+						if state_val != 0:
+							is_boundary = true
+						continue
+					var n_val: int = fog_grid[ny][nx]
+					var n_alpha: float
+					match n_val:
+						0: n_alpha = 0.88
+						1: n_alpha = 0.50
+						2: n_alpha = 0.0
+						_: n_alpha = 0.88
+					neighbor_sum += n_alpha
+					neighbor_count += 1
+					if n_val != state_val:
+						is_boundary = true
+
+			var alpha: float
+			if is_boundary:
+				var neighbor_avg := neighbor_sum / float(neighbor_count) if neighbor_count > 0 else base_alpha
+				alpha = lerpf(base_alpha, neighbor_avg, 0.35)
+			else:
+				alpha = base_alpha
+
+			alpha = clampf(alpha, 0.0, 1.0)
+			if alpha < 0.01:
+				continue
+
+			var px: float = gx * tile_w + co.x
+			var py: float = gy * tile_h + co.y
+
+			var color: Color
+			match state_val:
+				0: color = Color(0.02, 0.02, 0.05, alpha)
+				1: color = Color(0.02, 0.02, 0.05, alpha * 0.55)
+				2: color = Color(0.02, 0.02, 0.05, alpha * 0.15)
+				_: color = Color(0.02, 0.02, 0.05, alpha)
+
+			draw_rect(Rect2(px, py, tile_w + 1.0, tile_h + 1.0), color, true)
 
 func _draw_entities(co: Vector2) -> void:
+	# Sprint 4: Entities in unexplored (state 0) or explored (state 1) fog are hidden
+	# (explored shows terrain but not units from other players).
 	for e in _ents:
+		# Fog visibility check: hide non-own entities in non-visible fog
+		if e.owner != 1 and _is_in_fog(e):
+			continue
+
 		var pos := Vector2(e.px, e.py) + co
 		var c: Color
 		var radius: float = 8.0
@@ -693,6 +934,8 @@ func _draw_entities(co: Vector2) -> void:
 
 	# Attack / move target lines
 	for e in _ents:
+		if e.owner != 1:
+			continue
 		if e.attack_target_id != "" or not e.is_idle:
 			var lpos := Vector2(e.px, e.py) + co
 			if e.attack_target_id != "":
@@ -704,8 +947,23 @@ func _draw_entities(co: Vector2) -> void:
 				var tpos := Vector2(e.target_x, e.target_y) * _cell + co
 				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 1.0, true)
 
+func _is_in_fog(e: Dictionary) -> bool:
+	"""Check if an entity is in non-visible fog (unexplored or explored but not currently visible)."""
+	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
+		return false
+	var fog_x := int(e.pos_x * float(_fog_w) / _map_w)
+	var fog_y := int(e.pos_y * float(_fog_h) / _map_h)
+	fog_x = clampi(fog_x, 0, _fog_w - 1)
+	fog_y = clampi(fog_y, 0, _fog_h - 1)
+	var idx := fog_y * _fog_w + fog_x
+	if idx < _fog_tiles.size():
+		return _fog_tiles[idx] < 2
+	return true
+
 func _draw_combat_effects(co: Vector2) -> void:
 	for e in _ents:
+		if e.owner != 1:
+			continue
 		if e.attack_target_id != "":
 			var pos := Vector2(e.px, e.py) + co
 			var pulse: float = 0.4 + 0.6 * abs(sin(_frame * 0.15))
@@ -728,6 +986,8 @@ func _draw_health_bars(co: Vector2) -> void:
 	for e in _ents:
 		if e.max_health <= 0 or e.type == "resource":
 			continue
+		if e.owner != 1 and _is_in_fog(e):
+			continue
 		var pos := Vector2(e.px, e.py) + co
 		var bar_w := 20.0
 		var bar_h := 3.0
@@ -745,6 +1005,51 @@ func _draw_selection_rings(co: Vector2) -> void:
 		var pos := Vector2(e.px, e.py) + co
 		draw_arc(pos, 14.0, 0.0, TAU, 16, Color(0.2, 1.0, 0.2, 0.9), 2.0, true)
 
+# ─── Sprint 4: Draw Rally Point Lines ──────────────────────
+func _draw_rally_lines(co: Vector2) -> void:
+	for bid in _rally_indicators:
+		var indicator = _rally_indicators[bid]
+		if not indicator.has_rally():
+			continue
+		# Only draw if building is selected
+		if _selection and not _selection.is_selected(bid):
+			continue
+		var bpos: Vector2 = indicator._building_pos + co
+		var rpos: Vector2 = indicator._rally_pos + co
+
+		# Dashed line
+		var direction: Vector2 = rpos - bpos
+		var length: float = direction.length()
+		if length < 1.0:
+			continue
+		var dir_norm: Vector2 = direction / length
+		var drawn: float = 0.0
+		var is_dash: bool = true
+		const DASH_LEN := 8.0
+		const GAP_LEN := 6.0
+
+		while drawn < length:
+			var seg_len: float = DASH_LEN if is_dash else GAP_LEN
+			var remaining: float = length - drawn
+			seg_len = minf(seg_len, remaining)
+			if is_dash:
+				var start: Vector2 = bpos + dir_norm * drawn
+				var end: Vector2 = bpos + dir_norm * (drawn + seg_len)
+				draw_line(start, end, Color(0.2, 1.0, 0.2, 0.7), 2.0, true)
+			drawn += seg_len
+			is_dash = not is_dash
+
+		# Flag at rally point
+		var pole_top: Vector2 = rpos - Vector2(0, 20.0)
+		draw_line(rpos, pole_top, Color(1.0, 0.9, 0.2, 0.8), 2.0, true)
+		var flag_pts := PackedVector2Array([
+			pole_top,
+			pole_top + Vector2(10.0, 3.0),
+			pole_top + Vector2(0, 6.0)
+		])
+		draw_colored_polygon(flag_pts, Color(1.0, 0.9, 0.2, 0.8))
+		draw_circle(rpos, 3.0, Color(1.0, 0.9, 0.2, 0.8))
+
 func _draw_drag_box() -> void:
 	if not _dragging:
 		return
@@ -754,6 +1059,7 @@ func _draw_drag_box() -> void:
 	draw_rect(Rect2(tl, size), Color(0.2, 1.0, 0.2, 0.6), false, 1.5)
 
 func _draw_hud() -> void:
+	# HUD is now handled by the HUD node — minimal top-left info only
 	var info_lines: Array = [
 		"Tick: %d  Ents: %d  Sel: %d" % [_bridge._tick, _ents.size(), _selected.size()],
 	]
@@ -768,42 +1074,46 @@ func _draw_hud() -> void:
 	if _build_mode:
 		info_lines.append("[BUILD MODE] Right-click to place barracks")
 
-	var sel_types: Dictionary = {}
-	for uid in _selected:
-		var e = _get_ent_by_id(uid)
-		if e.is_empty():
-			continue
-		var key = "%s(%s)" % [e.type, e.building_type if e.building_type else e.resource_type]
-		sel_types[key] = sel_types.get(key, 0) + 1
-
-	if not sel_types.is_empty():
-		var sel_str := "Selected: "
-		for k in sel_types:
-			sel_str += "%s×%d " % [k, sel_types[k]]
-		info_lines.append(sel_str)
+	# Resource display at top
+	info_lines.append("Minerals: %d | Gas: %d | Supply: %d/%d" % [_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap])
 
 	if not _selected.is_empty():
-		var hints: Array = []
-		var has_workers := false
-		var has_buildings := false
+		var sel_types: Dictionary = {}
 		for uid in _selected:
 			var e = _get_ent_by_id(uid)
-			if e.is_empty(): continue
-			if e.type == "worker": has_workers = true
-			if e.type == "building": has_buildings = true
-		if has_workers:
-			hints.append("Right-click: Move/Gather/Attack | B+Right-click: Build")
-		if has_buildings:
-			for uid2 in _selected:
-				var eb = _get_ent_by_id(uid2)
-				if eb.is_empty(): continue
-				if eb.type == "building" and eb.owner == 1:
-					if eb.building_type == "base":
-						hints.append("T→Worker(50$)")
-					elif eb.building_type == "barracks":
-						hints.append("T→Soldier(100$)")
-		if hints.size() > 0:
-			info_lines.append("  ".join(hints))
+			if e.is_empty():
+				continue
+			var key = "%s(%s)" % [e.type, e.building_type if e.building_type else e.resource_type]
+			sel_types[key] = sel_types.get(key, 0) + 1
+
+		if not sel_types.is_empty():
+			var sel_str := "Selected: "
+			for k in sel_types:
+				sel_str += "%s×%d " % [k, sel_types[k]]
+			info_lines.append(sel_str)
+
+		if not _selected.is_empty():
+			var hints: Array = []
+			var has_workers := false
+			var has_buildings := false
+			for uid in _selected:
+				var e = _get_ent_by_id(uid)
+				if e.is_empty(): continue
+				if e.type == "worker": has_workers = true
+				if e.type == "building": has_buildings = true
+			if has_workers:
+				hints.append("Right-click: Move/Gather/Attack | B+Right-click: Build")
+			if has_buildings:
+				for uid2 in _selected:
+					var eb = _get_ent_by_id(uid2)
+					if eb.is_empty(): continue
+					if eb.type == "building" and eb.owner == 1:
+						if eb.building_type == "base":
+							hints.append("T→Worker(50$)")
+						elif eb.building_type == "barracks":
+							hints.append("T→Soldier(100$)")
+			if hints.size() > 0:
+				info_lines.append("  ".join(hints))
 
 	for i in info_lines.size():
 		draw_string(_default_font, Vector2(8, 20 + i * 16), info_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.YELLOW)
@@ -833,7 +1143,11 @@ func _handle_minimap_click(screen_pos: Vector2) -> void:
 	var frac_y: float = local.y / mm.size.y
 	var map_px_w: float = _map_w * _cell
 	var map_px_h: float = _map_h * _cell
-	_camera.position = Vector2(frac_x * map_px_w, frac_y * map_px_h)
+	var target_pos := Vector2(frac_x * map_px_w, frac_y * map_px_h)
+	if _cam_ctrl:
+		_cam_ctrl.move_to_world_position(target_pos)
+	else:
+		_camera.position = target_pos
 
 func _draw_minimap() -> void:
 	var vp := get_viewport().get_visible_rect().size
@@ -842,6 +1156,30 @@ func _draw_minimap() -> void:
 	draw_rect(Rect2(mm_pos, _mm_size), Color(0.5, 0.5, 0.5, 0.8), false, 1.0)
 	var sx: float = _mm_size.x / (_map_w * _cell)
 	var sy: float = _mm_size.y / (_map_h * _cell)
+
+	# Draw fog of war on minimap
+	if _fog_w > 0 and _fog_h > 0 and not _fog_tiles.is_empty():
+		var fog_sx := _mm_size.x / float(_fog_w)
+		var fog_sy := _mm_size.y / float(_fog_h)
+		for fy in range(_fog_h):
+			for fx in range(_fog_w):
+				var fidx := fy * _fog_w + fx
+				if fidx >= _fog_tiles.size():
+					break
+				var fval: int = _fog_tiles[fidx]
+				var f_alpha: float
+				match fval:
+					0: f_alpha = 0.8
+					1: f_alpha = 0.35
+					2: f_alpha = 0.0
+					_: f_alpha = 0.8
+				if f_alpha > 0.01:
+					draw_rect(
+						Rect2(mm_pos.x + fx * fog_sx, mm_pos.y + fy * fog_sy, fog_sx + 1.0, fog_sy + 1.0),
+						Color(0.01, 0.01, 0.03, f_alpha)
+					)
+
+	# Draw entity dots on minimap
 	for e in _ents:
 		var epos := Vector2(e.px * sx, e.py * sy) + mm_pos
 		var c: Color
@@ -852,11 +1190,36 @@ func _draw_minimap() -> void:
 		else: c = Color.WHITE
 		var dot_size := 2.0 if e.type != "building" else 3.0
 		draw_circle(epos, dot_size, c)
+
+	# Camera viewport rectangle on minimap
 	var cam_tl_x: float = _camera.position.x * sx + mm_pos.x
 	var cam_tl_y: float = _camera.position.y * sy + mm_pos.y
-	var cam_w: float = vp.x * sx
-	var cam_h: float = vp.y * sy
+	var cam_w: float = (vp.x / _camera.zoom.x) * sx
+	var cam_h: float = (vp.y / _camera.zoom.y) * sy
 	draw_rect(Rect2(cam_tl_x, cam_tl_y, cam_w, cam_h), Color(1.0, 1.0, 1.0, 0.5), false, 1.0)
+
+## Provides state data to the minimap_rect child node.
+func _get_state_for_minimap() -> Dictionary:
+	var entities_dict: Dictionary = {}
+	for e in _ents:
+		entities_dict[e.id] = {
+			"owner": e.owner,
+			"type": e.type,
+			"pos_x": e.pos_x,
+			"pos_y": e.pos_y,
+			"resource_type": e.resource_type,
+		}
+	return {
+		"entities": entities_dict,
+		"map_width": _map_w,
+		"map_height": _map_h,
+		"cam_center": _camera.position + get_viewport().get_visible_rect().size / (2.0 * _camera.zoom),
+		"vp_size": get_viewport().get_visible_rect().size / _camera.zoom,
+		"cell_size": int(_cell),
+		"fog_tiles": _fog_tiles,
+		"fog_width": _fog_w,
+		"fog_height": _fog_h,
+	}
 
 func _monitor_canvas_transform() -> void:
 	var ct := get_viewport().get_canvas_transform()
