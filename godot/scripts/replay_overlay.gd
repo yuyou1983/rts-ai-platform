@@ -4,7 +4,7 @@ extends Control
 ## Expects a ReplayPlayer (or node with ReplayPlayer script) at /root/ReplayPlayer,
 ## or assign it via `player` before use.
 
-const SPEEDS: Array[float] = [0.5, 1.0, 2.0, 4.0]
+const SPEEDS := [0.5, 1.0, 2.0, 4.0]
 var _speed_index: int = 1  # start at 1x
 
 @onready var _player: ReplayPlayer = get_node_or_null("/root/ReplayPlayer")

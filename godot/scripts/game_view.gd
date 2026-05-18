@@ -800,8 +800,8 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 
 # ─── Bridge callbacks ──────────────────────────────────────
 func _on_start(state: Dictionary) -> void:
-	_map_w = float(state.get("map_width", 64))
-	_map_h = float(state.get("map_height", 64))
+	_map_w = state.get("map_width", 64) + 0.0
+	_map_h = state.get("map_height", 64) + 0.0
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
@@ -850,24 +850,24 @@ func _parse(state: Dictionary) -> void:
 			"entity_type": etype,
 			"building_type": btype,
 			"resource_type": rtype,
-			"resource_amount": float(e.get("resource_amount", 0)),
-			"px": float(e.get("pos_x", 0)),  # TILE_SIZE=1, world=tile
-			"py": float(e.get("pos_y", 0)),
-			"pos_x": float(e.get("pos_x", 0)),
-			"pos_y": float(e.get("pos_y", 0)),
-			"health": float(e.get("health", 0)),
-			"max_health": float(e.get("max_health", 0)),
+			"resource_amount": e.get("resource_amount", 0) + 0.0,
+			"px": e.get("pos_x", 0) + 0.0,  # TILE_SIZE=1, world=tile
+			"py": e.get("pos_y", 0) + 0.0,
+			"pos_x": e.get("pos_x", 0) + 0.0,
+			"pos_y": e.get("pos_y", 0) + 0.0,
+			"health": e.get("health", 0) + 0.0,
+			"max_health": e.get("max_health", 0) + 0.0,
 			"is_idle": bool(e.get("is_idle", true)),
-			"carry_amount": float(e.get("carry_amount", 0)),
-			"carry_cap": float(e.get("carry_capacity", 0)),
-			"attack": float(e.get("attack", 0)),
-			"attack_range": float(e.get("attack_range", 16.0)),
+			"carry_amount": e.get("carry_amount", 0) + 0.0,
+			"carry_cap": e.get("carry_capacity", 0) + 0.0,
+			"attack": e.get("attack", 0) + 0.0,
+			"attack_range": e.get("attack_range", 16.0) + 0.0,
 			"attack_target_id": str(e.get("attack_target_id", "")),
-			"target_x": float(e.get("target_x", 0)),
-			"target_y": float(e.get("target_y", 0)),
-			"speed": float(e.get("speed", 0)),
-			"energy": float(e.get("energy", 0)),
-			"max_energy": float(e.get("max_energy", 0)),
+			"target_x": e.get("target_x", 0) + 0.0,
+			"target_y": e.get("target_y", 0) + 0.0,
+			"speed": e.get("speed", 0) + 0.0,
+			"energy": e.get("energy", 0) + 0.0,
+			"max_energy": e.get("max_energy", 0) + 0.0,
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
