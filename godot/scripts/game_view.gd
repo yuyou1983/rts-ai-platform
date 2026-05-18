@@ -112,6 +112,7 @@ var _map_texture: Texture2D = null
 # ─── Sprint 4 Components ──────────────────────────────────
 var _cam_ctrl: Node = null  # CameraController
 var _hud: Control = null    # HUD
+var _ui_layer: CanvasLayer = null  # UI layer for HUD, minimap, replay overlay
 var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
 
 # ─── Entity Data Provider ──────────────────────────────────
@@ -142,6 +143,11 @@ func _ready() -> void:
 		_replay_match_id = Engine.get_meta("replay_match_id")
 		Engine.remove_meta("replay_match_id")
 
+	# ─── CanvasLayer for ALL UI (must be created before any Control children) ───
+	_ui_layer = CanvasLayer.new()
+	_ui_layer.layer = 10
+	add_child(_ui_layer)
+
 	_bridge = GrpcBridgeScript.new()
 	_bridge.ai_player = 2
 	add_child(_bridge)
@@ -150,7 +156,7 @@ func _ready() -> void:
 	_bridge.game_over.connect(_on_game_over)
 	_bridge.replay_loaded.connect(_on_replay_loaded)
 
-	# Replay system
+	# Replay system — ReplayPlayer as child of game_view (Node), overlay in CanvasLayer
 	_replay_player = ReplayPlayer.new()
 	add_child(_replay_player)
 	_replay_player.replay_tick.connect(_on_state)
@@ -159,7 +165,7 @@ func _ready() -> void:
 	var _replay_overlay_scene := preload("res://scenes/replay_overlay.tscn")
 	_replay_overlay = _replay_overlay_scene.instantiate()
 	_replay_overlay.set_player(_replay_player)
-	add_child(_replay_overlay)
+	_ui_layer.add_child(_replay_overlay)
 
 	if _replay_match_id != "":
 		# Replay mode: don't start a new game, fetch replay instead
@@ -243,9 +249,7 @@ func _ready() -> void:
 	_map_texture = load("res://assets/maps/(2)Switchback.jpg")
 
 	# ─── CanvasLayer for floating UI (above fullscreen game map) ───
-	var _ui_layer := CanvasLayer.new()
 	_ui_layer.layer = 10
-	add_child(_ui_layer)
 
 	var vp_size := get_viewport().get_visible_rect().size
 
@@ -1723,6 +1727,8 @@ func _on_replay_loaded(replay_data: Dictionary) -> void:
 		replay_data.get("player_races", {}).get("1", "?"),
 		replay_data.get("player_races", {}).get("2", "?"),
 	])
+	# Auto-play the replay so it starts moving immediately
+	_replay_player.play()
 
 func _on_replay_finished() -> void:
 	print("[Replay] Playback finished")
