@@ -6,7 +6,8 @@ Architecture:
   MatchResult      — per-match outcome + telemetry
 
 This layer sits above SimCore and is engine-agnostic. It communicates
-with SimCore through the AgentScope game loop (which uses SimCore internally)
+with SimCore through the AgentScope game loop (which uses SimCore internally),
+through the direct SimCore path (for script-vs-script benchmarks, no AgentScope),
 or through the gRPC client for remote/multi-process setups.
 """
 from __future__ import annotations
@@ -18,6 +19,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agents.game_loop import AgentScopeGameLoop
+from agents.script_ai import ScriptAI
+from simcore.engine import SimCore
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +34,15 @@ class MatchConfig:
     max_ticks: int = 10000
     player1_type: str = "coordinator"  # coordinator | script | random
     player2_type: str = "script"
+    player_races: dict[int, str] | None = None  # {1: "terran", 2: "terran"}
 
     def __post_init__(self) -> None:
         if not self.match_id:
             import shortuuid
 
             self.match_id = shortuuid.uuid()
+        if self.player_races is None:
+            self.player_races = {1: "terran", 2: "terran"}
 
 
 @dataclass
@@ -137,22 +143,31 @@ class SimulationPool:
         self._failed = 0
 
     async def run_match(self, config: MatchConfig) -> MatchResult:
-        """Run a single match under the semaphore."""
+        """Run a single match under the semaphore.
+
+        For script-vs-script matches, uses the fast direct SimCore path
+        (no AgentScope dependency). Otherwise, falls back to the full
+        AgentScope game loop with multi-agent orchestration.
+        """
         async with self._semaphore:
             try:
-                loop = AgentScopeGameLoop(
-                    map_seed=config.map_seed, max_ticks=config.max_ticks
-                )
                 t0 = time.monotonic()
-                outcome = await loop.run()
+                # Use direct SimCore path for script vs script (fast, no AgentScope)
+                if config.player1_type == "script" and config.player2_type == "script":
+                    outcome = _run_direct_match(config)
+                else:
+                    loop = AgentScopeGameLoop(
+                        map_seed=config.map_seed, max_ticks=config.max_ticks
+                    )
+                    outcome = await loop.run()
                 elapsed = time.monotonic() - t0
                 result = MatchResult(
                     match_id=config.match_id,
                     winner=outcome["winner"],
                     ticks=outcome["ticks"],
                     elapsed=elapsed,
-                    tps=outcome["tps"],
-                    replay=outcome["replay"],
+                    tps=outcome["ticks"] / max(elapsed, 1e-9),
+                    replay=outcome.get("replay", []),
                 )
                 self._completed += 1
                 logger.info(
@@ -187,3 +202,52 @@ class SimulationPool:
             "failed": self._failed,
             "total": len(self._results),
         }
+
+
+# ─── Direct SimCore fast path (no AgentScope) ───────────────────────
+
+
+def _run_direct_match(config: MatchConfig) -> dict[str, Any]:
+    """Run a script-vs-script match directly through SimCore.
+
+    This is the fast path for benchmarks: no AgentScope, no async,
+    no message hub — just SimCore + ScriptAI in a tight loop.
+    """
+    t0 = time.monotonic()
+    engine = SimCore(max_ticks=config.max_ticks, tick_rate=20.0)
+    engine.initialize(map_seed=config.map_seed)
+
+    # Apply player race configuration
+    for pid, race in (config.player_races or {1: "terran", 2: "terran"}).items():
+        engine._player_races[pid] = race
+
+    ai1 = ScriptAI(player_id=1)
+    ai2 = ScriptAI(player_id=2)
+    tick = 0
+
+    while tick < config.max_ticks and not engine.state.is_terminal:
+        obs = engine.state.get_observations()
+        obs1 = obs[0] if obs else {}
+        obs2 = obs[1] if len(obs) > 1 else {}
+
+        result1 = ai1.decide(obs1)
+        result2 = ai2.decide(obs2)
+
+        cmds1 = result1.get("commands", []) if isinstance(result1, dict) else []
+        cmds2 = result2.get("commands", []) if isinstance(result2, dict) else []
+
+        for cmd in cmds1:
+            cmd["issuer"] = 1
+        for cmd in cmds2:
+            cmd["issuer"] = 2
+
+        engine.step(cmds1 + cmds2)
+        tick += 1
+
+    elapsed = time.monotonic() - t0
+    return {
+        "winner": engine.state.winner if engine.state else 0,
+        "ticks": tick,
+        "tps": tick / max(elapsed, 1e-9),
+        "replay": engine.replay if hasattr(engine, "replay") else [],
+    }

@@ -61,14 +61,14 @@ func _draw() -> void:
 		var gx: float = _ghost_building.get("pos_x", 0.0)
 		var gy: float = _ghost_building.get("pos_y", 0.0)
 		var ghost_color: Color = Color(0.3, 1.0, 0.3, 0.4)
-		# TILE_SIZE=1: building occupies ~1 world unit, scale to screen pixels
-		var bsize: float = 32.0  # pixels on screen for a single tile building
+		# TILE_SIZE=1: building ghost in world units (1 tile)
+		var bsize: float = 1.0
 		draw_rect(Rect2(gx - bsize / 2, gy - bsize / 2, bsize, bsize), ghost_color)
 
 	# Draw rally lines
 	for rl in _rally_lines:
 		var line_color: Color = Color(0.0, 1.0, 1.0, 0.5)
-		var dash_len: float = 4.0
+		var dash_len: float = 0.3
 		var sx: float = rl.get("start_x", 0.0)
 		var sy: float = rl.get("start_y", 0.0)
 		var ex: float = rl.get("end_x", 0.0)

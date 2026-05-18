@@ -27,6 +27,56 @@ PRODUCTION_TICKS = {
     "worker": 10,
     "soldier": 15,
     "scout": 12,
+    # SC1 unit name aliases (Terran)
+    "SCV": 10,
+    "Marine": 15,
+    "Firebat": 15,
+    "Ghost": 18,
+    "Medic": 15,
+    "Vulture": 12,
+    "Goliath": 18,
+    "SiegeTank": 20,
+    "Wraith": 20,
+    "Dropship": 20,
+    "Valkyrie": 20,
+    "Battlecruiser": 30,
+    # Zerg
+    "Drone": 10,
+    "Zergling": 8,
+    "Hydralisk": 15,
+    "Mutalisk": 18,
+    "Scourge": 8,
+    "Queen": 20,
+    "Ultralisk": 25,
+    "Guardian": 20,
+    "Devourer": 20,
+    "Overlord": 12,
+    "Defiler": 18,
+    # Protoss
+    "Probe": 10,
+    "Zealot": 15,
+    "Dragoon": 18,
+    "HighTemplar": 20,
+    "DarkTemplar": 18,
+    "Reaver": 22,
+    "Shuttle": 15,
+    "Observer": 12,
+    "Corsair": 18,
+    "Scout": 18,
+    "Arbiter": 25,
+    "Carrier": 30,
+}
+
+# SC1 unit name → internal unit type
+UNIT_TYPE_ALIASES: dict[str, str] = {
+    "SCV": "worker", "Drone": "worker", "Probe": "worker",
+    "Marine": "soldier", "Firebat": "soldier", "Ghost": "soldier",
+    "Zergling": "soldier", "Hydralisk": "soldier",
+    "Zealot": "soldier", "Dragoon": "soldier",
+    "Vulture": "scout", "Wraith": "scout", "Valkyrie": "scout",
+    "Mutalisk": "scout", "Scourge": "scout",
+    "Corsair": "scout",
+    "Medic": "scout", "Overlord": "scout", "Observer": "scout",
 }
 WORKER_RETURN_SPEED = 3.0  # slightly faster when carrying
 
@@ -179,6 +229,17 @@ def validate_commands(state: GameState, commands: list[dict]) -> list[dict]:
     entities = state.entities
 
     for cmd in commands:
+        if cmd.get("action") == "train":
+            entity_id = (
+                cmd.get("entity_id") or cmd.get("attacker_id")
+                or cmd.get("builder_id") or cmd.get("worker_id")
+                or cmd.get("unit_id") or cmd.get("building_id")
+            )
+            if entity_id and entity_id in entities:
+                entity = entities[entity_id]
+                if entity.get("owner") == cmd.get("issuer"):
+                    valid.append(cmd)
+            continue
         entity_id = (
             cmd.get("entity_id") or cmd.get("attacker_id")
             or cmd.get("builder_id") or cmd.get("worker_id")
@@ -685,8 +746,10 @@ def process_construction(
 
         timers[0] -= 1
         if timers[0] <= 0:
-            utype = queue.pop(0)
+            utype_raw = queue.pop(0)
             timers.pop(0)
+            # Resolve SC1 names to internal types
+            utype = UNIT_TYPE_ALIASES.get(utype_raw, utype_raw)
             uid = f"{utype}_{tick}_{eid}"
             stats = _unit_stats(utype, e["owner"], e["pos_x"] + 1.0, e["pos_y"] + 1.0)
             new_entities[uid] = stats

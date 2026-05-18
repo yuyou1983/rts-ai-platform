@@ -52,7 +52,26 @@ var _dmg_floats: Array = []
 var _dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
-const SELECT_RADIUS := 20.0
+const SELECT_RADIUS := 1.5
+
+# Debug click marker
+var _debug_click_pos: Vector2 = Vector2.ZERO
+var _debug_click_ttl: int = 0
+var _test_mode: bool = false
+var _test_ents: Array = []
+var _test_btn: Button = null
+var _zoom_in_btn: Button = null
+var _zoom_out_btn: Button = null
+var _saved_ents: Array = []
+var _saved_fog_tiles: PackedInt32Array = []
+var _saved_fog_w: int = 0
+var _saved_fog_h: int = 0
+# Animation state
+var _anim_frame: int = 0
+var _anim_tick: float = 0.0
+const ANIM_FPS := 8.0  # frames per second for walk cycle
+# Unit animation layout: row, cols, frame_width, frame_height per unit per owner
+var _unit_anim_info: Dictionary = {}
 
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
@@ -71,13 +90,21 @@ var _jitter_count: int = 0
 var _total_jitter_px: float = 0.0
 
 # ─── Minimap ───────────────────────────────────────────────
-var _mm_size := Vector2(160, 120)
-var _mm_margin := Vector2(8, 8)
+var _mm_size := Vector2(152, 136)  # minimap inner drawing area
+var _mm_margin := Vector2(12, 28)  # bottom-right float: x=8+4, y=8+20
+var _mm_rect_node: Control = null  # ref to MinimapRect node
 
 # ─── Integrated Pattern References ─────────────────────────
 var _selection: Node  # SelectionManager autoload
 var _event_bus: Node  # EventBus autoload
 var _ability_mgr: Node  # AbilityManager autoload
+
+	# ─── Sprite textures ───────────────────────────────────────
+var _unit_textures: Dictionary = {}
+var _building_textures: Dictionary = {}
+var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
+var _sprite_container: Node2D = null  # parent for all entity sprites
+var _map_texture: Texture2D = null
 
 # ─── Sprint 4 Components ──────────────────────────────────
 var _cam_ctrl: Node = null  # CameraController
@@ -137,19 +164,125 @@ func _ready() -> void:
 	_cam_ctrl.setup(_camera)
 	_cam_ctrl.set_entity_data_provider(_get_entity_data)
 	_cam_ctrl.set_map_size(_map_w, _map_h)
+	# Set initial camera position to map center immediately
+	_camera.position = Vector2(_map_w / 2.0, _map_h / 2.0)
 
-	# ─── Sprint 4: Create HUD ───
+	# ─── Container for entity Sprite2D nodes ───
+	_sprite_container = Node2D.new()
+	_sprite_container.name = "EntitySprites"
+	_sprite_container.z_index = 1  # Above map bg (z=-100)
+	z_index = 5  # game_view _draw() renders above entity sprites
+	add_child(_sprite_container)
+
+	# ─── Preload sprite textures ───
+	# Terran units
+	_unit_textures["worker_1"] = load("res://assets/units/SCV.png")
+	_unit_textures["soldier_1"] = load("res://assets/units/Marine.png")
+	_unit_textures["scout_1"] = load("res://assets/units/Ghost.png")
+	# Terran units (P2)
+	_unit_textures["worker_2"] = load("res://assets/units/SCV.png")
+	_unit_textures["soldier_2"] = load("res://assets/units/Marine.png")
+	_unit_textures["scout_2"] = load("res://assets/units/Ghost.png")
+	# Protoss units
+	_unit_textures["worker_3"] = load("res://assets/units/Probe.png")
+	_unit_textures["soldier_3"] = load("res://assets/units/Zealot.png")
+	_unit_textures["scout_3"] = load("res://assets/units/Dragoon.png")
+	_building_textures[1] = load("res://assets/buildings/TerranBuilding.png")
+	_building_textures[2] = load("res://assets/buildings/ZergBuilding.png")
+	# ─── Unit animation metadata (row, total_cols, frame_w, frame_h, south_col) ───
+	# SCV: 8-dir, row0 walk, row1 carry, row2 attack, row3 gather
+	_unit_anim_info["worker_1"] = {"rows": 4, "cols": [8,8,8,4], "fw": [33,41,42,46], "fh": [41,40,40,48], "south": [4,4,4,2]}
+	# SCV (P2): same as worker_1
+	_unit_anim_info["worker_2"] = _unit_anim_info.get("worker_1", {})
+	# Probe: single strip
+	_unit_anim_info["worker_3"] = {"rows": 1, "cols": [1], "fw": [286], "fh": [62], "south": [0]}
+	# Marine: 17-dir, many rows
+	_unit_anim_info["soldier_1"] = {"rows": 14, "cols": [18,18,18,18,18,18,18,18,18,18,18,18,18,7], "fw": [20,18,16,16,21,22,22,23,23,24,23,23,23,41], "fh": [28,28,28,34,28,27,29,27,28,29,31,30,29,37], "south": [9,9,9,9,9,9,9,9,9,9,9,9,9,3]}
+	# Marine (P2): same as soldier_1
+	_unit_anim_info["soldier_2"] = _unit_anim_info.get("soldier_1", {})
+	# Zealot: 17-dir
+	_unit_anim_info["soldier_3"] = {"rows": 14, "cols": [18,18,18,18,18,18,18,18,18,18,16,18,14,6], "fw": [19,21,26,21,19,21,26,22,22,19,18,23,27,33], "fh": [33,33,32,33,36,35,35,34,34,37,39,38,40,36], "south": [9,9,9,9,9,9,9,9,9,9,8,9,7,3]}
+	# Ghost: 17-dir
+	_unit_anim_info["scout_1"] = {"rows": 13, "cols": [18,18,18,18,18,18,18,18,18,18,18,16,3], "fw": [22,21,20,21,23,23,24,24,24,14,11,17,107], "fh": [28,29,29,28,28,28,29,29,27,28,28,109,101], "south": [9,9,9,9,9,9,9,9,9,9,9,8,1]}
+	# Ghost (P2): same as scout_1
+	_unit_anim_info["scout_2"] = _unit_anim_info.get("scout_1", {})
+	# Dragoon (reuse Zealot info for now — will need its own sprite)
+	_unit_anim_info["scout_3"] = _unit_anim_info.get("soldier_3", {})
+	_map_texture = load("res://assets/maps/(2)Switchback.jpg")
+
+	# ─── CanvasLayer for floating UI (above fullscreen game map) ───
+	var _ui_layer := CanvasLayer.new()
+	_ui_layer.layer = 10
+	add_child(_ui_layer)
+
+	var vp_size := get_viewport().get_visible_rect().size
+
+	# ─── Minimap: floating panel at bottom-right ───
+	var mm_size := Vector2(160, 160)
+	var mm_margin := 8
+	var _mm_panel := Panel.new()
+	_mm_panel.anchor_left = 1.0
+	_mm_panel.anchor_top = 1.0
+	_mm_panel.anchor_right = 1.0
+	_mm_panel.anchor_bottom = 1.0
+	_mm_panel.offset_left = -mm_size.x - mm_margin
+	_mm_panel.offset_top = -mm_size.y - mm_margin
+	_mm_panel.offset_right = -mm_margin
+	_mm_panel.offset_bottom = -mm_margin
+	_ui_layer.add_child(_mm_panel)
+
+	# MinimapRect: actual drawing area — CHILD of panel, not sibling
+	var mm_rect := ColorRect.new()
+	mm_rect.name = "MinimapRect"
+	mm_rect.color = Color.BLACK
+	mm_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mm_rect.offset_left = 4
+	mm_rect.offset_top = 20
+	mm_rect.offset_right = -4
+	mm_rect.offset_bottom = -4
+	var mm_script := load("res://scripts/minimap_rect.gd")
+	if mm_script:
+		mm_rect.set_script(mm_script)
+	_mm_panel.add_child(mm_rect)  # child of panel, not ui_layer!
+	_mm_rect_node = mm_rect  # store reference
+
+	# ─── HUD: top-right horizontal info bar ───
 	_hud = HUDScene.instantiate()
-	add_child(_hud)
+	_ui_layer.add_child(_hud)
 	_hud.set_entity_data_provider(_get_entity_data)
+	_hud.anchor_left = 1.0
+	_hud.anchor_right = 1.0
+	_hud.anchor_top = 0.0
+	_hud.anchor_bottom = 0.0
+	_hud.offset_left = -420
+	_hud.offset_right = 0
+	_hud.offset_top = 0
+	_hud.offset_bottom = 36
 
-	# Connect HUD signals
-	if _hud.has_signal("ability_clicked"):
-		_hud.ability_clicked.connect(_on_hud_ability_clicked)
-	if _hud.has_signal("build_clicked"):
-		_hud.build_clicked.connect(_on_hud_build_clicked)
-	if _hud.has_signal("train_clicked"):
-		_hud.train_clicked.connect(_on_hud_train_clicked)
+	# ─── Test Mode Button (bottom-left corner) ───
+	_test_btn = Button.new()
+	_test_btn.text = "🧪 Test Mode"
+	_test_btn.tooltip_text = "Click to preview all sprites on map"
+	_test_btn.position = Vector2(8, 8)
+	_test_btn.size = Vector2(120, 32)
+	_test_btn.modulate = Color(0.8, 1.0, 0.8)
+	_ui_layer.add_child(_test_btn)
+	_test_btn.pressed.connect(_toggle_test_mode)
+	# Zoom buttons
+	_zoom_in_btn = Button.new()
+	_zoom_in_btn.text = "🔍+"
+	_zoom_in_btn.position = Vector2(4, 30)
+	_zoom_in_btn.size = Vector2(40, 24)
+	_zoom_in_btn.modulate = Color(0.9, 0.95, 1.0)
+	_ui_layer.add_child(_zoom_in_btn)
+	_zoom_in_btn.pressed.connect(func(): _cam_ctrl._zoom_in() if _cam_ctrl else null)
+	_zoom_out_btn = Button.new()
+	_zoom_out_btn.text = "🔍-"
+	_zoom_out_btn.position = Vector2(46, 30)
+	_zoom_out_btn.size = Vector2(40, 24)
+	_zoom_out_btn.modulate = Color(0.9, 0.95, 1.0)
+	_ui_layer.add_child(_zoom_out_btn)
+	_zoom_out_btn.pressed.connect(func(): _cam_ctrl._zoom_out() if _cam_ctrl else null)
 
 	print("===== GameView ready (Human P1 vs AI P2) Sprint 4 path=", get_path())
 
@@ -193,6 +326,13 @@ func _on_hud_train_clicked(unit_type: String) -> void:
 # ───────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
 	_frame += 1
+	# Advance animation frame for test mode
+	if _test_mode:
+		_anim_tick += _delta
+		if _anim_tick >= 1.0 / ANIM_FPS:
+			_anim_tick -= 1.0 / ANIM_FPS
+			_anim_frame = (_anim_frame + 1) % 17
+			_update_entity_sprites()
 	# CameraController handles all camera movement now
 	_build_mode = Input.is_key_pressed(KEY_B) or (_hud and _hud.is_build_panel_visible())
 
@@ -202,31 +342,23 @@ func _process(_delta: float) -> void:
 		f.y -= 0.5
 	_dmg_floats = _dmg_floats.filter(func(f): return f.ttl > 0)
 
-	# Tick minimap attack indicators
-	var minimap_node = get_node_or_null("MinimapRect")
-	if minimap_node and minimap_node.has_method("tick_attack_indicators"):
-		minimap_node.tick_attack_indicators()
+	# Tick minimap attack indicators and redraw minimap
+	if _mm_rect_node and _mm_rect_node.has_method("tick_attack_indicators"):
+		_mm_rect_node.tick_attack_indicators()
+		_mm_rect_node.queue_redraw()
 
 	queue_redraw()
-	if _frame == 30 and not _analysis_written:
-		_analysis_written = true
-		_write_analysis()
-	# Game over key handling
-	if _game_over_shown:
-		if Input.is_key_pressed(KEY_R):
-			_restart_game()
-		elif Input.is_key_pressed(KEY_Q):
-			get_tree().quit()
 
 # ─── Camera helpers (delegated to CameraController) ────────
-func _cam_offset() -> Vector2:
-	return -_camera.position
-
 func _screen_to_world(sp: Vector2) -> Vector2:
-	return sp / _camera.zoom + _camera.position
+	# Convert screen position to world (local) position.
+	# get_canvas_transform() maps local coords → viewport coords.
+	# Its inverse maps viewport → local (= world with TILE_SIZE=1).
+	# Use affine_inverse for numerical stability.
+	return get_canvas_transform().affine_inverse() * sp
 
 func _world_to_screen(wp: Vector2) -> Vector2:
-	return (wp - _camera.position) * _camera.zoom
+	return get_canvas_transform() * wp
 
 # ─── Entity helpers ────────────────────────────────────────
 func _ent_at_world_pos(wp: Vector2, radius: float = SELECT_RADIUS) -> Dictionary:
@@ -281,6 +413,9 @@ func _input(event: InputEvent) -> void:
 		_dragging = true
 		_drag_start = mpos
 		_drag_end = mpos
+		# Debug: show world click position
+		_debug_click_pos = _screen_to_world(mpos)
+		_debug_click_ttl = 30  # frames
 		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
@@ -339,7 +474,16 @@ func _handle_right_click() -> void:
 	if selected_ids.is_empty():
 		return
 
-	var world_pos := _screen_to_world(get_viewport().get_mouse_position())
+	var screen_pos := get_viewport().get_mouse_position()
+	var world_pos := _screen_to_world(screen_pos)
+	# Diagnostic: compare manual calc vs transform
+	var vp_half := get_viewport().get_visible_rect().size / 2.0
+	var manual := (screen_pos - vp_half) / _camera.zoom + _camera.position
+	var xform := get_canvas_transform().affine_inverse() * screen_pos
+	print("[RIGHT-CLICK] screen=(%d,%d) manual=(%.2f,%.2f) xform=(%.2f,%.2f) cam=(%.2f,%.2f) zoom=%.1f" % [
+		int(screen_pos.x), int(screen_pos.y),
+		manual.x, manual.y, xform.x, xform.y,
+		_camera.position.x, _camera.position.y, _camera.zoom.x])
 	var tgt_world := world_pos  # TILE_SIZE=1, world coords ARE tile coords
 	var clicked_ent := _ent_at_world_pos(world_pos, SELECT_RADIUS * 3.0)
 	var cmds: Array = []
@@ -601,14 +745,13 @@ func _update_rally_indicator_visibility() -> void:
 
 # ─── Sprint 4: Attack Indicators on Minimap ─────────────────
 func _emit_attack_indicator(world_pos: Vector2) -> void:
-	var minimap_node = get_node_or_null("MinimapRect")
-	if minimap_node and minimap_node.has_method("add_attack_indicator"):
-		minimap_node.add_attack_indicator(world_pos)
+	if _mm_rect_node and _mm_rect_node.has_method("add_attack_indicator"):
+		_mm_rect_node.add_attack_indicator(world_pos)
 	if _event_bus:
 		_event_bus.emit_attack_occurred(world_pos, 1)
 
 # ─── Formation Fallback ────────────────────────────────────
-static func _calc_formation_fallback(center: Vector2, count: int, spacing: float = 32.0) -> Array:
+static func _calc_formation_fallback(center: Vector2, count: int, spacing: float = 0.8) -> Array:
 	var positions: Array = []
 	if count == 0:
 		return positions
@@ -630,11 +773,11 @@ func _on_start(state: Dictionary) -> void:
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
-	_camera.position = Vector2(10, 10)  # TILE_SIZE=1, no _cell multiplier needed
-	if _cam_ctrl:
-		_cam_ctrl.move_to_world_position(_camera.position)
+	_camera.position = Vector2(_map_w / 2.0, _map_h / 2.0)  # Center on map
 
 func _on_state(state: Dictionary) -> void:
+	if _test_mode:
+		return
 	_parse(state)
 
 func _on_game_over(winner: int, tick: int) -> void:
@@ -719,6 +862,16 @@ func _parse(state: Dictionary) -> void:
 	if _hud:
 		_hud.update_resources(_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap)
 
+	# Update entity Sprite2D nodes
+	_update_entity_sprites()
+	if _frame == 60:
+		print("[DEBUG] Entity sprites: %d active, %d in pool" % [_sprite_pool.size(), _sprite_pool.size()])
+		for eid in _sprite_pool:
+			var s = _sprite_pool[eid]
+			if s.visible:
+				print("[DEBUG] Visible sprite: id=%s pos=(%.1f,%.1f) tex=%s scale=%s" % [eid, s.position.x, s.position.y, str(s.texture).get_file() if s.texture else "null", str(s.scale)])
+			break
+
 	# Detect damage and attack events
 	for e in _ents:
 		var eid_str: String = e.id
@@ -730,7 +883,7 @@ func _parse(state: Dictionary) -> void:
 				_dmg_floats.append({
 					"id": eid_str,
 					"x": e.px,
-					"y": e.py - 20.0,
+					"y": e.py - 1.2,
 					"amount": dmg,
 					"ttl": 30,
 				})
@@ -762,7 +915,9 @@ func _parse(state: Dictionary) -> void:
 # ─── DRAWING ───────────────────────────────────────────────
 # ───────────────────────────────────────────────────────────
 func _draw() -> void:
-	var co := _cam_offset()
+	# NO camera offset needed — Camera2D handles canvas transform automatically.
+	# _draw() local coordinates ARE world coordinates.
+	var co := Vector2.ZERO
 	_draw_map_background(co)
 	_draw_grid(co)
 	_draw_fog_of_war(co)
@@ -773,10 +928,18 @@ func _draw() -> void:
 	_draw_rally_lines(co)
 	_draw_drag_box()
 	_draw_damage_floats(co)
-	_draw_minimap()
+	_draw_game_over_overlay()
+	_draw_debug_click()
+	if _test_mode:
+		_draw_test_labels()
 
-func _draw_map_background(co: Vector2) -> void:
-	draw_rect(Rect2(co, Vector2(_map_w, _map_h)), Color(0.15, 0.18, 0.12, 1.0))
+func _draw_map_background(_co: Vector2) -> void:
+	# Map fills from world origin (0,0) to (_map_w, _map_h)
+	var map_rect := Rect2(Vector2.ZERO, Vector2(_map_w, _map_h))
+	if _map_texture:
+		draw_texture_rect(_map_texture, map_rect, false)
+	else:
+		draw_rect(map_rect, Color(0.15, 0.18, 0.12, 1.0))
 
 func _draw_grid(co: Vector2) -> void:
 	var grid_color := Color(0.25, 0.28, 0.22, 0.3)
@@ -785,11 +948,11 @@ func _draw_grid(co: Vector2) -> void:
 	var map_py := _map_h
 	var x := step
 	while x < map_px:
-		draw_line(Vector2(x, 0) + co, Vector2(x, map_py) + co, grid_color, 1.0)
+		draw_line(Vector2(x, 0), Vector2(x, map_py), grid_color, 0.06)
 		x += step
 	var y := step
 	while y < map_py:
-		draw_line(Vector2(0, y) + co, Vector2(map_px, y) + co, grid_color, 1.0)
+		draw_line(Vector2(0, y), Vector2(map_px, y), grid_color, 0.06)
 		y += step
 
 func _draw_fog_of_war(co: Vector2) -> void:
@@ -867,8 +1030,8 @@ func _draw_fog_of_war(co: Vector2) -> void:
 			if alpha < 0.01:
 				continue
 
-			var px: float = gx * tile_w + co.x
-			var py: float = gy * tile_h + co.y
+			var px: float = gx * tile_w
+			var py: float = gy * tile_h
 
 			var color: Color
 			match state_val:
@@ -879,6 +1042,178 @@ func _draw_fog_of_war(co: Vector2) -> void:
 
 			draw_rect(Rect2(px, py, tile_w + 1.0, tile_h + 1.0), color, true)
 
+## Calculate unit sprite region from animation metadata.
+func _calc_unit_region(utype: String, owner: int, row: int, frame: int) -> Rect2:
+	var key := "%s_%d" % [utype, owner]
+	var info: Dictionary = _unit_anim_info.get(key, {})
+	if info.is_empty():
+		return Rect2(0, 0, 96, 96)
+	
+	var cols_arr: Array = info.get("cols", [17])
+	var fw_arr: Array = info.get("fw", [38])
+	var fh_arr: Array = info.get("fh", [40])
+	
+	row = mini(row, cols_arr.size() - 1)
+	var n_cols: int = cols_arr[row]
+	var fh: int = fh_arr[row]
+	
+	# Cycle frame within available directions
+	frame = frame % n_cols
+	
+	# Get texture to calculate column width
+	var tex: Texture2D = _unit_textures.get(key, null)
+	if not tex:
+		return Rect2(0, 0, fw_arr[row], fh)
+	
+	# Approximate uniform spacing based on sheet width and column count
+	var sheet_w: int = tex.get_width()
+	var col_w: float = float(sheet_w) / float(maxi(n_cols, 1))
+	var px: int = int(float(frame) * col_w)
+	
+	# Calculate y offset by accumulating row heights
+	var py: int = 0
+	for r in range(row):
+		if r < fh_arr.size():
+			py += fh_arr[r] + 10  # ~10px gap between rows
+		else:
+			py += fh_arr[-1] + 10
+	
+	return Rect2(px, py, int(col_w), fh)
+
+## Get the correct sprite region and scale for a building type.
+## Use only the COMPLETE (fully built) form — single building, no tiling.
+func _get_building_region(btype: String, owner: int) -> Dictionary:
+	var region := Rect2(1, 1, 128, 109)
+	var scale_sz := Vector2(0.015, 0.015)
+
+	if owner == 1:  # Terran
+		match btype:
+			"base":
+				# Command Center COMPLETE form (2nd of 3): x=191-379
+				region = Rect2(191, 108, 189, 188)
+				scale_sz = Vector2(0.022, 0.022)  # 189*0.022≈4.2 world units
+			"barracks":
+				region = Rect2(120, 1, 145, 114)
+				scale_sz = Vector2(0.017, 0.017)
+			"factory":
+				# Factory is 3rd section in Row1: x=381-574
+				region = Rect2(381, 108, 193, 188)
+				scale_sz = Vector2(0.021, 0.021)
+			"refinery":
+				region = Rect2(941, 1, 186, 109)
+				scale_sz = Vector2(0.014, 0.014)
+			"starport":
+				region = Rect2(577, 108, 363, 184)
+				scale_sz = Vector2(0.012, 0.012)
+			_:
+				region = Rect2(1, 1, 128, 109)
+				scale_sz = Vector2(0.015, 0.015)
+	elif owner == 2:  # Zerg
+		match btype:
+			"base":
+				# Hatchery: Row0 frame0, COMPLETE form (bottom section only)
+				region = Rect2(30, 301, 121, 128)
+				scale_sz = Vector2(0.033, 0.033)  # ~4 world units
+			"barracks":
+				# Spawning Pool: Row1 small frames, complete form only
+				# Tight crop below the gap: (1478, 688, 83, 85)
+				region = Rect2(1478, 688, 83, 85)
+				scale_sz = Vector2(0.048, 0.048)  # ~4 world units
+			"lair":
+				region = Rect2(10, 627, 210, 132)
+				scale_sz = Vector2(0.019, 0.019)
+			"hive":
+				region = Rect2(11, 1184, 141, 124)
+				scale_sz = Vector2(0.028, 0.028)
+			_:
+				# Generic fallback: small Spawning Pool form
+				region = Rect2(1475, 670, 89, 100)
+				scale_sz = Vector2(0.045, 0.045)
+
+	return {"region": region, "scale": scale_sz}
+
+## Sync Sprite2D nodes with entity data each tick.
+func _update_entity_sprites() -> void:
+	if not _sprite_container:
+		return
+	var active_ids: Dictionary = {}
+
+	for e in _ents:
+		var eid: String = str(e.id)
+		active_ids[eid] = true
+
+		# Skip entities in fog (non-own)
+		if e.owner != 1 and _is_in_fog(e):
+			if _sprite_pool.has(eid):
+				_sprite_pool[eid].visible = false
+			continue
+
+		var sprite: Sprite2D = _sprite_pool.get(eid, null)
+		if not sprite:
+			sprite = Sprite2D.new()
+			sprite.name = "Ent_" + eid
+			sprite.z_index = 1
+			sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+			_sprite_container.add_child(sprite)
+			_sprite_pool[eid] = sprite
+
+		# Determine texture and region based on entity type
+		var tex: Texture2D = null
+		var region: Rect2 = Rect2()
+		var scale_sz := Vector2.ONE
+
+		match e.type:
+			"worker":
+				tex = _unit_textures.get("worker_%d" % e.owner, null)
+				if tex:
+					region = _calc_unit_region("worker", e.owner, 0, _anim_frame)
+					scale_sz = Vector2(0.02, 0.02)  # ~0.7 world units
+			"soldier":
+				tex = _unit_textures.get("soldier_%d" % e.owner, null)
+				if tex:
+					region = _calc_unit_region("soldier", e.owner, 0, _anim_frame)
+					scale_sz = Vector2(0.03, 0.03)  # ~0.7 world units
+			"scout":
+				tex = _unit_textures.get("scout_%d" % e.owner, null)
+				if tex:
+					region = _calc_unit_region("scout", e.owner, 0, _anim_frame)
+					scale_sz = Vector2(0.03, 0.03)  # ~0.7 world units
+			"building":
+				tex = _building_textures.get(e.owner, null)
+				if tex:
+					var btype: String = e.get("building_type", "")
+					var binfo: Dictionary = _get_building_region(btype, e.owner)
+					region = binfo["region"]
+					scale_sz = binfo["scale"]
+			_:
+				pass
+
+		if tex:
+			sprite.texture = tex
+			sprite.region_enabled = true
+			sprite.region_rect = region
+			sprite.scale = scale_sz
+			sprite.visible = true
+			sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+			sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			# Color by owner
+			if e.owner == 2:
+				sprite.modulate = Color(1.0, 0.4, 0.4)
+			elif e.owner == 1:
+				sprite.modulate = Color.CYAN
+			else:
+				sprite.modulate = Color.WHITE
+		else:
+			sprite.texture = null
+			sprite.visible = false
+
+		sprite.position = Vector2(e.px, e.py)
+
+	# Hide sprites for entities that no longer exist
+	for eid in _sprite_pool:
+		if not active_ids.has(eid):
+			_sprite_pool[eid].visible = false
+
 func _draw_entities(co: Vector2) -> void:
 	# Sprint 4: Entities in unexplored (state 0) or explored (state 1) fog are hidden
 	# (explored shows terrain but not units from other players).
@@ -887,72 +1222,40 @@ func _draw_entities(co: Vector2) -> void:
 		if e.owner != 1 and _is_in_fog(e):
 			continue
 
-		var pos := Vector2(e.px, e.py) + co
-		var c: Color
-		var radius: float = 8.0
+		var pos := Vector2(e.px, e.py) 
 
-		match e.owner:
-			1: c = Color(0.0, 0.9, 0.9, 1.0)
-			2: c = Color(0.9, 0.2, 0.9, 1.0)
-			_: c = Color.WHITE
-
-		match e.type:
-			"worker":
-				radius = 6.0
-				draw_circle(pos, radius, c)
-				draw_line(pos + Vector2(-3, -3), pos + Vector2(3, 3), Color.YELLOW, 1.5)
-			"soldier":
-				radius = 8.0
-				var pts := PackedVector2Array([pos + Vector2(0, -radius), pos + Vector2(radius, 0), pos + Vector2(0, radius), pos + Vector2(-radius, 0)])
-				draw_colored_polygon(pts, c)
-				draw_line(pos, pos + Vector2(radius, 0), Color.WHITE, 2.0)
-			"scout":
-				radius = 5.0
-				draw_circle(pos, radius, c)
-				draw_arc(pos, radius + 3, 0, TAU, 12, Color(c.r, c.g, c.b, 0.5), 1.0, true)
-			"building":
-				radius = 12.0
-				var half := Vector2(radius, radius * 0.7)
-				draw_rect(Rect2(pos - half, half * 2), c, false, 2.0)
-				if e.building_type == "base":
-					draw_rect(Rect2(pos - half * 0.7, half * 1.4), Color(c.r, c.g, c.b, 0.5), true)
-				if e.building_type != "" and e.max_health > 0 and e.health < e.max_health:
-					var frac: float = e.health / e.max_health
-					draw_rect(Rect2(pos - half, half * 2), Color(1, 1, 0, 0.3 * (1.0 - frac)), true)
-			"resource":
-				radius = 6.0
-				if e.resource_type == "mineral":
-					c = Color(1.0, 0.85, 0.0, 1.0)
-					draw_rect(Rect2(pos - Vector2(radius, radius), Vector2(radius * 2, radius * 2)), c, true)
-				elif e.resource_type == "gas":
-					c = Color(0.0, 0.8, 0.0, 1.0)
-					draw_circle(pos, radius, c)
-				else:
-					draw_circle(pos, radius, Color.GRAY)
-			_:
-				draw_circle(pos, radius, c)
+		# ─── Only draw circles for resources (no sprite) ───
+		# Workers, soldiers, scouts, buildings use Sprite2D nodes instead
+		if e.type == "resource":
+			var radius := 0.4
+			if e.resource_type == "mineral":
+				draw_rect(Rect2(pos - Vector2(radius, radius), Vector2(radius * 2, radius * 2)), Color(1.0, 0.85, 0.0, 1.0), true)
+			elif e.resource_type == "gas":
+				draw_circle(pos, radius, Color(0.0, 0.8, 0.0, 1.0))
+			else:
+				draw_circle(pos, radius, Color.GRAY)
 
 	# Attack / move target lines
 	for e in _ents:
 		if e.owner != 1:
 			continue
 		if e.attack_target_id != "" or not e.is_idle:
-			var lpos := Vector2(e.px, e.py) + co
+			var lpos := Vector2(e.px, e.py) 
 			if e.attack_target_id != "":
 				var tgt = _get_ent_by_id(e.attack_target_id)
 				if not tgt.is_empty():
-					var tpos := Vector2(tgt.px, tgt.py) + co
-					draw_line(lpos, tpos, Color(1.0, 0.3, 0.3, 0.5), 1.0, true)
+					var tpos := Vector2(tgt.px, tgt.py) 
+					draw_line(lpos, tpos, Color(1.0, 0.3, 0.3, 0.5), 0.06, true)
 			elif e.target_x != 0 or e.target_y != 0:
-				var tpos := Vector2(e.target_x, e.target_y) + co  # TILE_SIZE=1, no _cell multiplier
-				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 1.0, true)
+				var tpos := Vector2(e.target_x, e.target_y)   # TILE_SIZE=1, no _cell multiplier
+				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 0.06, true)
 
 func _is_in_fog(e: Dictionary) -> bool:
 	"""Check if an entity is in non-visible fog (unexplored or explored but not currently visible)."""
 	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
 		return false
-	var fog_x := int(e.pos_x * float(_fog_w) / _map_w)
-	var fog_y := int(e.pos_y * float(_fog_h) / _map_h)
+	var fog_x := int(e.px * float(_fog_w) / _map_w)
+	var fog_y := int(e.py * float(_fog_h) / _map_h)
 	fog_x = clampi(fog_x, 0, _fog_w - 1)
 	fog_y = clampi(fog_y, 0, _fog_h - 1)
 	var idx := fog_y * _fog_w + fog_x
@@ -965,22 +1268,22 @@ func _draw_combat_effects(co: Vector2) -> void:
 		if e.owner != 1:
 			continue
 		if e.attack_target_id != "":
-			var pos := Vector2(e.px, e.py) + co
+			var pos := Vector2(e.px, e.py) 
 			var pulse: float = 0.4 + 0.6 * abs(sin(_frame * 0.15))
-			draw_arc(pos, 12.0, 0, TAU, 16, Color(1.0, 0.15, 0.15, pulse), 2.5, true)
+			draw_arc(pos, 0.7, 0, TAU, 16, Color(1.0, 0.15, 0.15, pulse), 0.15, true)
 	for f in _dmg_floats:
 		if f.ttl > 25:
 			var tgt = _get_ent_by_id(f.id)
 			if not tgt.is_empty():
-				var pos := Vector2(tgt.px, tgt.py) + co
-				draw_circle(pos, 14.0, Color(1.0, 0.2, 0.2, 0.35))
+				var pos := Vector2(tgt.px, tgt.py) 
+				draw_circle(pos, 0.8, Color(1.0, 0.2, 0.2, 0.35))
 
 func _draw_damage_floats(co: Vector2) -> void:
 	for f in _dmg_floats:
 		var alpha: float = clampf(f.ttl / 30.0, 0.0, 1.0)
-		var pos := Vector2(f.x, f.y) + co
+		var pos := Vector2(f.x, f.y) 
 		var txt := "-%d" % int(f.amount)
-		draw_string(_default_font, pos, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(1.0, 0.2, 0.2, alpha))
+		draw_string(_default_font, pos, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(1.0, 0.2, 0.2, alpha))
 
 func _draw_health_bars(co: Vector2) -> void:
 	for e in _ents:
@@ -988,10 +1291,10 @@ func _draw_health_bars(co: Vector2) -> void:
 			continue
 		if e.owner != 1 and _is_in_fog(e):
 			continue
-		var pos := Vector2(e.px, e.py) + co
-		var bar_w := 20.0
-		var bar_h := 3.0
-		var bar_y := pos.y - 18.0
+		var pos := Vector2(e.px, e.py) 
+		var bar_w := 1.2
+		var bar_h := 0.15
+		var bar_y := pos.y - 1.0
 		var frac: float = e.health / e.max_health
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
 		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
@@ -1002,8 +1305,8 @@ func _draw_selection_rings(co: Vector2) -> void:
 		var e := _get_ent_by_id(uid)
 		if e.is_empty():
 			continue
-		var pos := Vector2(e.px, e.py) + co
-		draw_arc(pos, 14.0, 0.0, TAU, 16, Color(0.2, 1.0, 0.2, 0.9), 2.0, true)
+		var pos := Vector2(e.px, e.py) 
+		draw_arc(pos, 0.8, 0.0, TAU, 16, Color(0.2, 1.0, 0.2, 0.9), 0.12, true)
 
 # ─── Sprint 4: Draw Rally Point Lines ──────────────────────
 func _draw_rally_lines(co: Vector2) -> void:
@@ -1014,8 +1317,8 @@ func _draw_rally_lines(co: Vector2) -> void:
 		# Only draw if building is selected
 		if _selection and not _selection.is_selected(bid):
 			continue
-		var bpos: Vector2 = indicator._building_pos + co
-		var rpos: Vector2 = indicator._rally_pos + co
+		var bpos: Vector2 = indicator._building_pos 
+		var rpos: Vector2 = indicator._rally_pos 
 
 		# Dashed line
 		var direction: Vector2 = rpos - bpos
@@ -1025,8 +1328,8 @@ func _draw_rally_lines(co: Vector2) -> void:
 		var dir_norm: Vector2 = direction / length
 		var drawn: float = 0.0
 		var is_dash: bool = true
-		const DASH_LEN := 8.0
-		const GAP_LEN := 6.0
+		const DASH_LEN := 0.5
+		const GAP_LEN := 0.4
 
 		while drawn < length:
 			var seg_len: float = DASH_LEN if is_dash else GAP_LEN
@@ -1035,102 +1338,54 @@ func _draw_rally_lines(co: Vector2) -> void:
 			if is_dash:
 				var start: Vector2 = bpos + dir_norm * drawn
 				var end: Vector2 = bpos + dir_norm * (drawn + seg_len)
-				draw_line(start, end, Color(0.2, 1.0, 0.2, 0.7), 2.0, true)
+				draw_line(start, end, Color(0.2, 1.0, 0.2, 0.7), 0.06, true)
 			drawn += seg_len
 			is_dash = not is_dash
 
-		# Flag at rally point
-		var pole_top: Vector2 = rpos - Vector2(0, 20.0)
-		draw_line(rpos, pole_top, Color(1.0, 0.9, 0.2, 0.8), 2.0, true)
+		# Flag at rally point — compact tile-space flag
+		var pole_top: Vector2 = rpos - Vector2(0, 0.4)
+		draw_line(rpos, pole_top, Color(1.0, 0.9, 0.2, 0.8), 0.04, true)
 		var flag_pts := PackedVector2Array([
 			pole_top,
-			pole_top + Vector2(10.0, 3.0),
-			pole_top + Vector2(0, 6.0)
+			pole_top + Vector2(0.2, 0.07),
+			pole_top + Vector2(0, 0.14)
 		])
-		draw_colored_polygon(flag_pts, Color(1.0, 0.9, 0.2, 0.8))
-		draw_circle(rpos, 3.0, Color(1.0, 0.9, 0.2, 0.8))
+		draw_colored_polygon(flag_pts, Color(1.0, 0.9, 0.2, 0.7))
 
 func _draw_drag_box() -> void:
 	if not _dragging:
 		return
-	var tl := Vector2(minf(_drag_start.x, _drag_end.x), minf(_drag_start.y, _drag_end.y))
-	var size := Vector2(absf(_drag_end.x - _drag_start.x), absf(_drag_end.y - _drag_start.y))
-	draw_rect(Rect2(tl, size), Color(0.2, 1.0, 0.2, 0.15), true)
-	draw_rect(Rect2(tl, size), Color(0.2, 1.0, 0.2, 0.6), false, 1.5)
+	if _drag_start.distance_to(_drag_end) < 5.0:
+		return
+	# Convert screen-space drag coords to world space for drawing
+	var ws := _screen_to_world(_drag_start)
+	var we := _screen_to_world(_drag_end)
+	var rect := Rect2(ws, we - ws).abs()
+	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.15), true)
+	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.7), false, 0.06)
 
-func _draw_hud() -> void:
-	# HUD is now handled by the HUD node — minimal top-left info only
-	var info_lines: Array = [
-		"Tick: %d  Ents: %d  Sel: %d" % [_bridge._tick, _ents.size(), _selected.size()],
-	]
-	if _fog_w > 0 and _fog_h > 0 and not _fog_tiles.is_empty():
-		var total := _fog_tiles.size()
-		var explored := 0
-		for t in _fog_tiles:
-			if t >= 1:
-				explored += 1
-		var pct := explored * 100 / total
-		info_lines.append("Map explored: %d%%" % pct)
-	if _build_mode:
-		info_lines.append("[BUILD MODE] Right-click to place barracks")
-
-	# Resource display at top
-	info_lines.append("Minerals: %d | Gas: %d | Supply: %d/%d" % [_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap])
-
-	if not _selected.is_empty():
-		var sel_types: Dictionary = {}
-		for uid in _selected:
-			var e = _get_ent_by_id(uid)
-			if e.is_empty():
-				continue
-			var key = "%s(%s)" % [e.type, e.building_type if e.building_type else e.resource_type]
-			sel_types[key] = sel_types.get(key, 0) + 1
-
-		if not sel_types.is_empty():
-			var sel_str := "Selected: "
-			for k in sel_types:
-				sel_str += "%s×%d " % [k, sel_types[k]]
-			info_lines.append(sel_str)
-
-		if not _selected.is_empty():
-			var hints: Array = []
-			var has_workers := false
-			var has_buildings := false
-			for uid in _selected:
-				var e = _get_ent_by_id(uid)
-				if e.is_empty(): continue
-				if e.type == "worker": has_workers = true
-				if e.type == "building": has_buildings = true
-			if has_workers:
-				hints.append("Right-click: Move/Gather/Attack | B+Right-click: Build")
-			if has_buildings:
-				for uid2 in _selected:
-					var eb = _get_ent_by_id(uid2)
-					if eb.is_empty(): continue
-					if eb.type == "building" and eb.owner == 1:
-						if eb.building_type == "base":
-							hints.append("T→Worker(50$)")
-						elif eb.building_type == "barracks":
-							hints.append("T→Soldier(100$)")
-			if hints.size() > 0:
-				info_lines.append("  ".join(hints))
-
-	for i in info_lines.size():
-		draw_string(_default_font, Vector2(8, 20 + i * 16), info_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.YELLOW)
-
-	if _game_over_shown:
-		var vp := get_viewport().get_visible_rect().size
-		draw_rect(Rect2(Vector2.ZERO, vp), Color(0, 0, 0, 0.6), true)
-		var winner_text := "YOU WIN!" if _bridge._winner == 1 else "YOU LOSE!"
-		var win_color := Color.GREEN if _bridge._winner == 1 else Color.RED
-		draw_string(_default_font, Vector2(vp.x / 2 - 60, vp.y / 2 - 30), winner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, win_color)
-		draw_string(_default_font, Vector2(vp.x / 2 - 80, vp.y / 2 + 10), "Press R to restart", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
-		draw_string(_default_font, Vector2(vp.x / 2 - 80, vp.y / 2 + 30), "Press Q to quit", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.GRAY)
+func _draw_game_over_overlay() -> void:
+	if not _game_over_shown:
+		return
+	# Draw overlay in world space covering the visible area
+	var vp := get_viewport().get_visible_rect().size / _camera.zoom
+	var cam := _camera.position
+	draw_rect(Rect2(cam - vp / 2.0, vp), Color(0, 0, 0, 0.6), true)
+	var center := cam
+	var winner_text := "YOU WIN!" if _bridge._winner == 1 else "YOU LOSE!"
+	var win_color := Color.GREEN if _bridge._winner == 1 else Color.RED
+	draw_string(_default_font, center + Vector2(-4, -2), winner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, win_color)
+	draw_string(_default_font, center + Vector2(-5, 0.8), "Press R to restart", HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color.WHITE)
+	draw_string(_default_font, center + Vector2(-5, 2.2), "Press Q to quit", HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color.GRAY)
 
 # ─── Minimap ──────────────────────────────────────────────
+# Minimap is now drawn by the MinimapRect child node.
 func _minimap_rect() -> Rect2:
+	if _mm_rect_node and _mm_rect_node is Control:
+		return _mm_rect_node.get_global_rect()
+	# Fallback: bottom-right floating position
 	var vp := get_viewport().get_visible_rect().size
-	var mm_pos := vp - _mm_size - _mm_margin
+	var mm_pos := Vector2(vp.x - _mm_size.x - _mm_margin.x, vp.y - _mm_size.y - _mm_margin.y)
 	return Rect2(mm_pos, _mm_size)
 
 func _is_minimap_click(screen_pos: Vector2) -> bool:
@@ -1141,62 +1396,21 @@ func _handle_minimap_click(screen_pos: Vector2) -> void:
 	var local := screen_pos - mm.position
 	var frac_x: float = local.x / mm.size.x
 	var frac_y: float = local.y / mm.size.y
-	var map_px_w: float = _map_w  # TILE_SIZE=1
-	var map_px_h: float = _map_h
-	var target_pos := Vector2(frac_x * map_px_w, frac_y * map_px_h)
+	var target_pos := Vector2(frac_x * _map_w, frac_y * _map_h)
 	if _cam_ctrl:
 		_cam_ctrl.move_to_world_position(target_pos)
 	else:
 		_camera.position = target_pos
 
-func _draw_minimap() -> void:
-	var vp := get_viewport().get_visible_rect().size
-	var mm_pos := vp - _mm_size - _mm_margin
-	draw_rect(Rect2(mm_pos, _mm_size), Color(0.0, 0.0, 0.0, 0.6), true)
-	draw_rect(Rect2(mm_pos, _mm_size), Color(0.5, 0.5, 0.5, 0.8), false, 1.0)
-	var sx: float = _mm_size.x / _map_w  # TILE_SIZE=1
-	var sy: float = _mm_size.y / _map_h
-
-	# Draw fog of war on minimap
-	if _fog_w > 0 and _fog_h > 0 and not _fog_tiles.is_empty():
-		var fog_sx := _mm_size.x / float(_fog_w)
-		var fog_sy := _mm_size.y / float(_fog_h)
-		for fy in range(_fog_h):
-			for fx in range(_fog_w):
-				var fidx := fy * _fog_w + fx
-				if fidx >= _fog_tiles.size():
-					break
-				var fval: int = _fog_tiles[fidx]
-				var f_alpha: float
-				match fval:
-					0: f_alpha = 0.8
-					1: f_alpha = 0.35
-					2: f_alpha = 0.0
-					_: f_alpha = 0.8
-				if f_alpha > 0.01:
-					draw_rect(
-						Rect2(mm_pos.x + fx * fog_sx, mm_pos.y + fy * fog_sy, fog_sx + 1.0, fog_sy + 1.0),
-						Color(0.01, 0.01, 0.03, f_alpha)
-					)
-
-	# Draw entity dots on minimap
-	for e in _ents:
-		var epos := Vector2(e.px * sx, e.py * sy) + mm_pos
-		var c: Color
-		if e.owner == 1: c = Color.CYAN
-		elif e.owner == 2: c = Color.MAGENTA
-		elif e.type == "resource" and e.resource_type == "mineral": c = Color.GOLD
-		elif e.type == "resource" and e.resource_type == "gas": c = Color.GREEN
-		else: c = Color.WHITE
-		var dot_size := 2.0 if e.type != "building" else 3.0
-		draw_circle(epos, dot_size, c)
-
-	# Camera viewport rectangle on minimap
-	var cam_tl_x: float = _camera.position.x * sx + mm_pos.x
-	var cam_tl_y: float = _camera.position.y * sy + mm_pos.y
-	var cam_w: float = (vp.x / _camera.zoom.x) * sx
-	var cam_h: float = (vp.y / _camera.zoom.y) * sy
-	draw_rect(Rect2(cam_tl_x, cam_tl_y, cam_w, cam_h), Color(1.0, 1.0, 1.0, 0.5), false, 1.0)
+func _draw_debug_click() -> void:
+	if _debug_click_ttl <= 0:
+		return
+	_debug_click_ttl -= 1
+	var alpha: float = clampf(float(_debug_click_ttl) / 30.0, 0.0, 1.0)
+	# Draw a bright green cross at the resolved world position
+	draw_line(_debug_click_pos - Vector2(0.5, 0), _debug_click_pos + Vector2(0.5, 0), Color(0, 1, 0, alpha), 0.08, true)
+	draw_line(_debug_click_pos - Vector2(0, 0.5), _debug_click_pos + Vector2(0, 0.5), Color(0, 1, 0, alpha), 0.08, true)
+	draw_circle(_debug_click_pos, 0.3, Color(0, 1, 0, alpha * 0.3))
 
 ## Provides state data to the minimap_rect child node.
 func _get_state_for_minimap() -> Dictionary:
@@ -1205,15 +1419,15 @@ func _get_state_for_minimap() -> Dictionary:
 		entities_dict[e.id] = {
 			"owner": e.owner,
 			"type": e.type,
-			"pos_x": e.pos_x,
-			"pos_y": e.pos_y,
+				"px": e.px,
+			"py": e.py,
 			"resource_type": e.resource_type,
 		}
 	return {
 		"entities": entities_dict,
 		"map_width": _map_w,
 		"map_height": _map_h,
-		"cam_center": _camera.position + get_viewport().get_visible_rect().size / (2.0 * _camera.zoom),
+		"cam_center": _camera.position,  # CENTER anchor: position IS center
 		"vp_size": get_viewport().get_visible_rect().size / _camera.zoom,
 		"cell_size": int(_cell),
 		"fog_tiles": _fog_tiles,
@@ -1250,7 +1464,7 @@ func _write_analysis() -> void:
 		"jitter_frames": _jitter_count,
 		"jitter_total_px": _total_jitter_px,
 		"jitter_free": _jitter_count == 0,
-		"camera_anchor": "FIXED_TOP_LEFT",
+		"camera_anchor": "DRAG_CENTER",
 		"stretch_mode": "canvas_items",
 	}
 	var vf := FileAccess.open("user://render_verdict.json", FileAccess.WRITE)
@@ -1259,3 +1473,187 @@ func _write_analysis() -> void:
 		vf.close()
 		print("[Verdict] ", "PASS" if verdict["pass"] else "FAIL",
 				" jitter=", "NONE" if verdict["jitter_free"] else str(_jitter_count))
+
+## ─── TEST MODE: Draw labels for test entities ───
+func _draw_test_labels() -> void:
+	var font: Font = _default_font
+	if not font:
+		return
+	# Font sizes in world units — small enough to read when zoomed in
+	var title_size := 1.2
+	var label_size := 0.8
+	const BX := 4.0
+	const UX := 40.0
+	# Building section headers
+	var y := 2.5
+	draw_string(font, Vector2(BX, y), "TERRAN BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(0.4, 0.6, 1.0))
+	y += 4.0 * 5 + 1.0
+	draw_string(font, Vector2(BX, y), "ZERG BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.5, 0.3))
+	y += 4.0 * 5 + 1.0
+	draw_string(font, Vector2(BX, y), "PROTOSS BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.9, 0.3))
+	# Unit section headers
+	var uy := 2.5
+	draw_string(font, Vector2(UX, uy), "TERRAN UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(0.4, 0.6, 1.0))
+	uy += 2.5 * 3 + 1.0
+	draw_string(font, Vector2(UX, uy), "ZERG UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.5, 0.3))
+	uy += 2.5 * 3 + 1.0
+	draw_string(font, Vector2(UX, uy), "PROTOSS UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.9, 0.3))
+	# Individual entity labels
+	for e in _ents:
+		if not str(e.id).begins_with("test_"):
+			continue
+		var label: String = ""
+		if e.type == "building":
+			label = e.building_type
+		else:
+			label = e.type
+		var owner_tag := "T" if e.owner == 1 else ("Z" if e.owner == 2 else "P")
+		var full_label := "%s/%s" % [owner_tag, label]
+		draw_string(font, Vector2(e.px + 1.5, e.py - 0.3), full_label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color(1,1,1,0.9))
+
+
+func _toggle_test_mode() -> void:
+	_test_mode = not _test_mode
+	if _test_mode:
+		_build_test_entities()
+		if _test_btn:
+			_test_btn.text = "🔙 Back"
+			_test_btn.modulate = Color(1.0, 0.8, 0.8)
+		print("[TEST MODE] ON — showing all sprites on map")
+	else:
+		_clear_test_entities()
+		if _test_btn:
+			_test_btn.text = "🧪 Test Mode"
+			_test_btn.modulate = Color(0.8, 1.0, 0.8)
+		print("[TEST MODE] OFF — back to normal game")
+	queue_redraw()
+
+func _build_test_entities() -> void:
+	_clear_test_entities()
+	# Save fog state and disable it
+	_saved_fog_tiles = _fog_tiles
+	_saved_fog_w = _fog_w
+	_saved_fog_h = _fog_h
+	_fog_tiles = PackedInt32Array()
+	_fog_w = 0
+	_fog_h = 0
+	
+	const BX := 4.0      # building section X start
+	const UX := 40.0     # unit section X start
+	const SPACING := 4.0
+	var y := 4.0
+	
+	# ════════════ BUILDINGS (left side) ════════════
+	# Terran buildings
+	for bt in ["base", "barracks", "factory", "refinery", "starport"]:
+		_test_ents.append({
+			"id": "test_t_%s" % bt, "owner": 1, "type": "building",
+			"entity_type": "building", "building_type": bt,
+			"px": BX, "py": y, "health": 1000, "max_health": 1000,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 0, "attack_range": 0, "speed": 0,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		y += SPACING
+	
+	# Zerg buildings
+	y += 1.0
+	for bt in ["base", "barracks", "lair", "hive", "spire"]:
+		_test_ents.append({
+			"id": "test_z_%s" % bt, "owner": 2, "type": "building",
+			"entity_type": "building", "building_type": bt,
+			"px": BX, "py": y, "health": 1000, "max_health": 1000,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 0, "attack_range": 0, "speed": 0,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		y += SPACING
+	
+	# Protoss buildings
+	y += 1.0
+	for bt in ["base", "barracks", "spire"]:
+		_test_ents.append({
+			"id": "test_p_%s" % bt, "owner": 3, "type": "building",
+			"entity_type": "building", "building_type": bt,
+			"px": BX, "py": y, "health": 1000, "max_health": 1000,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 0, "attack_range": 0, "speed": 0,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		y += SPACING
+	
+	# ════════════ UNITS (right side) ════════════
+	var uy := 4.0
+	# Terran units
+	for utype in ["worker", "soldier", "scout"]:
+		_test_ents.append({
+			"id": "test_u1_%s" % utype, "owner": 1, "type": utype,
+			"entity_type": utype, "building_type": "",
+			"px": UX, "py": uy, "health": 100, "max_health": 100,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 10, "attack_range": 5, "speed": 3,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		uy += 2.5
+	
+	uy += 1.0
+	# Zerg units
+	for utype in ["worker", "soldier", "scout"]:
+		_test_ents.append({
+			"id": "test_u2_%s" % utype, "owner": 2, "type": utype,
+			"entity_type": utype, "building_type": "",
+			"px": UX, "py": uy, "health": 100, "max_health": 100,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 10, "attack_range": 5, "speed": 3,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		uy += 2.5
+	
+	uy += 1.0
+	# Protoss units
+	for utype in ["worker", "soldier", "scout"]:
+		_test_ents.append({
+			"id": "test_u3_%s" % utype, "owner": 3, "type": utype,
+			"entity_type": utype, "building_type": "",
+			"px": UX, "py": uy, "health": 100, "max_health": 100,
+			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
+			"attack": 10, "attack_range": 5, "speed": 3,
+			"resource_amount": 0, "resource_type": "",
+			"attack_target_id": "", "target_x": 0, "target_y": 0,
+			"energy": 0, "max_energy": 0,
+		})
+		uy += 2.5
+	
+	_saved_ents = _ents.duplicate(true)
+	_ents = _test_ents
+	_update_entity_sprites()
+	queue_redraw()
+
+func _clear_test_entities() -> void:
+	# Remove test sprites
+	var to_remove: Array = []
+	for eid in _sprite_pool:
+		if str(eid).begins_with("test_"):
+			_sprite_pool[eid].queue_free()
+			to_remove.append(eid)
+	for eid in to_remove:
+		_sprite_pool.erase(eid)
+	_test_ents.clear()
+	# Restore original entities
+	_ents = _saved_ents.duplicate(true)
+	_saved_ents.clear()
+	# Restore fog
+	_fog_tiles = _saved_fog_tiles
+	_fog_w = _saved_fog_w
+	_fog_h = _saved_fog_h
+	queue_redraw()

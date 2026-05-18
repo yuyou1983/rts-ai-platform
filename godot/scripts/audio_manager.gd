@@ -1,4 +1,3 @@
-class_name AudioManager
 extends Node
 
 ## Central audio system for the RTS game.

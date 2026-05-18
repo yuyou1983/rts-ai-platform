@@ -6,9 +6,10 @@ extends Node2D
 ## Set rally point with right-click while building is selected.
 
 # ── Config ───────────────────────────────────────────────────────────────────
-const DASH_LENGTH := 8.0
-const DASH_GAP := 6.0
-const FLAG_SIZE := 10.0
+const DASH_LENGTH := 0.4
+const DASH_GAP := 0.3
+const FLAG_SIZE := 0.15
+const LINE_WIDTH := 0.04
 const LINE_COLOR := Color(0.2, 1.0, 0.2, 0.7)
 const FLAG_COLOR := Color(1.0, 0.9, 0.2, 0.8)
 
@@ -72,7 +73,7 @@ func _draw() -> void:
 		if is_dash:
 			var start := _building_pos + dir_norm * drawn
 			var end := _building_pos + dir_norm * (drawn + seg_len)
-			draw_line(start, end, LINE_COLOR, 2.0, true)
+			draw_line(start, end, LINE_COLOR, LINE_WIDTH, true)
 
 		drawn += seg_len
 		is_dash = not is_dash
@@ -83,7 +84,7 @@ func _draw() -> void:
 func _draw_flag(pos: Vector2) -> void:
 	# Pole
 	var pole_top := pos - Vector2(0, FLAG_SIZE * 2)
-	draw_line(pos, pole_top, FLAG_COLOR, 2.0, true)
+	draw_line(pos, pole_top, FLAG_COLOR, LINE_WIDTH, true)
 
 	# Flag triangle
 	var pts := PackedVector2Array([
@@ -94,4 +95,4 @@ func _draw_flag(pos: Vector2) -> void:
 	draw_colored_polygon(pts, FLAG_COLOR)
 
 	# Base dot
-	draw_circle(pos, 3.0, FLAG_COLOR)
+	draw_circle(pos, 0.06, FLAG_COLOR)

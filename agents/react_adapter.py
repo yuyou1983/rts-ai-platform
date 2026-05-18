@@ -14,10 +14,13 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 from agentscope_compat import AgentBase
+
+logger = logging.getLogger(__name__)
 
 
 class ReactGameAgent(AgentBase):
@@ -37,6 +40,7 @@ class ReactGameAgent(AgentBase):
         player_id: int = 1,
         model_name: str = "glm-5.1",
         max_retries: int = 3,
+        llm_client: Any | None = None,
         **kwargs: Any,
     ) -> None:
         kwargs.setdefault("name", f"ReactGameAgent_P{player_id}")
@@ -45,6 +49,16 @@ class ReactGameAgent(AgentBase):
         self.model_name = model_name
         self._max_retries = max_retries
         self._history: list[str] = []
+        # Lazy-init LLM client (allows override for testing)
+        self._llm: Any | None = llm_client
+
+    def _get_llm(self) -> Any:
+        """Lazy-initialize the LLMClient."""
+        if self._llm is None:
+            from agents.llm_client import LLMClient
+            self._llm = LLMClient(default_model=self.model_name,
+                                  max_retries=self._max_retries)
+        return self._llm
 
     def decide(self, obs: dict) -> dict:
         """Generate commands from observation using ReAct reasoning.
@@ -58,7 +72,33 @@ class ReactGameAgent(AgentBase):
         prompt = self._build_prompt(obs)
         self._history.append(prompt)
 
-        # If no LLM configured, fall back to heuristic parsing
+        # Try LLM first; fall back to heuristics on failure
+        try:
+            llm = self._get_llm()
+            messages = [
+                {"role": "system", "content": (
+                    "You are an expert RTS game AI. Analyze the game state "
+                    "and output tactical commands as JSON. "
+                    "Respond ONLY with a JSON object: "
+                    '{"commands": [{"action": "...", "unit_id": "...", ...}]}'
+                )},
+                {"role": "user", "content": prompt},
+            ]
+            result = llm.chat_completions(
+                messages=messages,
+                model=self.model_name,
+                temperature=0.3,
+                response_format={"type": "json_object"},
+            )
+            text = result.get("content", "")
+            if text:
+                commands = self.parse_action(text)
+                if commands:
+                    return {"commands": commands, "tick": obs.get("tick", 0)}
+        except Exception as exc:
+            logger.warning("ReactGameAgent LLM call failed, using heuristic: %s", exc)
+
+        # Fallback to heuristic
         commands = self._fallback_heuristic(obs)
         return {"commands": commands, "tick": obs.get("tick", 0)}
 

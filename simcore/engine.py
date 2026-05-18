@@ -87,7 +87,7 @@ class SimCore:
 
         # Player race configuration (default: P1=zerg, P2=protoss if not specified)
         cfg = config or {}
-        self._player_races = cfg.get("player_races", {1: "zerg", 2: "protoss"})
+        self._player_races = cfg.get("player_races", {1: "terran", 2: "terran"})
 
         # Generate tile map for pathfinding
         self._tile_map = generate_tile_map(seed=map_seed, config=config or {})
@@ -131,6 +131,10 @@ class SimCore:
         """
         if self._state is None:
             raise RuntimeError("SimCore not initialized. Call initialize() first.")
+
+        # If the game is already over, return the terminal state unchanged.
+        if self._state.is_terminal:
+            return self._state
 
         self._tick += 1
 
@@ -221,15 +225,12 @@ class SimCore:
 # 7. Gathering (use new economy system)
         entities, resources = economy_process_gathering(entities, temp_state.resources, other_cmds, self._tick)
 
+        # 8. Construction — wrap to trace exactly what happens
         # 8. Construction (use new construction system with tech tree validation)
         entities, resources = new_process_construction(entities, resources, other_cmds, self._tick, player_races=self._player_races)
 
         # 9. Process projectiles
         entities = process_projectiles(entities, self._tick)
-
-        # 10. Process spells
-        spell_cmds = [c for c in other_cmds if c.get("action") == "spell"]
-        entities, resources = process_spells(entities, resources, spell_cmds, self._tick)
 
         # 11. Apply upgrade effects (from completed upgrades)
         completed_upgrades = self._state.entities.get("__completed_upgrades__", {})

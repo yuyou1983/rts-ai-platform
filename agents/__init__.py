@@ -2,6 +2,7 @@
 from agents.combat import CombatAgent
 from agents.coordinator import CoordinatorAgent
 from agents.economy import EconomyAgent
+from agents.llm_client import LLMClient, LLMClientError, get_default_client
 from agents.script_ai import ScriptAI
 from agents.sub_agents import ScoutAgent
 from agents.race_ai_base import RaceAIBase
@@ -12,4 +13,5 @@ from agents.protoss_ai import ProtossAI
 __all__ = [
     "ScriptAI", "CoordinatorAgent", "EconomyAgent", "CombatAgent", "ScoutAgent",
     "RaceAIBase", "TerranAI", "ZergAI", "ProtossAI",
+    "LLMClient", "LLMClientError", "get_default_client",
 ]

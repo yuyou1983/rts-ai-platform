@@ -264,7 +264,7 @@ func handle_click_with_double_select(entity_id: String) -> bool:
 
 ## Calculate formation positions for a group of units moving to a target.
 ## Returns an Array of Vector2 positions in a grid formation.
-static func calculate_formation_positions(center: Vector2, count: int, spacing: float = 32.0) -> Array:
+static func calculate_formation_positions(center: Vector2, count: int, spacing: float = 0.8) -> Array:
 	var positions: Array = []
 	if count == 0:
 		return positions

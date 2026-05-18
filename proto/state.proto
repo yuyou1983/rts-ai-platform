@@ -49,6 +49,9 @@ message EntityState {
   float  target_x          = 20;  // current move/attack target position
   float  target_y          = 21;
 
+  // Production timers (parallel to production_queue)
+  repeated int32 production_timers = 22;
+
   // Resource-specific
   string resource_type = 15;
   float  resource_amount = 16;

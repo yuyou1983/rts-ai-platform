@@ -1,0 +1,23 @@
+{
+  "phase": 1,
+  "summary": "Phase 1 complete: Added 'scout'\u2192'Wraith' to _UNIT_TYPE_MAP plus all lowercase aliases for 3 races. Added production_queue cap of 5 items to prevent unlimited growth. Compile verified.",
+  "timestamp": "2026-05-14T14:25:44.889701",
+  "context_snapshot": {
+    "completed": [
+      "Phase 1: Phase 1 complete: Added 'scout'\u2192'Wraith' to _UNIT_TYPE_MAP plus all lowercase aliases for 3 races. Added production_queue cap of 5 items to prevent unlimited growth. Compile verified."
+    ],
+    "current": "Phase 2",
+    "remaining": [
+      "Phase 2",
+      "Phase 3"
+    ],
+    "key_decisions": [
+      "Lowercase scout must map to Wraith (Terran) not Scout (Protoss)",
+      "Production queue cap = 5 items, checked before resource deduction"
+    ],
+    "files_modified": [
+      "simcore/construction.py"
+    ],
+    "files_created": []
+  }
+}

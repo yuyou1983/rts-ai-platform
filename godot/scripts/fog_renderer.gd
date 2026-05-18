@@ -1,4 +1,3 @@
-class_name FogRenderer
 extends Node2D
 
 ## Renders fog-of-war tiles based on SimCore visibility data.
@@ -7,7 +6,7 @@ extends Node2D
 ## Sprint 4: Smooth gradient at fog edges, explored shows terrain but not units,
 ## unexplored is fully dark, current vision shows everything.
 
-var _tile_size: int = 32
+var _tile_size: int = 1  # TILE_SIZE=1, world coords ARE tile coords
 var _fog_data: PackedByteArray = []
 var _width: int = 0
 var _height: int = 0

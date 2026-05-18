@@ -110,6 +110,17 @@ async def handle_step(req: web.Request) -> web.Response:
         except Exception as exc:
             logger.warning("AI command generation failed: %s", exc)
 
+    # Log AI commands
+    ai_cmds = [c for c in commands if c.get("issuer") == _ai_player]
+    if ai_cmds:
+        logger.info("AI P%d commands: %s", _ai_player, 
+                    [(c.get("action"), c.get("unit_type", c.get("building_type",""))) for c in ai_cmds[:5]])
+
+    # Debug: log train commands
+    train_cmds = [c for c in commands if c.get("action") == "train"]
+    if train_cmds:
+        logger.info("Sending to gRPC - train commands: %s", train_cmds[:3])
+    
     result = await _client.step(commands=commands)
     _last_state_dict = result
     return web.json_response(_godot_state(result))
@@ -131,10 +142,23 @@ async def handle_replay(req: web.Request) -> web.Response:
     return web.json_response({"error": "replay not supported via HTTP", "replay": []})
 
 
-async def app_factory(grpc_address: str) -> web.Application:
+def reset_ai_state() -> None:
+    """Reset AI configuration globals. Called between tests."""
+    global _ai_player, _ai_agent, _last_state_dict
+    _ai_player = 0
+    _ai_agent = None
+    _last_state_dict = {}
+
+
+async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = None) -> web.Application:
     global _client
-    _client = SimCoreClient(grpc_address)
-    await _client.__aenter__()
+    if client is not None:
+        _client = client
+    elif grpc_address:
+        _client = SimCoreClient(grpc_address)
+        await _client.__aenter__()
+    else:
+        raise ValueError("Either grpc_address or client must be provided")
 
     app = web.Application()
     app.router.add_post("/api/start_game", handle_start_game)
@@ -148,6 +172,13 @@ async def app_factory(grpc_address: str) -> web.Application:
         resp.headers["Access-Control-Allow-Origin"] = "*"
 
     app.on_response_prepare.append(_cors)
+
+    # Cleanup hook — close the gRPC client on app shutdown
+    async def _cleanup(app: web.Application) -> None:
+        if _client:
+            await _client.__aexit__(None, None, None)
+
+    app.on_shutdown.append(_cleanup)
     return app
 
 

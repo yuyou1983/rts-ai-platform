@@ -1,0 +1,27 @@
+{
+  "phase": 2,
+  "summary": "Phase 2 complete: Added 'id' field to entity dicts in grpc_client._snapshot_to_dict(). AI agents now correctly identify buildings for train commands. Also cleaned http_gateway debug logging.",
+  "timestamp": "2026-05-14T14:28:24.959432",
+  "context_snapshot": {
+    "completed": [
+      "Phase 1: Phase 1 complete: Added 'scout'\u2192'Wraith' to _UNIT_TYPE_MAP plus all lowercase aliases for 3 races. Added production_queue cap of 5 items to prevent unlimited growth. Compile verified.",
+      "Phase 2: Phase 2 complete: Added 'id' field to entity dicts in grpc_client._snapshot_to_dict(). AI agents now correctly identify buildings for train commands. Also cleaned http_gateway debug logging."
+    ],
+    "current": "Phase 3",
+    "remaining": [
+      "Phase 2",
+      "Phase 3"
+    ],
+    "key_decisions": [
+      "Lowercase scout must map to Wraith (Terran) not Scout (Protoss)",
+      "Production queue cap = 5 items, checked before resource deduction",
+      "Entity id must be included inside value dict, not just as dict key",
+      "get_observations() in state.py preserves all entity fields \u2014 no change needed there"
+    ],
+    "files_modified": [
+      "simcore/construction.py",
+      "simcore/grpc_client.py"
+    ],
+    "files_created": []
+  }
+}

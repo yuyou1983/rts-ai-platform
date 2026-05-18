@@ -96,23 +96,48 @@ _UNIT_TYPE_MAP = {
     # Terran
     "SCV": "SCV", "worker": "SCV",
     "Marine": "Marine", "soldier": "Marine",
-    "Firebat": "Firebat", "Ghost": "Ghost", "Medic": "Medic",
-    "Vulture": "Vulture", "Tank": "Tank", "Goliath": "Goliath",
-    "Wraith": "Wraith", "Dropship": "Dropship", "Vessel": "Vessel",
-    "BattleCruiser": "BattleCruiser", "Valkyrie": "Valkyrie",
+    "Firebat": "Firebat", "firebat": "Firebat",
+    "Ghost": "Ghost", "ghost": "Ghost",
+    "Medic": "Medic", "medic": "Medic",
+    "Vulture": "Vulture", "vulture": "Vulture",
+    "Tank": "Tank", "tank": "Tank",
+    "Goliath": "Goliath", "goliath": "Goliath",
+    "Wraith": "Wraith", "scout": "Wraith",
+    "Dropship": "Dropship", "dropship": "Dropship",
+    "Vessel": "Vessel", "vessel": "Vessel",
+    "BattleCruiser": "BattleCruiser", "battlecruiser": "BattleCruiser",
+    "Valkyrie": "Valkyrie", "valkyrie": "Valkyrie",
     # Zerg
-    "Drone": "Drone", "Zergling": "Zergling", "Hydralisk": "Hydralisk",
-    "Lurker": "Lurker", "Ultralisk": "Ultralisk", "Overlord": "Overlord",
-    "Queen": "Queen", "Defiler": "Defiler", "Mutalisk": "Mutalisk",
-    "Guardian": "Guardian", "Devourer": "Devourer", "Scourge": "Scourge",
-    "Larva": "Larva", "Broodling": "Broodling", "InfestedTerran": "InfestedTerran",
+    "Drone": "Drone", "drone": "Drone",
+    "Zergling": "Zergling", "zergling": "Zergling",
+    "Hydralisk": "Hydralisk", "hydralisk": "Hydralisk",
+    "Lurker": "Lurker", "lurker": "Lurker",
+    "Ultralisk": "Ultralisk", "ultralisk": "Ultralisk",
+    "Overlord": "Overlord", "overlord": "Overlord",
+    "Queen": "Queen", "queen": "Queen",
+    "Defiler": "Defiler", "defiler": "Defiler",
+    "Mutalisk": "Mutalisk", "mutalisk": "Mutalisk",
+    "Guardian": "Guardian", "guardian": "Guardian",
+    "Devourer": "Devourer", "devourer": "Devourer",
+    "Scourge": "Scourge", "scourge": "Scourge",
+    "Larva": "Larva", "larva": "Larva",
+    "Broodling": "Broodling", "broodling": "Broodling",
+    "InfestedTerran": "InfestedTerran", "infestedterran": "InfestedTerran",
     # Protoss
-    "Probe": "Probe", "Zealot": "Zealot", "Dragoon": "Dragoon",
-    "Templar": "Templar", "DarkTemplar": "DarkTemplar",
-    "Archon": "Archon", "DarkArchon": "DarkArchon",
-    "Reaver": "Reaver", "Shuttle": "Shuttle", "Observer": "Observer",
-    "Arbiter": "Arbiter", "Scout": "Scout", "Carrier": "Carrier",
-    "Corsair": "Corsair",
+    "Probe": "Probe", "probe": "Probe",
+    "Zealot": "Zealot", "zealot": "Zealot",
+    "Dragoon": "Dragoon", "dragoon": "Dragoon",
+    "Templar": "Templar", "templar": "Templar",
+    "DarkTemplar": "DarkTemplar", "darktemplar": "DarkTemplar",
+    "Archon": "Archon", "archon": "Archon",
+    "DarkArchon": "DarkArchon", "darkarchon": "DarkArchon",
+    "Reaver": "Reaver", "reaver": "Reaver",
+    "Shuttle": "Shuttle", "shuttle": "Shuttle",
+    "Observer": "Observer", "observer": "Observer",
+    "Arbiter": "Arbiter", "arbiter": "Arbiter",
+    "Scout": "Scout",
+    "Carrier": "Carrier", "carrier": "Carrier",
+    "Corsair": "Corsair", "corsair": "Corsair",
     "scout_unit": "Probe",  # internal type → real name
 }
 
@@ -622,6 +647,8 @@ def process_construction(
             else:
                 # Fallback: direct queue (no larva available yet)
                 # This allows training even before larva spawn stabilizes
+                if len(building.get("production_queue", [])) >= 5:
+                    continue
                 res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
                 if cost_gas > 0:
                     res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
@@ -632,6 +659,8 @@ def process_construction(
                 built[building_id] = {**building, "production_queue": queue, "production_timers": timers}
         else:
             # Terran/Protoss: add to production queue
+            if len(building.get("production_queue", [])) >= 5:
+                continue
             res[pkey_mine] = res.get(pkey_mine, 0) - cost_mine
             if cost_gas > 0:
                 res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
@@ -681,16 +710,14 @@ def process_construction(
             owner = e["owner"]
             race = get_race(owner)
 
-            # Protoss: check pylon power for Gateway etc.
+            # Protoss: check pylon power
             if race == "protoss":
                 if not check_pylon_power(built, eid):
-                    # Building unpowered — cannot produce
                     built[eid] = {**e, "production_queue": queue, "production_timers": timers}
                     continue
 
-            # Determine simplified entity_type for the spawned unit
+            # Determine simplified entity_type
             simplified_etype = json_to_simplified_unit.get(utype, "unit")
-            # For simplified unit types (worker/soldier/scout), use them directly
             if utype in ("worker", "soldier", "scout"):
                 simplified_etype = utype
 
@@ -717,7 +744,6 @@ def process_construction(
                 "is_flying": False,
             }
 
-            # Add shield for Protoss
             if race == "protoss":
                 udata = _load_unit_data().get(utype, {})
                 sp = udata.get("sp", 0) if udata else 0

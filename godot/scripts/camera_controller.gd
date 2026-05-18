@@ -16,9 +16,9 @@ signal zoom_changed(zoom: Vector2)
 @export var edge_scroll_speed: float = 400.0
 
 @export_group("Zoom")
-@export var min_zoom: float = 0.5
-@export var max_zoom: float = 2.0
-@export var zoom_step: float = 0.1
+@export var min_zoom: float = 2.0
+@export var max_zoom: float = 20.0
+@export var zoom_step: float = 0.5
 @export var zoom_lerp_speed: float = 10.0
 
 @export_group("Bounds")
@@ -42,14 +42,21 @@ func _ready() -> void:
 
 func setup(camera: Camera2D) -> void:
 	_camera = camera
-	_camera.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	_camera.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
 	_camera.position_smoothing_enabled = false
 	_target_zoom = _camera.zoom
-	# DPI-aware default zoom for Retina displays
-	var screen_dpi := DisplayServer.screen_get_dpi()
-	if screen_dpi >= 192:  # Retina or higher
-		_target_zoom = Vector2(2.0, 2.0)
-		_camera.zoom = _target_zoom
+	# Calculate minimum zoom so viewport always fits inside map
+	# For 64x64 map on 1280x720: min_zoom = max(1280/64, 720/64) = max(20, 11.25) = 20
+	# At zoom=20: viewport sees 64x36 tiles → map fills width exactly
+	# Zoom=10 would show 128x72 (bigger than map) — NOT allowed
+	var vp := get_viewport().get_visible_rect().size
+	var min_zoom_x := vp.x / maxf(map_width, 1.0)
+	var min_zoom_y := vp.y / maxf(map_height, 1.0)
+	var dynamic_min := maxf(min_zoom_x, min_zoom_y)
+	# Start at the minimum zoom (fullest overview of the map)
+	var start_zoom := maxf(dynamic_min, min_zoom)
+	_target_zoom = Vector2(start_zoom, start_zoom)
+	_camera.zoom = _target_zoom
 	keyboard_speed *= float(_target_zoom.x)
 	edge_scroll_speed *= float(_target_zoom.x)
 
@@ -141,10 +148,24 @@ func _zoom_in() -> void:
 
 func _zoom_out() -> void:
 	var new_zoom_x := _target_zoom.x - zoom_step
-	_target_zoom = Vector2(maxf(new_zoom_x, min_zoom), maxf(new_zoom_x, min_zoom))
+	# Prevent zoom out beyond map boundaries: viewport must fit inside map
+	var vp := get_viewport().get_visible_rect().size
+	var min_zoom_x := vp.x / maxf(map_width, 1.0)
+	var min_zoom_y := vp.y / maxf(map_height, 1.0)
+	var dynamic_min := maxf(min_zoom_x, min_zoom_y)
+	var final_min := maxf(min_zoom, dynamic_min)
+	_target_zoom = Vector2(maxf(new_zoom_x, final_min), maxf(new_zoom_x, final_min))
 	_following_group = false
 
 func _handle_zoom_lerp(delta: float) -> void:
+	# Enforce dynamic min zoom so viewport never exceeds map
+	var vp := get_viewport().get_visible_rect().size
+	var dz_x := vp.x / maxf(map_width, 1.0)
+	var dz_y := vp.y / maxf(map_height, 1.0)
+	var dynamic_min := maxf(dz_x, dz_y)
+	var final_min := maxf(min_zoom, dynamic_min)
+	if _target_zoom.x < final_min:
+		_target_zoom = Vector2(final_min, final_min)
 	_camera.zoom = _camera.zoom.lerp(_target_zoom, zoom_lerp_speed * delta)
 	if _camera.zoom.distance_to(_target_zoom) < 0.001:
 		_camera.zoom = _target_zoom
@@ -174,8 +195,8 @@ func _handle_follow_group(_delta: float) -> void:
 
 	if count > 0:
 		center /= float(count)
-		var vp_size := get_viewport().get_visible_rect().size
-		_camera.position = center - vp_size / (2.0 * _camera.zoom)
+		# With CENTER anchor, camera position IS the center of viewport
+		_camera.position = center
 
 func _get_entity_position(entity_id: String) -> Vector2:
 	if _entity_data_provider.is_valid():
@@ -189,10 +210,14 @@ func _get_entity_position(entity_id: String) -> Vector2:
 # ── Bounds ───────────────────────────────────────────────────────────────────
 func _clamp_camera() -> void:
 	var vp_size := get_viewport().get_visible_rect().size / _camera.zoom
-	var map_px_w: float = map_width  # no cell_size multiplier needed since TILE_SIZE=1
+	var map_px_w: float = map_width
 	var map_px_h: float = map_height
-	_camera.position.x = clampf(_camera.position.x, 0, maxf(0, map_px_w - vp_size.x))
-	_camera.position.y = clampf(_camera.position.y, 0, maxf(0, map_px_h - vp_size.y))
+	# Map boundary = window boundary: viewport must stay fully inside the map
+	var half_vp_x := vp_size.x / 2.0
+	var half_vp_y := vp_size.y / 2.0
+	# Clamp camera center so viewport edges align with map edges
+	_camera.position.x = clampf(_camera.position.x, half_vp_x, map_px_w - half_vp_x)
+	_camera.position.y = clampf(_camera.position.y, half_vp_y, map_px_h - half_vp_y)
 
 # ── Public API ───────────────────────────────────────────────────────────────
 func set_entity_data_provider(provider: Callable) -> void:
@@ -205,15 +230,15 @@ func set_map_size(w: float, h: float) -> void:
 func move_to_world_position(world_pos: Vector2) -> void:
 	if _camera == null:
 		return
-	var vp_size := get_viewport().get_visible_rect().size / _camera.zoom
-	_camera.position = world_pos - vp_size / 2.0
+	# With CENTER anchor, camera.position IS the center
+	_camera.position = world_pos
 	_clamp_camera()
 
 func get_camera_center() -> Vector2:
 	if _camera == null:
 		return Vector2.ZERO
-	var vp_size := get_viewport().get_visible_rect().size / _camera.zoom
-	return _camera.position + vp_size / 2.0
+	# With CENTER anchor, camera.position IS the center
+	return _camera.position
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 func _get_viewport_mouse_position() -> Vector2:

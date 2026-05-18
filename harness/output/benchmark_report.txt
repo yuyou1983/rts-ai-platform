@@ -2,16 +2,16 @@
   RTS AI Platform — Benchmark Report
 ============================================================
 
-  Total Games:    300
-  P1 Wins:        0 (0.0%)
-  P2 Wins:        0 (0.0%)
-  Draws:          300
+  Total Games:    150
+  P1 Wins:        90 (60.0%)
+  P2 Wins:        60 (40.0%)
+  Draws:          0
   Errors:         0
 
-  Avg Ticks:      1000
-  Avg TPS:        5670
-  Avg Elapsed:    0.18s
-  Peak Ticks:     1000
-  Shortest:       1000 ticks
+  Avg Ticks:      759
+  Avg TPS:        508
+  Avg Elapsed:    1.69s
+  Peak Ticks:     1052
+  Shortest:       418 ticks
 
 ============================================================

@@ -1,4 +1,3 @@
-class_name HUD
 extends Control
 
 ## Bottom HUD panel for the RTS game.
@@ -80,10 +79,8 @@ func _ready() -> void:
 	_connect_signals()
 
 func _build_ui() -> void:
-	# Position HUD at bottom
-	anchor_right = 1.0
-	anchor_bottom = 1.0
-	anchor_top = 1.0 - (HUD_HEIGHT / 720.0)
+	# Horizontal strip: parent sets anchors to top-right, 420x36
+	set_anchors_preset(Control.PRESET_FULL_RECT)
 	offset_top = 0
 	offset_bottom = 0
 	offset_left = 0

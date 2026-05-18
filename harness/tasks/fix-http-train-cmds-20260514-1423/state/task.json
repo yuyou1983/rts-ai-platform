@@ -1,0 +1,20 @@
+{
+  "task_id": "fix-http-train-cmds-20260514-1423",
+  "task": "Fix AI train soldier/scout commands lost in HTTP\u2192gRPC flow; fix _UNIT_TYPE_MAP lowercase scout key",
+  "started_at": "2026-05-14T14:23:31.891794",
+  "phase": 3,
+  "total_phases": 3,
+  "status": "completed",
+  "plan_path": "docs/exec-plans/active/2026-05-14-fix-http-train-cmds.md",
+  "completed_at": "2026-05-14T14:31:37.653848",
+  "summary": "Fixed AI train commands lost in HTTP\u2192gRPC flow. Root causes: (1) grpc_client._snapshot_to_dict missing entity 'id' field inside value dict, (2) _UNIT_TYPE_MAP missing lowercase scout\u2192Wraith, (3) production queue unlimited growth, (4) default player_races P2=protoss. All fixed. 11 Marines produced in 300-tick HTTP test.",
+  "files_changed": [
+    "simcore/construction.py",
+    "simcore/grpc_client.py",
+    "simcore/engine.py",
+    "simcore/http_gateway.py",
+    "simcore/grpc_server.py",
+    "proto/state.proto",
+    "simcore/rules.py"
+  ]
+}

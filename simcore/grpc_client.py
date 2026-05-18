@@ -104,6 +104,7 @@ class SimCoreClient:
         entities = {}
         for e in snapshot.entities:
             entities[e.id] = {
+                "id": e.id,
                 "owner": e.owner,
                 "entity_type": e.entity_type,
                 "building_type": e.building_type,
@@ -121,6 +122,7 @@ class SimCoreClient:
                 "resource_type": e.resource_type,
                 "resource_amount": e.resource_amount,
                 "production_queue": list(e.production_queue),
+                "production_timers": list(e.production_timers),
                 "attack_target_id": e.attack_target_id,
                 "target_x": e.target_x,
                 "target_y": e.target_y,

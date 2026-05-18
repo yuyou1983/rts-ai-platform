@@ -248,7 +248,7 @@ func coordinate_activation(
 
 	# Formation: arrange in a grid centered on the target position
 	var cols: int = int(ceilf(sqrt(float(count))))
-	var spacing: float = 32.0  # world-unit spacing between units in formation
+	var spacing: float = 0.8  # tile-space spacing (TILE_SIZE=1)
 
 	for i in range(count):
 		var row: int = i / cols
@@ -422,7 +422,7 @@ func _get_entity_data(entity_id: String) -> Dictionary:
 	return {}
 
 
-func _entity_at_world_pos(world_pos: Vector2, radius: float = 20.0) -> Dictionary:
+func _entity_at_world_pos(world_pos: Vector2, radius: float = 1.5) -> Dictionary:
 	# Delegate to the entity_data_provider to find entity at world position.
 	# Falls back to a simple distance check if a provider returns raw entity list.
 	if _entity_data_provider.is_valid():

@@ -176,12 +176,12 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
         for eid, e in state.entities.items():
             entity = state_pb2.EntityState(
                 id=eid,
-                owner=e.get("owner", 0),
+                owner=int(e.get("owner", 0)),
                 entity_type=e.get("entity_type", ""),
                 pos_x=e.get("pos_x", 0.0),
                 pos_y=e.get("pos_y", 0.0),
-                health=e.get("health", 0),
-                max_health=e.get("max_health", 0),
+                health=int(e.get("health", 0)),
+                max_health=int(e.get("max_health", 0)),
                 is_idle=e.get("is_idle", True),
             )
             # Optional fields — only set when present to avoid proto3 zero-vs-absent confusion
@@ -214,9 +214,13 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             if "production_queue" in e and isinstance(e["production_queue"], list):
                 for item in e["production_queue"]:
                     entity.production_queue.append(str(item))
+            # production_timers (parallel to production_queue)
+            if "production_timers" in e and isinstance(e["production_timers"], list):
+                for t in e["production_timers"]:
+                    entity.production_timers.append(int(t))
             snap.entities.append(entity)
         for key, val in state.resources.items():
-            snap.resources[key] = val
+            snap.resources[key] = int(val)
         # Fog-of-war per player
         fog = state.fog_of_war if hasattr(state, "fog_of_war") else {}
         for pid, field_name in [("1", "fog_p1"), ("2", "fog_p2")]:
@@ -237,19 +241,29 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             winner=snap.get("winner", 0),
         )
         for eid, e in snap.get("entities", {}).items():
-            proto.entities.append(state_pb2.EntityState(
+            ent = state_pb2.EntityState(
                 id=eid,
-                owner=e.get("owner", 0),
+                owner=int(e.get("owner", 0)),
                 entity_type=e.get("entity_type", ""),
                 pos_x=e.get("pos_x", 0.0),
                 pos_y=e.get("pos_y", 0.0),
-                health=e.get("health", 0),
-                max_health=e.get("max_health", 0),
+                health=int(e.get("health", 0)),
+                max_health=int(e.get("max_health", 0)),
                 is_idle=e.get("is_idle", True),
                 building_type=e.get("building_type", ""),
                 resource_type=e.get("resource_type", ""),
                 resource_amount=e.get("resource_amount", 0.0),
-            ))
+            )
+            # production_queue + production_timers
+            pq = e.get("production_queue", [])
+            if isinstance(pq, list):
+                for item in pq:
+                    ent.production_queue.append(str(item))
+            pt = e.get("production_timers", [])
+            if isinstance(pt, list):
+                for t in pt:
+                    ent.production_timers.append(int(t))
+            proto.entities.append(ent)
         return proto
 
 
