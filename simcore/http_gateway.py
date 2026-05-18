@@ -156,13 +156,20 @@ async def handle_replay(req: web.Request) -> web.Response:
     engine replay data.
     """
     match_id = req.match_info["match_id"]
-    replay_path = _replay_dir / f"{match_id}.jsonl"
+    json_path = _replay_dir / f"{match_id}.json"
+    jsonl_path = _replay_dir / f"{match_id}.jsonl"
 
     ticks: list[dict] = []
 
-    # Try reading from replay file
-    if replay_path.is_file():
-        with open(replay_path) as f:
+    # Try JSON first (single-file format with ticks array)
+    if json_path.is_file():
+        with open(json_path) as f:
+            data = json.load(f)
+        ticks = data.get("ticks", [])
+        match_id = data.get("match_id", match_id)
+    # Try JSONL next (one tick per line)
+    elif jsonl_path.is_file():
+        with open(jsonl_path) as f:
             for line in f:
                 line = line.strip()
                 if line:

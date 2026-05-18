@@ -79,6 +79,9 @@ var _build_mode := false
 # ─── Game state ────────────────────────────────────────────
 var _game_active := false
 var _game_over_shown := false
+var _replay_mode := false
+var _replay_player: ReplayPlayer
+var _replay_overlay: Control
 
 # ─── Fog of war ────────────────────────────────────────────
 var _fog_tiles: PackedInt32Array = []
@@ -139,8 +142,21 @@ func _ready() -> void:
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
+	_bridge.replay_loaded.connect(_on_replay_loaded)
 	_bridge.start_game(42)
 	_game_active = true
+
+	# Replay system
+	_replay_player = ReplayPlayer.new()
+	add_child(_replay_player)
+	_replay_player.replay_tick.connect(_on_state)
+	_replay_player.replay_finished.connect(_on_replay_finished)
+
+	var _replay_overlay_scene := preload("res://scenes/replay_overlay.tscn")
+	_replay_overlay = _replay_overlay_scene.instantiate()
+	_replay_overlay.set_player(_replay_player)
+	add_child(_replay_overlay)
+	_replay_overlay.visible = false
 
 	# Connect to autoloads
 	_event_bus = get_node_or_null("/root/EventBus")
@@ -1657,3 +1673,21 @@ func _clear_test_entities() -> void:
 	_fog_w = _saved_fog_w
 	_fog_h = _saved_fog_h
 	queue_redraw()
+
+
+# ─── Replay Callbacks ──────────────────────────────────────
+func _on_replay_loaded(replay_data: Dictionary) -> void:
+	_replay_mode = true
+	_game_active = false
+	_replay_overlay.visible = true
+	_replay_player.load_replay(replay_data)
+	print("[Replay] Loaded: %s (%d ticks, %s vs %s)" % [
+		replay_data.get("match_id", "?"),
+		replay_data.get("tick_count", 0),
+		replay_data.get("player_races", {}).get("1", "?"),
+		replay_data.get("player_races", {}).get("2", "?"),
+	])
+
+func _on_replay_finished() -> void:
+	print("[Replay] Playback finished")
+	_replay_mode = false
