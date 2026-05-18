@@ -800,8 +800,8 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 
 # ─── Bridge callbacks ──────────────────────────────────────
 func _on_start(state: Dictionary) -> void:
-	_map_w = state.get("map_width", 64) + 0.0
-	_map_h = state.get("map_height", 64) + 0.0
+	_map_w = _to_f(state.get("map_width"), 64.0)
+	_map_h = _to_f(state.get("map_height"), 64.0)
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
@@ -834,6 +834,11 @@ func _restart_game() -> void:
 	var new_seed := randi() % 100000
 	_bridge.start_game(new_seed)
 
+func _to_f(value, fallback: float = 0.0) -> float:
+	if value == null:
+		return fallback
+	return value + 0.0
+
 func _parse(state: Dictionary) -> void:
 	_ents.clear()
 	_entity_cache_by_id.clear()
@@ -845,29 +850,29 @@ func _parse(state: Dictionary) -> void:
 		var rtype: String = str(e.get("resource_type", ""))
 		var ent_dict := {
 			"id": str(eid),
-			"owner": int(e.get("owner", 0)),
+			"owner": int(e.get("owner") if e.get("owner") != null else 0),
 			"type": etype,
 			"entity_type": etype,
 			"building_type": btype,
 			"resource_type": rtype,
-			"resource_amount": e.get("resource_amount", 0) + 0.0,
-			"px": e.get("pos_x", 0) + 0.0,  # TILE_SIZE=1, world=tile
-			"py": e.get("pos_y", 0) + 0.0,
-			"pos_x": e.get("pos_x", 0) + 0.0,
-			"pos_y": e.get("pos_y", 0) + 0.0,
-			"health": e.get("health", 0) + 0.0,
-			"max_health": e.get("max_health", 0) + 0.0,
-			"is_idle": bool(e.get("is_idle", true)),
-			"carry_amount": e.get("carry_amount", 0) + 0.0,
-			"carry_cap": e.get("carry_capacity", 0) + 0.0,
-			"attack": e.get("attack", 0) + 0.0,
-			"attack_range": e.get("attack_range", 16.0) + 0.0,
+			"resource_amount": _to_f(e.get("resource_amount"), 0.0),
+			"px": _to_f(e.get("pos_x"), 0.0),  # TILE_SIZE=1, world=tile
+			"py": _to_f(e.get("pos_y"), 0.0),
+			"pos_x": _to_f(e.get("pos_x"), 0.0),
+			"pos_y": _to_f(e.get("pos_y"), 0.0),
+			"health": _to_f(e.get("health"), 0.0),
+			"max_health": _to_f(e.get("max_health"), 0.0),
+			"is_idle": bool(e.get("is_idle", true) if e.get("is_idle") != null else true),
+			"carry_amount": _to_f(e.get("carry_amount"), 0.0),
+			"carry_cap": _to_f(e.get("carry_capacity"), 0.0),
+			"attack": _to_f(e.get("attack"), 0.0),
+			"attack_range": _to_f(e.get("attack_range"), 16.0),
 			"attack_target_id": str(e.get("attack_target_id", "")),
-			"target_x": e.get("target_x", 0) + 0.0,
-			"target_y": e.get("target_y", 0) + 0.0,
-			"speed": e.get("speed", 0) + 0.0,
-			"energy": e.get("energy", 0) + 0.0,
-			"max_energy": e.get("max_energy", 0) + 0.0,
+			"target_x": _to_f(e.get("target_x"), 0.0),
+			"target_y": _to_f(e.get("target_y"), 0.0),
+			"speed": _to_f(e.get("speed"), 0.0),
+			"energy": _to_f(e.get("energy"), 0.0),
+			"max_energy": _to_f(e.get("max_energy"), 0.0),
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
