@@ -1,0 +1,88 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/replay_overlay.gd" id="1_ro"]
+
+[node name="ReplayOverlay" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_ro")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -80.0
+offset_right = -40.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 2
+
+[node name="HSlider" type="HSlider" parent="VBoxContainer"]
+layout_mode = 2
+min_value = 0.0
+max_value = 100.0
+step = 1.0
+
+[node name="ButtonRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnStart" type="Button" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "⏮"
+
+[node name="BtnStepBack" type="Button" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "⏪"
+
+[node name="BtnPlayPause" type="Button" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "▶"
+
+[node name="BtnStepFwd" type="Button" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "⏩"
+
+[node name="BtnEnd" type="Button" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "⏭"
+
+[node name="SpeedLabel" type="Label" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+mouse_filter = 0
+text = "1x"
+
+[node name="TickLabel" type="Label" parent="VBoxContainer/ButtonRow"]
+layout_mode = 2
+text = "0/0"
+
+[node name="MatchIdRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="MatchIdEdit" type="LineEdit" parent="VBoxContainer/MatchIdRow"]
+layout_mode = 2
+placeholder_text = "match_id"
+size_flags_stretch_ratio = 2.0
+
+[node name="BtnLoadReplay" type="Button" parent="VBoxContainer/MatchIdRow"]
+layout_mode = 2
+text = "加载回放"
+
+[connection signal="value_changed" from="VBoxContainer/HSlider" to="." method="_on_slider_value_changed"]
+[connection signal="pressed" from="VBoxContainer/ButtonRow/BtnStart" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="VBoxContainer/ButtonRow/BtnStepBack" to="." method="_on_step_back_pressed"]
+[connection signal="pressed" from="VBoxContainer/ButtonRow/BtnPlayPause" to="." method="_on_play_pause_pressed"]
+[connection signal="pressed" from="VBoxContainer/ButtonRow/BtnStepFwd" to="." method="_on_step_fwd_pressed"]
+[connection signal="pressed" from="VBoxContainer/ButtonRow/BtnEnd" to="." method="_on_end_pressed"]
+[connection signal="gui_input" from="VBoxContainer/ButtonRow/SpeedLabel" to="." method="_on_speed_clicked"]
+[connection signal="pressed" from="VBoxContainer/MatchIdRow/BtnLoadReplay" to="." method="_on_load_replay_pressed"]

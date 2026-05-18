@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<title>RTS AI Native 平台 — Agent 体系重构设计 v2.0</title>
+<title>RTS AI Native 平台 — Agent 体系架构设计 v3.0</title>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -241,9 +241,9 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
   <div class="slide-title-content">
     <div class="anim-fadein" style="font-size:16px;font-weight:700;letter-spacing:6px;text-transform:uppercase;color:var(--cyan);opacity:.7">Architecture Redesign</div>
     <h1 class="anim-fadein-d1">RTS AI Native 平台</h1>
-    <div class="version anim-fadein-d2">Agent 体系重构设计 v2.0</div>
+    <div class="version anim-fadein-d2">Agent 体系架构设计 v3.0</div>
     <div class="glow-sep anim-fadein-d3" style="width:300px"></div>
-    <div class="date anim-fadein-d4">2026 — 05 — 08</div>
+    <div class="date anim-fadein-d4">2026 — 05 — 18</div>
     <div class="anim-fadein-d5" style="margin-top:24px;display:flex;gap:12px">
       <span class="badge badge-opus">OPUS</span>
       <span class="badge badge-sonnet">SONNET</span>
@@ -416,7 +416,7 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
 <!-- ====== SLIDE 5: 运行时Agent ====== -->
 <div class="slide" id="s5">
   <h2 class="anim-fadein" style="margin-bottom:6px">运行时 Agent — 渐进式 3 阶段</h2>
-  <div class="sub anim-fadein-d1" style="margin-bottom:20px">从单体状态机到多 Agent 协作，按里程碑逐步拆分</div>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">从单体状态机到多 Agent 协作，按里程碑逐步拆分 · 含 LLM Agent + 训练闭环</div>
   <div class="two-col anim-fadein-d2" style="flex:1">
     <div style="display:flex;flex-direction:column;gap:14px">
       <!-- M0 -->
@@ -441,13 +441,16 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
       <div class="phase-card phase-m1">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
           <span class="badge badge-m1">M1</span>
-          <span style="font-size:20px;font-weight:800;color:#60a5fa">三核心拆分</span>
+          <span style="font-size:20px;font-weight:800;color:#60a5fa">四核心拆分</span>
           <span style="font-size:14px;color:var(--text3);font-weight:300">10 周</span>
         </div>
         <div class="card-grid card-grid-3" style="gap:8px">
           <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Coordinator</div><div style="font-size:12px;color:var(--text3)">仲裁 + 黑板 · 10 Hz</div></div>
           <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Economy</div><div style="font-size:12px;color:var(--text3)">采集/工人/供给 · 5-10 Hz</div></div>
           <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Combat</div><div style="font-size:12px;color:var(--text3)">微操/集火/风筝 · 10-20 Hz</div></div>
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">Scout</div><div style="font-size:12px;color:var(--text3)">侦察/视野/情报 · 1-2 Hz</div></div>
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">ReactAgent</div><div style="font-size:12px;color:var(--text3)">LLM 驱动决策 · 1-2 Hz</div></div>
+          <div class="card" style="padding:12px 14px"><div style="font-size:13px;font-weight:700;color:#60a5fa">ScriptAI</div><div style="font-size:12px;color:var(--text3)">脚本对手/基准 · 10 Hz</div></div>
         </div>
       </div>
       <!-- M2 -->
@@ -459,8 +462,11 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
         </div>
         <div class="card-grid card-grid-3" style="gap:8px">
           <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Strategy</div><div style="font-size:12px;color:var(--text3)">宏观战略 · 1-2 Hz</div></div>
-          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Scout</div><div style="font-size:12px;color:var(--text3)">侦察/情报 · 1-2 Hz</div></div>
           <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">+Build</div><div style="font-size:12px;color:var(--text3)">建造/科技 · 2-5 Hz</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">League</div><div style="font-size:12px;color:var(--text3)">自对弈/ELO/升降级</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">PPO+GAE</div><div style="font-size:12px;color:var(--text3)">RL训练 · PyTorch</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">Rollout</div><div style="font-size:12px;color:var(--text3)">32路异步收集</div></div>
+          <div class="card" style="padding:10px 12px"><div style="font-size:13px;font-weight:700;color:#c084fc">Dashboard</div><div style="font-size:12px;color:var(--text3)">训练曲线实时可视化</div></div>
         </div>
       </div>
     </div>
@@ -476,11 +482,15 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
           <tr><td class="mono">obs.econ</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
           <tr><td class="mono">obs.fow</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
           <tr><td class="mono">obs.build</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">obs.scout</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
           <tr><td class="mono">cmd.micro</td><td class="mono" style="color:#4ade80">v1</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v2</td></tr>
           <tr><td class="mono">intent.econ</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
           <tr><td class="mono">plan.macro</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
-          <tr><td class="mono">intel.report</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">intel.report</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v1</td></tr>
           <tr><td class="mono">blackboard</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#c084fc">v2</td></tr>
+          <tr><td class="mono">llm.decision</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#60a5fa">v1</td><td class="mono" style="color:#60a5fa">v1</td></tr>
+          <tr><td class="mono">league.match</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
+          <tr><td class="mono">promo.gate</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td><td class="mono" style="color:#c084fc">v1</td></tr>
         </tbody>
       </table>
     </div>
@@ -631,7 +641,7 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
       <!-- Layer 2: AgentHub -->
       <div class="arch-layer layer-hub anim-fadein-d4">
         <div class="layer-label">AgentHub · Agent 运行时</div>
-        <div class="layer-content">BaselineAgent / Coordinator+Economy+Combat / Full+League</div>
+        <div class="layer-content">BaselineAgent / Coordinator+Economy+Combat+Scout / Full+League+ReactAgent+RaceAI</div>
       </div>
       <!-- Arrow -->
       <div class="flow-arrow anim-fadein-d5">
@@ -662,7 +672,7 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
         <!-- AgentHub box -->
         <rect x="100" y="250" width="400" height="60" rx="10" fill="rgba(0,229,255,.06)" stroke="rgba(0,229,255,.3)" stroke-width="1.5"/>
         <text x="300" y="276" text-anchor="middle" fill="#00e5ff" font-size="14" font-weight="700" font-family="var(--font-stack)">AgentHub</text>
-        <text x="300" y="296" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">协议版本化 · 行为树/RL · 黑板仲裁</text>
+        <text x="300" y="296" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="var(--font-stack)">协议版本化 · 行为树/RL · 黑板仲裁 · League+Promotion</text>
         
         <!-- SimCore box -->
         <rect x="100" y="370" width="400" height="60" rx="10" fill="rgba(34,197,94,.06)" stroke="rgba(34,197,94,.3)" stroke-width="1.5"/>
@@ -727,9 +737,12 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
     <div class="milestone m1">
       <div class="milestone-label anim-fadein-d4">M1</div>
       <div class="milestone-weeks anim-fadein-d5">10 周</div>
-      <div class="milestone-title anim-fadein-d5">三核心拆分</div>
+      <div class="milestone-title anim-fadein-d5">四核心拆分</div>
       <ul class="milestone-items anim-fadein-d6">
         <li>Coordinator + Economy + Combat Agent</li>
+        <li>Scout Agent (侦察/视野/情报)</li>
+        <li>ReactGameAgent + LLM Client (LLM 驱动)</li>
+        <li>ScriptAI 对手 (脚本基准)</li>
         <li>AgentHub v1 协议 (黑板仲裁)</li>
         <li>产品玩法原型</li>
         <li>训练管线 (PPO/IMPALA)</li>
@@ -737,7 +750,7 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
         <li>A/B 测试框架</li>
         <li>平衡分析自动化</li>
       </ul>
-      <div class="progress-track anim-fadein-d7"><div class="progress-fill" style="--pct:65%"></div></div>
+      <div class="progress-track anim-fadein-d7"><div class="progress-fill" style="--pct:100%"></div></div>
     </div>
     <!-- M2 -->
     <div class="milestone m2">
@@ -745,15 +758,20 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
       <div class="milestone-weeks anim-fadein-d7">20 周</div>
       <div class="milestone-title anim-fadein-d7">全 Agent + 产品化</div>
       <ul class="milestone-items anim-fadein-d8">
-        <li>6 运行时 Agent + League 系统</li>
+        <li>7+ 运行时 Agent + Race AIs</li>
         <li>AgentHub v2 协议</li>
         <li>3D 产品化 (Unity/Unreal)</li>
         <li>RL 发布机制 (模型注册→灰度)</li>
         <li>战术多样性 (>=5 可识别战术)</li>
         <li>完整编排 Skill 体系</li>
         <li>ELO 段位系统</li>
+        <li>League 自对弈 (ELO + Version Pool)</li>
+        <li>PromotionGate (Wilson CI 自动升降级)</li>
+        <li>PPO+GAE Trainer (PyTorch)</li>
+        <li>32路异步 Rollout Worker</li>
+        <li>Training Dashboard 实时可视化</li>
       </ul>
-      <div class="progress-track anim-fadein-d9"><div class="progress-fill" style="--pct:30%"></div></div>
+      <div class="progress-track anim-fadein-d9"><div class="progress-fill" style="--pct:45%"></div></div>
     </div>
   </div>
   <div class="anim-fadein-d9" style="margin-top:auto;padding-top:16px;display:flex;gap:20px;align-items:center">
@@ -765,9 +783,146 @@ h3{font-size:28px;font-weight:700;line-height:1.3}
   </div>
 </div>
 
+<!-- ====== SLIDE 10: 训练闭环架构 ====== -->
+<div class="slide" id="s10">
+  <h2 class="anim-fadein" style="margin-bottom:6px">训练闭环架构</h2>
+  <div class="sub anim-fadein-d1" style="margin-bottom:20px">League 自对弈 → ELO 排名 → PPO+GAE 训练 → PromotionGate 自动升降级 → Dashboard 可视化</div>
+  <div class="two-col anim-fadein-d2" style="flex:1">
+    <!-- Left: Pipeline flow -->
+    <div style="display:flex;flex-direction:column;gap:12px;flex:1;justify-content:center">
+      <!-- Row 1: League Pool -->
+      <div class="card anim-fadein-d2" style="padding:16px 22px;display:flex;align-items:center;gap:16px">
+        <div style="width:48px;height:48px;border-radius:10px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏆</div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:700;color:#c084fc">League 自对弈系统</div>
+          <div style="font-size:13px;color:var(--text2);font-weight:300;margin-top:2px">AgentVersion 版本池 · ELO 排名 · MatchupConfig (mirror/new-vs-old/cross-type)</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text3);font-family:'SF Mono',monospace">harness/league.py</span>
+      </div>
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;justify-content:center;padding:2px 0">
+        <svg width="24" height="16"><path d="M2 8 L22 8" stroke="#c084fc" stroke-width="1.5" class="dash-anim"/><path d="M18 4 L23 8 L18 12" stroke="#c084fc" stroke-width="1.5" fill="none"/></svg>
+      </div>
+      <!-- Row 2: Scheduler -->
+      <div class="card anim-fadein-d3" style="padding:16px 22px;display:flex;align-items:center;gap:16px">
+        <div style="width:48px;height:48px;border-radius:10px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📅</div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:700;color:#60a5fa">League Scheduler</div>
+          <div style="font-size:13px;color:var(--text2);font-weight:300;margin-top:2px">3 种匹配模式 (round_robin/random_sample/focused) · SimulationPool 并发执行</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text3);font-family:'SF Mono',monospace">harness/scheduler.py</span>
+      </div>
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;justify-content:center;padding:2px 0">
+        <svg width="24" height="16"><path d="M2 8 L22 8" stroke="#60a5fa" stroke-width="1.5" class="dash-anim"/><path d="M18 4 L23 8 L18 12" stroke="#60a5fa" stroke-width="1.5" fill="none"/></svg>
+      </div>
+      <!-- Row 3: Rollout + RL -->
+      <div style="display:flex;gap:12px">
+        <div class="card anim-fadein-d4" style="flex:1;padding:16px 22px;display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:10px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⚡</div>
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:700;color:var(--cyan)">Rollout Worker</div>
+            <div style="font-size:12px;color:var(--text2);font-weight:300">32路异步并发 · multiprocessing</div>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:var(--text3);font-family:'SF Mono',monospace">rollout_worker.py</span>
+        </div>
+        <div class="card anim-fadein-d5" style="flex:1;padding:16px 22px;display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:10px;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🧠</div>
+          <div style="flex:1">
+            <div style="font-size:16px;font-weight:700;color:var(--orange)">PPO+GAE Trainer</div>
+            <div style="font-size:12px;color:var(--text2);font-weight:300">PyTorch MLP · GRPO fallback</div>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:var(--text3);font-family:'SF Mono',monospace">rl_trainer.py</span>
+        </div>
+      </div>
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;justify-content:center;padding:2px 0">
+        <svg width="24" height="16"><path d="M2 8 L22 8" stroke="#22c55e" stroke-width="1.5" class="dash-anim"/><path d="M18 4 L23 8 L18 12" stroke="#22c55e" stroke-width="1.5" fill="none"/></svg>
+      </div>
+      <!-- Row 4: Promotion Gate -->
+      <div class="card anim-fadein-d6" style="padding:16px 22px;display:flex;align-items:center;gap:16px">
+        <div style="width:48px;height:48px;border-radius:10px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🚦</div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:700;color:#4ade80">PromotionGate 自动升降级</div>
+          <div style="font-size:13px;color:var(--text2);font-weight:300;margin-top:2px">Wilson CI 置信区间 · min_games=100 · win_threshold=55% · 自动 promote/rollback</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text3);font-family:'SF Mono',monospace">harness/promotion.py</span>
+      </div>
+    </div>
+    <!-- Right: Loop diagram SVG + Dashboard -->
+    <div style="display:flex;flex-direction:column;gap:16px;flex:1;justify-content:center">
+      <svg viewBox="0 0 500 380" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:400px">
+        <!-- Central loop -->
+        <defs>
+          <marker id="arrowG" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#4ade80"/></marker>
+          <marker id="arrowC" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#c084fc"/></marker>
+          <marker id="arrowB" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#60a5fa"/></marker>
+          <marker id="arrowCy" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#00e5ff"/></marker>
+          <marker id="arrowO" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#f97316"/></marker>
+        </defs>
+
+        <!-- League box (top) -->
+        <rect x="140" y="10" width="220" height="50" rx="10" fill="rgba(168,85,247,.08)" stroke="rgba(168,85,247,.3)" stroke-width="1.5"/>
+        <text x="250" y="32" text-anchor="middle" fill="#c084fc" font-size="13" font-weight="700" font-family="var(--font-stack)">League</text>
+        <text x="250" y="50" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="var(--font-stack)">ELO · Version Pool · Matchup</text>
+
+        <!-- Scheduler box (right) -->
+        <rect x="370" y="100" width="120" height="50" rx="10" fill="rgba(59,130,246,.08)" stroke="rgba(59,130,246,.3)" stroke-width="1.5"/>
+        <text x="430" y="122" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="700" font-family="var(--font-stack)">Scheduler</text>
+        <text x="430" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="var(--font-stack)">并发调度</text>
+
+        <!-- Rollout box (bottom-right) -->
+        <rect x="310" y="210" width="170" height="50" rx="10" fill="rgba(0,229,255,.06)" stroke="rgba(0,229,255,.25)" stroke-width="1.5"/>
+        <text x="395" y="232" text-anchor="middle" fill="#00e5ff" font-size="12" font-weight="700" font-family="var(--font-stack)">Rollout Worker</text>
+        <text x="395" y="250" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="var(--font-stack)">32路 · 异步并发</text>
+
+        <!-- RL Trainer box (bottom-left) -->
+        <rect x="20" y="210" width="170" height="50" rx="10" fill="rgba(249,115,22,.06)" stroke="rgba(249,115,22,.25)" stroke-width="1.5"/>
+        <text x="105" y="232" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700" font-family="var(--font-stack)">PPO+GAE Trainer</text>
+        <text x="105" y="250" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="var(--font-stack)">PyTorch · 策略梯度</text>
+
+        <!-- Promotion Gate box (left) -->
+        <rect x="10" y="100" width="130" height="50" rx="10" fill="rgba(34,197,94,.08)" stroke="rgba(34,197,94,.3)" stroke-width="1.5"/>
+        <text x="75" y="122" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="700" font-family="var(--font-stack)">PromotionGate</text>
+        <text x="75" y="140" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="var(--font-stack)">升降级</text>
+
+        <!-- Loop arrows -->
+        <!-- League → Scheduler (right) -->
+        <path d="M360 35 L370 35 L370 110" stroke="#c084fc" stroke-width="1.5" fill="none" marker-end="url(#arrowC)" class="dash-anim"/>
+        <!-- Scheduler → Rollout -->
+        <path d="M430 150 L430 210" stroke="#60a5fa" stroke-width="1.5" fill="none" marker-end="url(#arrowB)" class="dash-anim"/>
+        <!-- Rollout → RL Trainer -->
+        <path d="M310 235 L190 235" stroke="#00e5ff" stroke-width="1.5" fill="none" marker-end="url(#arrowCy)" class="dash-anim"/>
+        <!-- RL Trainer → Promotion -->
+        <path d="M105 210 L75 150" stroke="#f97316" stroke-width="1.5" fill="none" marker-end="url(#arrowO)" class="dash-anim"/>
+        <!-- Promotion → League (up) -->
+        <path d="M75 100 L75 35 L140 35" stroke="#4ade80" stroke-width="1.5" fill="none" marker-end="url(#arrowG)" class="dash-anim"/>
+
+        <!-- Loop label -->
+        <text x="250" y="175" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" font-family="var(--font-stack)">🔄 自对弈训练闭环</text>
+
+        <!-- Dashboard box (bottom center) -->
+        <rect x="150" y="310" width="200" height="50" rx="10" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+        <text x="250" y="332" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700" font-family="var(--font-stack)">📊 Training Dashboard</text>
+        <text x="250" y="350" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="var(--font-stack)">Loss · WinRate · Reward · APM · HTML:8765</text>
+
+        <!-- Dashed lines from Rollout and Trainer to Dashboard -->
+        <line x1="395" y1="260" x2="310" y2="320" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="4 3"/>
+        <line x1="105" y1="260" x2="190" y2="320" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="4 3"/>
+      </svg>
+    </div>
+  </div>
+  <div class="anim-fadein-d8" style="margin-top:auto;padding-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:14px;color:var(--text3);font-weight:300">训练闭环: 新版本 → 自对弈 → ELO评测 → PPO训练 → PromotionGate → 自动升降级</span>
+    <span class="badge badge-m0">M2 核心</span>
+    <span class="badge" style="background:rgba(249,115,22,.12);color:var(--orange);border:1px solid rgba(249,115,22,.3)">PyTorch PPO</span>
+    <span class="badge badge-green">456 tests ✓</span>
+  </div>
+</div>
+
 </div><!-- end deck -->
 
-<div id="counter">01 / 09</div>
+<div id="counter">01 / 10</div>
 
 <script>
 // ====== Viewport Scaling ======

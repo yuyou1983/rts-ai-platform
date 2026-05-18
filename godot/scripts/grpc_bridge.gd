@@ -15,6 +15,11 @@ signal state_updated(state: Dictionary)
 signal connection_lost()
 signal game_over(winner: int, tick: int)
 
+signal replay_loaded(replay_data: Dictionary)
+signal league_ranking_loaded(ranking: Dictionary)
+signal league_match_completed(result: Dictionary)
+signal league_result_submitted(response: Dictionary)
+
 enum State { IDLE, CONNECTING, CONNECTED, ERROR }
 enum PollMode { STEP, GET_STATE }
 
@@ -39,6 +44,10 @@ func _ready() -> void:
 	_http = HTTPRequest.new()
 	_http.request_completed.connect(_on_request_completed)
 	add_child(_http)
+	# Second HTTPRequest for non-polling requests (replay, league)
+	_http_extra = HTTPRequest.new()
+	_http_extra.request_completed.connect(_on_extra_request_completed)
+	add_child(_http_extra)
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = poll_interval
 	_poll_timer.one_shot = false
@@ -71,7 +80,9 @@ func submit_commands(commands: Array) -> void:
 # ─── Internal ────────────────────────────────────────────────
 var _poll_timer: Timer
 var _http: HTTPRequest
+var _http_extra: HTTPRequest
 var _request_id: String = ""
+var _extra_request_id: String = ""
 
 
 func _poll_state() -> void:
@@ -132,3 +143,50 @@ func _on_request_completed(_result: int, code: int, _headers: PackedStringArray,
 
 func _exit_tree() -> void:
 	pass
+
+
+# ─── Replay & League API ─────────────────────────────────────
+
+func fetch_replay(match_id: String) -> void:
+	_extra_request_id = "replay"
+	_http_extra.request(http_address + "/api/replay/" + match_id, ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
+
+func fetch_league_ranking() -> void:
+	_extra_request_id = "league_ranking"
+	_http_extra.request(http_address + "/api/league/ranking", ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
+
+func request_league_match(p1_version: String, p2_version: String, map_seed: int = 42, max_ticks: int = 5000) -> void:
+	_extra_request_id = "league_match"
+	var body := JSON.stringify({"p1_version": p1_version, "p2_version": p2_version, "map_seed": map_seed, "max_ticks": max_ticks})
+	_http_extra.request(http_address + "/api/league/match", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+func submit_league_result(p1_version: String, p2_version: String, winner: int, ticks: int) -> void:
+	_extra_request_id = "league_submit"
+	var body := JSON.stringify({"p1_version": p1_version, "p2_version": p2_version, "winner": winner, "ticks": ticks})
+	_http_extra.request(http_address + "/api/league/submit_result", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+
+
+func _on_extra_request_completed(_result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if code != 200 or body.is_empty():
+		push_warning("[GrpcBridge] extra request '%s' failed (HTTP %d)" % [_extra_request_id, code])
+		_extra_request_id = ""
+		return
+
+	var json_parser := JSON.new()
+	if json_parser.parse(body.get_string_from_utf8()) != OK:
+		_extra_request_id = ""
+		return
+	var data: Dictionary = json_parser.data if json_parser.data else {}
+
+	match _extra_request_id:
+		"replay":
+			replay_loaded.emit(data)
+		"league_ranking":
+			league_ranking_loaded.emit(data)
+		"league_match":
+			league_match_completed.emit(data)
+		"league_submit":
+			league_result_submitted.emit(data)
+		_:
+			pass
+	_extra_request_id = ""

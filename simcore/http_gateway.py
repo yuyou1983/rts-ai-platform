@@ -13,13 +13,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import signal
+from pathlib import Path
 
 from aiohttp import web
 
 from simcore.grpc_client import SimCoreClient
 from simcore.state import GameState
+
+from harness.league import League, AgentVersion, AgentType, MatchupResult, update_elo
+from harness.pool import MatchConfig, MatchResult, MatchScheduler, SimulationPool
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,11 @@ _ai_player: int = 0  # 0 = no AI, 1 or 2 = that player is AI-controlled
 _ai_agent = None
 # Store last full state for AI observation generation
 _last_state_dict: dict = {}
+
+# League instance — lazily initialized
+_league: League | None = None
+# Replay directory — points to harness output
+_replay_dir: Path = Path("harness/output/replays")
 
 
 def _create_ai_agent(player_id: int):
@@ -139,15 +149,168 @@ async def handle_health(req: web.Request) -> web.Response:
 
 
 async def handle_replay(req: web.Request) -> web.Response:
-    return web.json_response({"error": "replay not supported via HTTP", "replay": []})
+    """GET /api/replay/{match_id} — read replay data.
+
+    Tries to read from harness/output/replays/{match_id}.jsonl first.
+    If the file doesn't exist, falls back to the gRPC client's current
+    engine replay data.
+    """
+    match_id = req.match_info["match_id"]
+    replay_path = _replay_dir / f"{match_id}.jsonl"
+
+    ticks: list[dict] = []
+
+    # Try reading from replay file
+    if replay_path.is_file():
+        with open(replay_path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    ticks.append(json.loads(line))
+    else:
+        # Fallback: request current replay from the gRPC server
+        # The gRPC client doesn't have a dedicated replay method,
+        # so we try to get the state which may contain replay snapshots.
+        try:
+            if _client:
+                state = await _client.get_state()
+                # The engine stores snapshots in engine._replay; if the
+                # state dict includes a "replay" key, use it directly.
+                ticks = state.get("replay", [])
+        except Exception as exc:
+            logger.warning("Failed to fetch replay via gRPC: %s", exc)
+
+    return web.json_response({
+        "match_id": match_id,
+        "ticks": ticks,
+        "tick_count": len(ticks),
+    })
+
+
+def _get_league() -> League:
+    """Return (and lazily create) the global League instance."""
+    global _league
+    if _league is None:
+        _league = League()
+    return _league
+
+
+async def handle_league_ranking(req: web.Request) -> web.Response:
+    """GET /api/league/ranking — return ELO ranking."""
+    league = _get_league()
+    leaderboard = league.get_leaderboard()
+    versions = [s.to_dict() for s in leaderboard]
+    return web.json_response({"versions": versions})
+
+
+async def handle_league_match(req: web.Request) -> web.Response:
+    """POST /api/league/match — create and run a League match.
+
+    Request body: {"p1_version": "v1", "p2_version": "v2", "map_seed": 42, "max_ticks": 5000}
+    """
+    league = _get_league()
+    params = await req.json()
+
+    p1_version_name = params.get("p1_version", "script-v1")
+    p2_version_name = params.get("p2_version", "script-v1")
+    map_seed = params.get("map_seed", 42)
+    max_ticks = params.get("max_ticks", 5000)
+
+    # Ensure both versions are registered in the league
+    for vname in (p1_version_name, p2_version_name):
+        if vname not in league.pool:
+            league.register(AgentVersion(
+                name=vname,
+                type=AgentType.SCRIPT,
+                creation_tick=0,
+            ))
+
+    config = MatchConfig(
+        map_seed=map_seed,
+        max_ticks=max_ticks,
+        player1_type="script",
+        player2_type="script",
+    )
+
+    pool = SimulationPool(max_concurrent=1)
+    result: MatchResult = await pool.run_match(config)
+
+    # Persist replay to disk
+    _replay_dir.mkdir(parents=True, exist_ok=True)
+    replay_path = _replay_dir / f"{result.match_id}.jsonl"
+    with open(replay_path, "w") as f:
+        for tick_snapshot in result.replay:
+            f.write(json.dumps(tick_snapshot, default=str) + "\n")
+
+    # Record result in league to update ELO
+    try:
+        league.record_result(MatchupResult(
+            player1=p1_version_name,
+            player2=p2_version_name,
+            winner=result.winner,
+            ticks=result.ticks,
+        ))
+    except Exception as exc:
+        logger.warning("Failed to record league result: %s", exc)
+
+    return web.json_response({
+        "match_id": result.match_id,
+        "winner": result.winner,
+        "ticks": result.ticks,
+        "tps": result.tps,
+    })
+
+
+async def handle_league_submit_result(req: web.Request) -> web.Response:
+    """POST /api/league/submit_result — submit a match result to update ELO.
+
+    Request body: {"p1_version": "v1", "p2_version": "v2", "winner": 1, "ticks": 1234}
+    """
+    league = _get_league()
+    params = await req.json()
+
+    p1_version_name = params.get("p1_version", "")
+    p2_version_name = params.get("p2_version", "")
+    winner = params.get("winner", 0)
+    ticks = params.get("ticks", 0)
+
+    # Ensure both versions are registered in the league
+    for vname in (p1_version_name, p2_version_name):
+        if vname not in league.pool:
+            league.register(AgentVersion(
+                name=vname,
+                type=AgentType.SCRIPT,
+                creation_tick=0,
+            ))
+
+    # Capture ELO before update
+    p1_elo_before = league.get_elo(p1_version_name)
+    p2_elo_before = league.get_elo(p2_version_name)
+
+    league.record_result(MatchupResult(
+        player1=p1_version_name,
+        player2=p2_version_name,
+        winner=winner,
+        ticks=ticks,
+    ))
+
+    p1_elo = league.get_elo(p1_version_name)
+    p2_elo = league.get_elo(p2_version_name)
+
+    return web.json_response({
+        "ok": True,
+        "p1_elo": round(p1_elo, 1),
+        "p2_elo": round(p2_elo, 1),
+    })
 
 
 def reset_ai_state() -> None:
     """Reset AI configuration globals. Called between tests."""
-    global _ai_player, _ai_agent, _last_state_dict
+    global _ai_player, _ai_agent, _last_state_dict, _league
     _ai_player = 0
     _ai_agent = None
     _last_state_dict = {}
+    _league = None
 
 
 async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = None) -> web.Application:
@@ -166,6 +329,12 @@ async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = 
     app.router.add_post("/api/get_state", handle_get_state)
     app.router.add_post("/api/health", handle_health)
     app.router.add_post("/api/replay", handle_replay)
+
+    # New endpoints
+    app.router.add_get("/api/replay/{match_id}", handle_replay)
+    app.router.add_get("/api/league/ranking", handle_league_ranking)
+    app.router.add_post("/api/league/match", handle_league_match)
+    app.router.add_post("/api/league/submit_result", handle_league_submit_result)
 
     # CORS for web clients
     async def _cors(req: web.Request, resp: web.StreamResponse) -> None:

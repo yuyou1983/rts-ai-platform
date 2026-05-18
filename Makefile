@@ -63,6 +63,33 @@ stop:
 	@pkill -f "Godot.*rts-ai" 2>/dev/null || true
 	@echo "✓ Stopped all services"
 
+# ─── League Self-Play ──────────────────────────────────────
+league: stop
+	@echo "Starting League training loop..."
+	@PYTHONPATH=. python3 -m simcore.grpc_server --port 50051 &>/tmp/rts_grpc.log &
+	@sleep 1
+	@PYTHONPATH=. python3 -m simcore.http_gateway --grpc-port 50051 --http-port 8080 &>/tmp/rts_http.log &
+	@sleep 1
+	@PYTHONPATH=. python3 scripts/run_league.py
+	@echo "✓ League session complete. Results in harness/output/"
+
+# ─── RL Training ──────────────────────────────────────────
+train: stop
+	@echo "Starting RL training (PPO+GAE)..."
+	@PYTHONPATH=. python3 scripts/run_training.py
+	@echo "✓ Training complete. Checkpoints in train/checkpoints/"
+
+# ─── Benchmark ─────────────────────────────────────────────
+benchmark:
+	@echo "Running benchmark (50 games)..."
+	@PYTHONPATH=. python3 scripts/run_benchmark.py
+	@echo "✓ Benchmark complete. Report in harness/output/"
+
+# ─── Dashboard ─────────────────────────────────────────────
+dashboard:
+	@PYTHONPATH=. python3 -m train.dashboard
+	@echo "✓ Dashboard running at http://localhost:8765"
+
 # ─── Clean ──────────────────────────────────────────────────
 clean:
 	rm -rf __pycache__ .mypy_cache .pytest_cache .ruff_cache
