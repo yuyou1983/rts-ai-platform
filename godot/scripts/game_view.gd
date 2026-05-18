@@ -1701,6 +1701,21 @@ func _on_replay_loaded(replay_data: Dictionary) -> void:
 	_replay_mode = true
 	_game_active = false
 	_replay_overlay.visible = true
+
+	# Set map size + camera from first tick (same as _on_start does for live games)
+	var first_tick: Dictionary = {}
+	if replay_data.get("ticks", []).size() > 0:
+		first_tick = replay_data["ticks"][0]
+	_map_w = _to_f(first_tick.get("map_width"), 64.0)
+	_map_h = _to_f(first_tick.get("map_height"), 64.0)
+	if _map_w < 1.0:
+		_map_w = 64.0
+	if _map_h < 1.0:
+		_map_h = 64.0
+	if _cam_ctrl:
+		_cam_ctrl.set_map_size(_map_w, _map_h)
+	_camera.position = Vector2(_map_w / 2.0, _map_h / 2.0)
+
 	_replay_player.load_replay(replay_data)
 	print("[Replay] Loaded: %s (%d ticks, %s vs %s)" % [
 		replay_data.get("match_id", "?"),

@@ -160,6 +160,7 @@ async def handle_replay(req: web.Request) -> web.Response:
     jsonl_path = _replay_dir / f"{match_id}.jsonl"
 
     ticks: list[dict] = []
+    replay_meta: dict = {}
 
     # Try JSON first (single-file format with ticks array)
     if json_path.is_file():
@@ -167,6 +168,8 @@ async def handle_replay(req: web.Request) -> web.Response:
             data = json.load(f)
         ticks = data.get("ticks", [])
         match_id = data.get("match_id", match_id)
+        replay_meta = {"player_races": data.get("player_races", {}),
+                        "winner": data.get("winner", 0)}
     # Try JSONL next (one tick per line)
     elif jsonl_path.is_file():
         with open(jsonl_path) as f:
@@ -187,10 +190,32 @@ async def handle_replay(req: web.Request) -> web.Response:
         except Exception as exc:
             logger.warning("Failed to fetch replay via gRPC: %s", exc)
 
+    # Normalize tick format for Godot client compatibility
+    # Engine raw: resources={"p1_mineral":200,...}, fog={"1":{"tiles":...}}
+    # Godot expects: resources={"1":{"minerals":200,...}}, fog same structure
+    replay_meta = {}
+    for tick in ticks:
+        # ── Normalize resources ──
+        res: dict = tick.get("resources", {})
+        if "p1_mineral" in res:
+            p1 = {"minerals": res.pop("p1_mineral", 0), "gas": res.pop("p1_gas", 0),
+                   "supply_used": res.pop("p1_supply_used", 0), "supply_cap": res.pop("p1_supply_cap", 0)}
+            p2 = {"minerals": res.pop("p2_mineral", 0), "gas": res.pop("p2_gas", 0),
+                   "supply_used": res.pop("p2_supply_used", 0), "supply_cap": res.pop("p2_supply_cap", 0)}
+            tick["resources"] = {"1": p1, "2": p2}
+        # ── Inject map dimensions if missing ──
+        if "map_width" not in tick:
+            tick["map_width"] = 64
+            tick["map_height"] = 64
+
+    # Collect metadata from JSON file if available
+    # (replay_meta already populated in the if-branch above)
+
     return web.json_response({
         "match_id": match_id,
         "ticks": ticks,
         "tick_count": len(ticks),
+        **replay_meta,
     })
 
 
