@@ -136,6 +136,12 @@ func _get_entity_type(entity_id: String) -> String:
 func _ready() -> void:
 	_default_font = ThemeDB.fallback_font
 
+	# Check if entering in replay mode (set by main_menu)
+	var _replay_match_id: String = ""
+	if Engine.has_meta("replay_match_id"):
+		_replay_match_id = Engine.get_meta("replay_match_id")
+		Engine.remove_meta("replay_match_id")
+
 	_bridge = GrpcBridgeScript.new()
 	_bridge.ai_player = 2
 	add_child(_bridge)
@@ -143,8 +149,6 @@ func _ready() -> void:
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
 	_bridge.replay_loaded.connect(_on_replay_loaded)
-	_bridge.start_game(42)
-	_game_active = true
 
 	# Replay system
 	_replay_player = ReplayPlayer.new()
@@ -156,7 +160,19 @@ func _ready() -> void:
 	_replay_overlay = _replay_overlay_scene.instantiate()
 	_replay_overlay.set_player(_replay_player)
 	add_child(_replay_overlay)
-	_replay_overlay.visible = false
+
+	if _replay_match_id != "":
+		# Replay mode: don't start a new game, fetch replay instead
+		_replay_mode = true
+		_game_active = false
+		_replay_overlay.visible = true
+		_bridge.fetch_replay(_replay_match_id)
+		print("[GameView] Replay mode: fetching %s" % _replay_match_id)
+	else:
+		# Normal game mode
+		_bridge.start_game(42)
+		_game_active = true
+		_replay_overlay.visible = false
 
 	# Connect to autoloads
 	_event_bus = get_node_or_null("/root/EventBus")
@@ -409,7 +425,7 @@ func _find_nearest_enemy(from_px: float, from_py: float) -> Dictionary:
 
 # ─── Input ─────────────────────────────────────────────────
 func _input(event: InputEvent) -> void:
-	if _game_over_shown:
+	if _replay_mode or _game_over_shown:
 		return
 
 	# Right-click: context action
