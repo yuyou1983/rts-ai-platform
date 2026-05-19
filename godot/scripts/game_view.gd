@@ -82,6 +82,8 @@ var _game_over_shown := false
 var _replay_mode := false
 var _replay_player: ReplayPlayer
 var _replay_overlay: Control
+var _game_over_panel: Panel
+var _game_over_label: Label
 
 # ─── Fog of war ────────────────────────────────────────────
 var _fog_tiles: PackedInt32Array = []
@@ -319,6 +321,27 @@ func _ready() -> void:
 	_zoom_out_btn.modulate = Color(0.9, 0.95, 1.0)
 	_ui_layer.add_child(_zoom_out_btn)
 	_zoom_out_btn.pressed.connect(func(): _cam_ctrl._zoom_out() if _cam_ctrl else null)
+
+	# ─── Game Over Panel (in CanvasLayer, hidden by default) ───
+	_game_over_panel = Panel.new()
+	_game_over_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_game_over_panel.modulate = Color(0, 0, 0, 0.6)
+	_game_over_panel.visible = false
+	_ui_layer.add_child(_game_over_panel)
+	var go_vbox := VBoxContainer.new()
+	go_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	go_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	_game_over_panel.add_child(go_vbox)
+	_game_over_label = Label.new()
+	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_game_over_label.add_theme_font_size_override("font_size", 48)
+	go_vbox.add_child(_game_over_label)
+	var restart_label := Label.new()
+	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	restart_label.text = "Press R to restart · Q to quit"
+	restart_label.add_theme_color_override("font_color", Color.GRAY)
+	restart_label.add_theme_font_size_override("font_size", 18)
+	go_vbox.add_child(restart_label)
 
 	print("===== GameView ready (Human P1 vs AI P2) Sprint 4 path=", get_path())
 
@@ -819,11 +842,18 @@ func _on_state(state: Dictionary) -> void:
 func _on_game_over(winner: int, tick: int) -> void:
 	_game_active = false
 	_game_over_shown = true
+	if _game_over_panel:
+		_game_over_panel.visible = true
+	if _game_over_label:
+		_game_over_label.text = "YOU WIN!" if winner == 1 else "YOU LOSE!"
+		_game_over_label.add_theme_color_override("font_color", Color.GREEN if winner == 1 else Color.RED)
 	print("===== GAME OVER: P%d wins at tick %d" % [winner, tick])
 
 func _restart_game() -> void:
 	_game_over_shown = false
 	_game_active = true
+	if _game_over_panel:
+		_game_over_panel.visible = false
 	if _selection:
 		_selection.remove_all_selection()
 	else:
@@ -893,11 +923,19 @@ func _parse(state: Dictionary) -> void:
 
 	# Parse resources for P1
 	var resources: Dictionary = state.get("resources", {})
-	var p1_res: Dictionary = resources.get("1", resources)
-	_p1_minerals = int(p1_res.get("minerals", _p1_minerals))
-	_p1_gas = int(p1_res.get("gas", _p1_gas))
-	_p1_supply_used = int(p1_res.get("supply_used", _p1_supply_used))
-	_p1_supply_cap = int(p1_res.get("supply_cap", _p1_supply_cap))
+	var p1_res: Dictionary = resources.get("1", {})
+	if p1_res.is_empty() and resources.has("p1_mineral"):
+		# Fallback: engine raw format p1_mineral → normalize
+		p1_res = {
+			"minerals": resources.get("p1_mineral", 0),
+			"gas": resources.get("p1_gas", 0),
+			"supply_used": resources.get("p1_supply_used", 0),
+			"supply_cap": resources.get("p1_supply_cap", 0),
+		}
+	_p1_minerals = int(_to_f(p1_res.get("minerals"), 0.0))
+	_p1_gas = int(_to_f(p1_res.get("gas"), 0.0))
+	_p1_supply_used = int(_to_f(p1_res.get("supply_used"), 0.0))
+	_p1_supply_cap = int(_to_f(p1_res.get("supply_cap"), 0.0))
 
 	# Update HUD resources
 	if _hud:
@@ -1406,18 +1444,8 @@ func _draw_drag_box() -> void:
 	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.7), false, 0.06)
 
 func _draw_game_over_overlay() -> void:
-	if not _game_over_shown:
-		return
-	# Draw overlay in world space covering the visible area
-	var vp := get_viewport().get_visible_rect().size / _camera.zoom
-	var cam := _camera.position
-	draw_rect(Rect2(cam - vp / 2.0, vp), Color(0, 0, 0, 0.6), true)
-	var center := cam
-	var winner_text := "YOU WIN!" if _bridge._winner == 1 else "YOU LOSE!"
-	var win_color := Color.GREEN if _bridge._winner == 1 else Color.RED
-	draw_string(_default_font, center + Vector2(-4, -2), winner_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, win_color)
-	draw_string(_default_font, center + Vector2(-5, 0.8), "Press R to restart", HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color.WHITE)
-	draw_string(_default_font, center + Vector2(-5, 2.2), "Press Q to quit", HORIZONTAL_ALIGNMENT_LEFT, -1, 3, Color.GRAY)
+	# Game over overlay is now handled by _game_over_panel in CanvasLayer
+	pass
 
 # ─── Minimap ──────────────────────────────────────────────
 # Minimap is now drawn by the MinimapRect child node.

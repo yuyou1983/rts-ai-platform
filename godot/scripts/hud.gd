@@ -364,10 +364,15 @@ func _on_selection_changed(selection: Dictionary) -> void:
 		if not data.is_empty():
 			selected_type = str(data.get("type", data.get("entity_type", "")))
 			selected_building_type = str(data.get("building_type", ""))
-			selected_hp = float(data.get("health", 0))
-			selected_max_hp = float(data.get("max_health", 0))
-			selected_energy = float(data.get("energy", 0))
-			selected_max_energy = float(data.get("max_energy", 0))
+			selected_hp = _safe_float(data.get("health"), 0.0)
+			selected_max_hp = _safe_float(data.get("max_health"), 0.0)
+			selected_energy = _safe_float(data.get("energy"), 0.0)
+			selected_max_energy = _safe_float(data.get("max_energy"), 0.0)
+
+func _safe_float(value, fallback: float = 0.0) -> float:
+	if value == null:
+		return fallback
+	return value + 0.0
 
 func _on_abilities_changed() -> void:
 	_update_ability_display()
