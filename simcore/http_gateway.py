@@ -90,7 +90,7 @@ async def handle_start_game(req: web.Request) -> web.Response:
     result = await _client.start_game(
         seed=params.get("seed", 42),
         max_ticks=params.get("max_ticks", 10000),
-        tick_rate=params.get("tick_rate", 20.0),
+        tick_rate=params.get("tick_rate", 10.0),
     )
     _last_state_dict = result
     return web.json_response(_godot_state(result))

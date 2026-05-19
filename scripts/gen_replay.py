@@ -5,7 +5,7 @@ from simcore.engine import SimCore
 from agents.script_ai import ScriptAI
 
 def generate_tvz_replay(match_id, seed, max_ticks=5000):
-    engine = SimCore(max_ticks=max_ticks, tick_rate=20.0)
+    engine = SimCore(max_ticks=max_ticks, tick_rate=10.0)
     engine.initialize(map_seed=seed, config={
         "map_size": 64, "max_ticks": max_ticks,
         "player_races": {1: "terran", 2: "zerg"},

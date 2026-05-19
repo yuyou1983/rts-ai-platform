@@ -62,7 +62,7 @@ class SimCore:
         state = engine.step(commands=[{"unit": "worker_1", "action": "gather"}])
     """
 
-    tick_rate: float = 20.0  # ticks per second
+    tick_rate: float = 10.0  # ticks per second
     max_ticks: int = 10_000
     rule_engine: RuleEngine = field(default_factory=RuleEngine)
 

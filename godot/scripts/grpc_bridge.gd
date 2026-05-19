@@ -24,7 +24,7 @@ enum State { IDLE, CONNECTING, CONNECTED, ERROR }
 enum PollMode { STEP, GET_STATE }
 
 @export var http_address: String = "http://localhost:8080"
-@export var poll_interval: float = 0.05  # 20 tps
+@export var poll_interval: float = 0.1  # 10 tps (slower for readability)
 
 ## STEP = send commands + advance tick (default)
 @export var poll_mode: PollMode = PollMode.STEP

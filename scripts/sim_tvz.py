@@ -9,7 +9,7 @@ from agents.script_ai import ScriptAI
 
 
 def run_tvz(game_id: int, seed: int, max_ticks: int = 5000):
-    engine = SimCore(max_ticks=max_ticks, tick_rate=20.0)
+    engine = SimCore(max_ticks=max_ticks, tick_rate=10.0)
     engine.initialize(map_seed=seed, config={
         "map_size": 64,
         "max_ticks": max_ticks,

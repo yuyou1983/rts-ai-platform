@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
     """gRPC service implementation backed by SimCore engine."""
 
-    def __init__(self, auto_step: bool = False, tick_rate: float = 20.0) -> None:
+    def __init__(self, auto_step: bool = False, tick_rate: float = 10.0) -> None:
         self.engine = SimCore()
         self._lock = asyncio.Lock()
         self._auto_step = auto_step
@@ -268,7 +268,7 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
 
 
 async def serve(port: int = 50051, auto_step: bool = False,
-                tick_rate: float = 20.0) -> None:
+                tick_rate: float = 10.0) -> None:
     """Start the gRPC server with graceful shutdown."""
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=4))
     servicer = SimCoreServicer(auto_step=auto_step, tick_rate=tick_rate)

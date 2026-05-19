@@ -35,7 +35,7 @@ func play() -> void:
 	if _ticks.is_empty():
 		return
 	_play_state = PlayState.PLAYING
-	_tick_timer.wait_time = 0.05 / _playback_speed  # 20 tps base
+	_tick_timer.wait_time = 0.1 / _playback_speed  # 10 tps base
 	_tick_timer.start()
 
 
@@ -65,7 +65,7 @@ func seek_to(index: int) -> void:
 func set_speed(speed: float) -> void:
 	_playback_speed = speed
 	if _play_state == PlayState.PLAYING:
-		_tick_timer.wait_time = 0.05 / _playback_speed
+		_tick_timer.wait_time = 0.1 / _playback_speed
 
 
 func get_progress() -> float:
