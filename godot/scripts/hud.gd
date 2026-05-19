@@ -2,7 +2,7 @@ extends Control
 
 ## Bottom HUD panel for the RTS game.
 ## Shows: resource bar, selected unit info, ability buttons (3×3 grid),
-## build menu (for workers), and unit portrait area.
+## build menu (for workers), train menu (for buildings), and unit portrait area.
 
 # ── Signals ──────────────────────────────────────────────────────────────────
 signal ability_clicked(ability_id: StringName)
@@ -17,6 +17,47 @@ const ABILITY_BTN_SIZE := 36
 const ABILITY_PADDING := 4
 const ABILITY_COLS := 3
 const ABILITY_ROWS := 3
+
+# ── Build Catalog: [key, display, mineral, gas, prereq_key] ──────────────────
+const BUILD_CATALOG := [
+	["base",          "Command Center", 400, 0,   ""],
+	["supply_depot",  "Supply Depot",  100, 0,   ""],
+	["refinery",      "Refinery",      100, 0,   ""],
+	["barracks",      "Barracks",      150, 0,   ""],
+	["factory",       "Factory",       200, 100, "barracks"],
+	["starport",      "Starport",      200, 150, "factory"],
+]
+
+# ── Train Catalog: [key, display, mineral, gas, from_building_key] ───────────
+const TRAIN_CATALOG := [
+	# Terran — Base
+	["worker",   "SCV",           50,   0,   "base"],
+	# Terran — Barracks
+	["Marine",   "Marine",        50,   0,   "barracks"],
+	["Firebat",  "Firebat",       50,  25,   "barracks"],
+	["Ghost",    "Ghost",         25,  75,   "barracks"],
+	["Medic",    "Medic",         50,  25,   "barracks"],
+	# Terran — Factory
+	["Vulture",  "Vulture",       75,   0,   "factory"],
+	["Tank",     "Siege Tank",   150, 100,   "factory"],
+	["Goliath",  "Goliath",      100,  50,   "factory"],
+	# Terran — Starport
+	["Wraith",   "Wraith",       150, 100,   "starport"],
+	["Dropship", "Dropship",     100, 100,   "starport"],
+	["Vessel",   "Vessel",       100, 225,   "starport"],
+	["Valkyrie", "Valkyrie",     250, 125,   "starport"],
+	["BattleCruiser", "BattleCruiser", 400, 300, "starport"],
+	# Zerg — Base / Hatchery
+	["Drone",    "Drone",         50,   0,   "base"],
+	["Overlord", "Overlord",     100,   0,   "base"],
+	# Zerg — Barracks proxy (SpawningPool → Zergling, HydraliskDen → Hydralisk)
+	["Zergling", "Zergling",      50,   0,   "barracks"],
+	["Hydralisk","Hydralisk",     75,  25,   "barracks"],
+	["Ultralisk","Ultralisk",    200, 200,   "factory"],
+	# Zerg — Starport proxy (Spire → Mutalisk, QueenNest → Queen)
+	["Mutalisk", "Mutalisk",     100, 100,   "starport"],
+	["Queen",    "Queen",        100, 100,   "starport"],
+]
 
 # ── Resource Data ────────────────────────────────────────────────────────────
 var minerals: int = 0
@@ -37,7 +78,12 @@ var selected_count: int = 0
 var _ability_buttons: Array[Button] = []
 var _ability_ids: Array[StringName] = []
 var _build_panel: PanelContainer = null
+var _train_panel: PanelContainer = null
 var _build_visible: bool = false
+var _train_visible: bool = false
+
+# ── Completed buildings cache (for prereq checks) ───────────────────────────
+var _completed_buildings: PackedStringArray = []
 
 # ── References ──────────────────────────────────────────────────────────────
 var _selection_manager: Node = null
@@ -79,7 +125,6 @@ func _ready() -> void:
 	_connect_signals()
 
 func _build_ui() -> void:
-	# Horizontal strip: parent sets anchors to top-right, 420x36
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	offset_top = 0
 	offset_bottom = 0
@@ -98,18 +143,21 @@ func _build_ui() -> void:
 	add_child(_resource_bar)
 
 	_minerals_label = Label.new()
-	_minerals_label.custom_minimum_size = Vector2(120, 24)
+	_minerals_label.custom_minimum_size = Vector2(130, 24)
 	_minerals_label.add_theme_color_override("font_color", Color.CYAN)
+	_minerals_label.add_theme_font_size_override("font_size", 14)
 	_resource_bar.add_child(_minerals_label)
 
 	_gas_label = Label.new()
-	_gas_label.custom_minimum_size = Vector2(120, 24)
+	_gas_label.custom_minimum_size = Vector2(130, 24)
 	_gas_label.add_theme_color_override("font_color", Color.GREEN)
+	_gas_label.add_theme_font_size_override("font_size", 14)
 	_resource_bar.add_child(_gas_label)
 
 	_supply_label = Label.new()
-	_supply_label.custom_minimum_size = Vector2(120, 24)
+	_supply_label.custom_minimum_size = Vector2(130, 24)
 	_supply_label.add_theme_color_override("font_color", Color.WHITE)
+	_supply_label.add_theme_font_size_override("font_size", 14)
 	_resource_bar.add_child(_supply_label)
 
 	# ── Content area (below resource bar) ──
@@ -138,12 +186,13 @@ func _build_ui() -> void:
 
 	# ── Info Panel (center) ──
 	_info_panel = VBoxContainer.new()
-	_info_panel.custom_minimum_size = Vector2(200, 0)
+	_info_panel.custom_minimum_size = Vector2(220, 0)
 	_info_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_child(_info_panel)
 
 	_type_label = Label.new()
 	_type_label.add_theme_color_override("font_color", Color.WHITE)
+	_type_label.add_theme_font_size_override("font_size", 13)
 	_info_panel.add_child(_type_label)
 
 	# HP bar row
@@ -199,7 +248,6 @@ func _build_ui() -> void:
 	_ability_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ability_panel.add_child(_ability_grid)
 
-	# Create 3×3 ability buttons
 	for i in range(ABILITY_COLS * ABILITY_ROWS):
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(ABILITY_BTN_SIZE, ABILITY_BTN_SIZE)
@@ -224,23 +272,35 @@ func _build_ui() -> void:
 	_build_panel.add_child(build_vbox)
 
 	var build_title := Label.new()
-	build_title.text = "Build Menu"
+	build_title.text = "🏗️ Build Menu"
 	build_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_title.add_theme_font_size_override("font_size", 14)
 	build_vbox.add_child(build_title)
 
-	var build_options: Array = ["base", "barracks", "refinery"]
-	for bopt in build_options:
+	for binfo in BUILD_CATALOG:
+		var bkey: String = binfo[0]
+		var bname: String = binfo[1]
+		var bmine: int = binfo[2]
+		var bgas: int = binfo[3]
 		var bbtn := Button.new()
-		bbtn.text = str(bopt).capitalize()
-		bbtn.custom_minimum_size = Vector2(100, 28)
-		var btype: String = str(bopt)
-		bbtn.pressed.connect(_on_build_option_clicked.bind(btype))
+		bbtn.text = "%s (%d⛏" % [bname, bmine]
+		if bgas > 0:
+			bbtn.text += " %d🛢" % bgas
+		bbtn.text += ")"
+		bbtn.custom_minimum_size = Vector2(200, 30)
+		bbtn.pressed.connect(_on_build_option_clicked.bind(bkey))
 		build_vbox.add_child(bbtn)
 
 	var close_btn := Button.new()
 	close_btn.text = "Close (B)"
 	close_btn.pressed.connect(_toggle_build_panel)
 	build_vbox.add_child(close_btn)
+
+	# ── Train Panel (overlay, hidden by default) ──
+	_train_panel = PanelContainer.new()
+	_train_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_train_panel.visible = false
+	add_child(_train_panel)
 
 func _connect_signals() -> void:
 	if _selection_manager and _selection_manager.has_signal("selection_changed"):
@@ -351,6 +411,7 @@ func _on_selection_changed(selection: Dictionary) -> void:
 	selected_max_energy = 0.0
 
 	if selected_count == 0:
+		_hide_train_panel()
 		return
 
 	var primary_id: String = ""
@@ -369,6 +430,12 @@ func _on_selection_changed(selection: Dictionary) -> void:
 			selected_energy = _safe_float(data.get("energy"), 0.0)
 			selected_max_energy = _safe_float(data.get("max_energy"), 0.0)
 
+	# If a single building is selected, show its train panel
+	if selected_count == 1 and selected_type == "building":
+		_show_train_panel_for(selected_building_type)
+	else:
+		_hide_train_panel()
+
 func _safe_float(value, fallback: float = 0.0) -> float:
 	if value == null:
 		return fallback
@@ -382,6 +449,8 @@ func _on_ability_button_pressed(idx: int) -> void:
 		var aid: StringName = _ability_ids[idx]
 		if aid == &"build":
 			_toggle_build_panel()
+		elif aid == &"train":
+			_toggle_train_panel()
 		else:
 			ability_clicked.emit(aid)
 
@@ -390,9 +459,93 @@ func _on_build_option_clicked(building_type: String) -> void:
 	_build_panel.visible = false
 	_build_visible = false
 
+func _on_train_option_clicked(unit_type: String) -> void:
+	train_clicked.emit(unit_type)
+	_train_panel.visible = false
+	_train_visible = false
+
 func _toggle_build_panel() -> void:
 	_build_visible = not _build_visible
 	_build_panel.visible = _build_visible
+	if _build_visible:
+		_hide_train_panel()
+
+func _toggle_train_panel() -> void:
+	_train_visible = not _train_visible
+	_train_panel.visible = _train_visible
+	if _train_visible:
+		_build_panel.visible = false
+		_build_visible = false
+
+# ── Train Panel — dynamic based on selected building ─────────────────────────
+
+func _show_train_panel_for(building_key: String) -> void:
+	# Clear old children
+	for child in _train_panel.get_children():
+		child.queue_free()
+
+	var vbox := VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_STOP
+	_train_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "🏭 Train — %s" % building_key.capitalize()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 14)
+	vbox.add_child(title)
+
+	# Find matching train entries
+	var shown_any := false
+	for tinfo in TRAIN_CATALOG:
+		var tkey: String = tinfo[0]
+		var tname: String = tinfo[1]
+		var tmine: int = tinfo[2]
+		var tgas: int = tinfo[3]
+		var from: String = tinfo[4]
+		if from != building_key:
+			continue
+		# Check build prereqs (factory needs barracks, starport needs factory)
+		if not _can_afford_and_prereq(tmine, tgas, from):
+			continue
+		shown_any = true
+		var tbtn := Button.new()
+		tbtn.text = "%s (%d⛏" % [tname, tmine]
+		if tgas > 0:
+			tbtn.text += " %d🛢" % tgas
+		tbtn.text += ")"
+		tbtn.custom_minimum_size = Vector2(200, 30)
+		tbtn.disabled = (minerals < tmine or gas < tgas)
+		tbtn.pressed.connect(_on_train_option_clicked.bind(tkey))
+		vbox.add_child(tbtn)
+
+	if not shown_any:
+		var nolabel := Label.new()
+		nolabel.text = "No units available"
+		nolabel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(nolabel)
+
+	var close_btn := Button.new()
+	close_btn.text = "Close"
+	close_btn.pressed.connect(func(): _train_panel.visible = false; _train_visible = false)
+	vbox.add_child(close_btn)
+
+	_train_panel.visible = true
+	_train_visible = true
+
+func _hide_train_panel() -> void:
+	_train_panel.visible = false
+	_train_visible = false
+
+func _can_afford_and_prereq(_mine: int, _gas: int, from_key: String) -> bool:
+	# Prereq: factory needs barracks built, starport needs factory built
+	match from_key:
+		"factory":
+			if "barracks" not in _completed_buildings and "Barracks" not in _completed_buildings:
+				return false
+		"starport":
+			if "factory" not in _completed_buildings and "Factory" not in _completed_buildings:
+				return false
+	return true
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -405,6 +558,9 @@ func update_resources(m: int, g: int, su: int, sc: int) -> void:
 	supply_used = su
 	supply_cap = sc
 
+func update_completed_buildings(buildings: PackedStringArray) -> void:
+	_completed_buildings = buildings
+
 func is_build_panel_visible() -> bool:
 	return _build_visible
 
@@ -415,3 +571,6 @@ func show_build_panel() -> void:
 func hide_build_panel() -> void:
 	_build_visible = false
 	_build_panel.visible = false
+
+func is_train_panel_visible() -> bool:
+	return _train_visible

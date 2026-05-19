@@ -288,6 +288,9 @@ func _ready() -> void:
 	_hud = HUDScene.instantiate()
 	_ui_layer.add_child(_hud)
 	_hud.set_entity_data_provider(_get_entity_data)
+	_hud.ability_clicked.connect(_on_hud_ability_clicked)
+	_hud.build_clicked.connect(_on_hud_build_clicked)
+	_hud.train_clicked.connect(_on_hud_train_clicked)
 	_hud.anchor_left = 1.0
 	_hud.anchor_right = 1.0
 	_hud.anchor_top = 0.0
@@ -387,7 +390,7 @@ func _on_hud_build_clicked(building_type: String) -> void:
 	# Will be used when right-click places building
 
 func _on_hud_train_clicked(unit_type: String) -> void:
-	_handle_train()
+	_handle_train(unit_type)
 
 # ───────────────────────────────────────────────────────────
 func _process(_delta: float) -> void:
@@ -742,7 +745,7 @@ func _handle_drag_select() -> void:
 			screen_ids[e.id] = true
 		_selection.selectables_on_screen = screen_ids
 
-func _handle_train() -> void:
+func _handle_train(unit_type: String = "worker") -> void:
 	var cmds: Array = []
 	var selected_ids: Array = []
 	if _selection:
@@ -755,11 +758,10 @@ func _handle_train() -> void:
 		if e.is_empty():
 			continue
 		if e.type == "building" and e.owner == 1:
-			var utype := "worker" if e.building_type == "base" else "soldier"
 			cmds.append({
 				"action": "train",
 				"building_id": uid,
-				"unit_type": utype,
+				"unit_type": unit_type,
 				"issuer": 1,
 			})
 	if cmds.size() > 0:
@@ -956,6 +958,14 @@ func _parse(state: Dictionary) -> void:
 	# Update HUD resources
 	if _hud:
 		_hud.update_resources(_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap)
+		# Feed completed buildings for prereq gating
+		var completed: PackedStringArray = []
+		for e in _ents:
+			if e.type == "building" and e.owner == 1 and e.health > 0:
+				var bt: String = str(e.get("building_type", ""))
+				if bt != "":
+					completed.append(bt)
+		_hud.update_completed_buildings(completed)
 
 	# Update entity Sprite2D nodes
 	_update_entity_sprites()

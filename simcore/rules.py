@@ -678,10 +678,22 @@ def process_construction(
                 continue
 
             btype = cmd.get("building_type", "barracks")
-            cost_mineral = 100 if btype == "barracks" else 50
-            pkey = f"p{builder['owner']}_mineral"
-            if res.get(pkey, 0) >= cost_mineral:
-                res[pkey] -= cost_mineral
+            BUILD_COST_MAP = {
+                "barracks": 150, "base": 400, "supply_depot": 100,
+                "refinery": 100, "factory": 200, "starport": 200,
+            }
+            BUILD_GAS_MAP = {
+                "barracks": 0, "base": 0, "supply_depot": 0,
+                "refinery": 0, "factory": 100, "starport": 150,
+            }
+            cost_mineral = BUILD_COST_MAP.get(btype, 100)
+            cost_gas = BUILD_GAS_MAP.get(btype, 0)
+            pkey_mine = f"p{builder['owner']}_mineral"
+            pkey_gas = f"p{builder['owner']}_gas"
+            if res.get(pkey_mine, 0) >= cost_mineral and res.get(pkey_gas, 0) >= cost_gas:
+                res[pkey_mine] -= cost_mineral
+                if cost_gas > 0:
+                    res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
                 new_id = f"{btype}_{tick}_{bid}"
                 built[new_id] = {
                     "id": new_id,
@@ -711,11 +723,29 @@ def process_construction(
             if building.get("is_constructing"):
                 continue
             utype = cmd.get("unit_type", "worker")
-            cost_map = {"worker": 50, "soldier": 100, "scout": 75}
-            cost = cost_map.get(utype, 50)
-            pkey = f"p{building['owner']}_mineral"
-            if res.get(pkey, 0) >= cost:
-                res[pkey] -= cost
+            TRAIN_COST_MINE = {
+                "worker": 50, "soldier": 100, "scout": 75,
+                "SCV": 50, "Marine": 50, "Firebat": 50, "Ghost": 25, "Medic": 50,
+                "Vulture": 75, "Tank": 150, "Goliath": 100,
+                "Wraith": 150, "Dropship": 100, "Vessel": 100, "Valkyrie": 250, "BattleCruiser": 400,
+                "Drone": 50, "Zergling": 50, "Hydralisk": 75, "Ultralisk": 200, "Overlord": 100,
+                "Mutalisk": 100, "Queen": 100, "Defiler": 50, "Lurker": 50, "Scourge": 25,
+            }
+            TRAIN_COST_GAS = {
+                "Firebat": 25, "Ghost": 75, "Medic": 25,
+                "Tank": 100, "Goliath": 50,
+                "Wraith": 100, "Dropship": 100, "Vessel": 225, "Valkyrie": 125, "BattleCruiser": 300,
+                "Hydralisk": 25, "Ultralisk": 200, "Mutalisk": 100, "Queen": 100, "Defiler": 150,
+                "Lurker": 100, "Scourge": 75, "InfestedTerran": 50,
+            }
+            cost = TRAIN_COST_MINE.get(utype, 50)
+            cost_gas = TRAIN_COST_GAS.get(utype, 0)
+            pkey_mine = f"p{building['owner']}_mineral"
+            pkey_gas = f"p{building['owner']}_gas"
+            if res.get(pkey_mine, 0) >= cost and res.get(pkey_gas, 0) >= cost_gas:
+                res[pkey_mine] -= cost
+                if cost_gas > 0:
+                    res[pkey_gas] = res.get(pkey_gas, 0) - cost_gas
                 queue = list(building.get("production_queue", []))
                 timers = list(building.get("production_timers", []))
                 queue.append(utype)
