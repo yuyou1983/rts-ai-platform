@@ -123,7 +123,7 @@ def _find_refinery_on_geyser(entities: dict[str, Any], owner: int, geyser_id: st
             bt = e.get("building_type", "")
             if bt in refinery_types and e.get("health", 0) > 0:
                 d = _dist(gx, gy, e["pos_x"], e["pos_y"])
-                if d < 2.0:  # close enough = on the geyser
+                if d < 5.0:  # close enough = on/near the geyser
                     return e
     return None
 

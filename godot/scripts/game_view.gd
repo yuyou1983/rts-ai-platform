@@ -451,6 +451,22 @@ func _is_own_combat(e: Dictionary) -> bool:
 func _is_own_building(e: Dictionary) -> bool:
 	return e.owner == 1 and e.type == "building"
 
+func _has_refinery_on_geyser(geyser_id: String) -> bool:
+	"""Check if there's a refinery built on or near this gas geyser."""
+	var geyser := _get_ent_by_id(geyser_id)
+	if geyser.is_empty():
+		return false
+	var gx: float = geyser.px
+	var gy: float = geyser.py
+	for e in _ents:
+		if e.type == "building" and e.owner == 1:
+			var bt: String = str(e.get("building_type", ""))
+			if bt == "refinery" or bt == "Refinery" or bt == "Extractor" or bt == "Assimilator":
+				var d: float = Vector2(gx, gy).distance_to(Vector2(e.px, e.py))
+				if d < 5.0:
+					return true
+	return false
+
 func _find_nearest_enemy(from_px: float, from_py: float) -> Dictionary:
 	var best: Dictionary = {}
 	var best_dist: float = 999999.0
@@ -611,7 +627,13 @@ func _handle_right_click() -> void:
 		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
 			action = "attack"
 		elif clicked_ent.type == "resource" and workers_selected:
-			action = "gather"
+			# Gas geyser without refinery → auto-build refinery on it
+			if clicked_ent.resource_type == "gas" and not _has_refinery_on_geyser(clicked_ent.id):
+				action = "build"
+				_build_type = "refinery"
+				_build_mode = true
+			else:
+				action = "gather"
 		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
 			action = "move"
 	elif combat_selected and not workers_selected:
@@ -660,12 +682,18 @@ func _handle_right_click() -> void:
 					})
 			"build":
 				if e.type == "worker":
+					# If building a refinery, snap position to the gas geyser
+					var build_x := tgt_world.x
+					var build_y := tgt_world.y
+					if _build_type == "refinery" and not clicked_ent.is_empty() and clicked_ent.resource_type == "gas":
+						build_x = clicked_ent.px
+						build_y = clicked_ent.py
 					cmds.append({
 						"action": "build",
 						"builder_id": uid,
 						"building_type": _build_type if _build_type != "" else "barracks",
-						"pos_x": tgt_world.x,
-						"pos_y": tgt_world.y,
+						"pos_x": build_x,
+						"pos_y": build_y,
 						"issuer": 1,
 					})
 			"move":
