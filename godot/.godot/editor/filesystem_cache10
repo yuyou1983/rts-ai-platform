@@ -1,5 +1,5 @@
 72322a848ab928aa5c89f0cb78209805
-::res://::1779162436
+::res://::1779166327
 export_presets.cfg::TextFile::-1::1778327580::0::1::::<><><>0<>0<><>::
 ::res://assets/::1778578882
 ::res://assets/audio/::1778558338
@@ -362,9 +362,9 @@ entity_state.gd::GDScript::3028457398350986072::1778303428::0::1::::EntityState<
 entity_visual.gd::GDScript::296357795083468032::1778572235::0::1::::EntityVisual<>AnimatedSprite2D<><>0<>0<><>::
 event_bus.gd::GDScript::1739031026962091357::1778564480::0::1::::EventBus<>Node<><>0<>0<><>::
 fog_renderer.gd::GDScript::5748939900306480128::1778740159::0::1::::<>Node2D<><>0<>0<><>::
-game_view.gd::GDScript::7097666510623240550::1779107310::0::1::::<>Node2D<><>0<>0<><>::
+game_view.gd::GDScript::7097666510623240550::1779163525::0::1::::<>Node2D<><>0<>0<><>::
 grpc_bridge.gd::GDScript::3829642289321534844::1779156169::0::1::::GrpcBridge<>Node<><>0<>0<><>::
-hud.gd::GDScript::8373712465010340074::1778740159::0::1::::<>Control<><>0<>0<><>::
+hud.gd::GDScript::8373712465010340074::1779163449::0::1::::<>Control<><>0<>0<><>::
 main_menu.gd::GDScript::1990540224865693774::1779105843::0::1::::<>Control<><>0<>0<><>::
 minimap_rect.gd::GDScript::2489548044372658312::1778740159::0::1::::<>ColorRect<><>0<>0<><>::
 object_pool.gd::GDScript::8887889538103205611::1778561301::0::1::::ObjectPool<>Node<><>0<>0<><>::

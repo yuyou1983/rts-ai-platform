@@ -75,6 +75,7 @@ var _unit_anim_info: Dictionary = {}
 
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
+var _build_type: String = ""   # Which building the player selected in HUD
 
 # ─── Game state ────────────────────────────────────────────
 var _game_active := false
@@ -291,6 +292,7 @@ func _ready() -> void:
 	_hud.ability_clicked.connect(_on_hud_ability_clicked)
 	_hud.build_clicked.connect(_on_hud_build_clicked)
 	_hud.train_clicked.connect(_on_hud_train_clicked)
+	_hud.build_panel_closed.connect(func(): _build_mode = false; _build_type = "")
 	_hud.anchor_left = 1.0
 	_hud.anchor_right = 1.0
 	_hud.anchor_top = 0.0
@@ -387,7 +389,8 @@ func _on_hud_ability_clicked(ability_id: StringName) -> void:
 
 func _on_hud_build_clicked(building_type: String) -> void:
 	_build_mode = true
-	# Will be used when right-click places building
+	_build_type = building_type
+	print("[Build] Selected: %s → right-click to place" % building_type)
 
 func _on_hud_train_clicked(unit_type: String) -> void:
 	_handle_train(unit_type)
@@ -403,7 +406,6 @@ func _process(_delta: float) -> void:
 			_anim_frame = (_anim_frame + 1) % 17
 			_update_entity_sprites()
 	# CameraController handles all camera movement now
-	_build_mode = Input.is_key_pressed(KEY_B) or (_hud and _hud.is_build_panel_visible())
 
 	# Decay damage floaters
 	for f in _dmg_floats:
@@ -520,16 +522,26 @@ func _input(event: InputEvent) -> void:
 
 	# Legacy keyboard shortcuts
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_T:
+		if event.keycode == KEY_B:
+			if _hud:
+				if _hud.is_build_panel_visible():
+					_hud.hide_build_panel()
+					_build_mode = false
+					_build_type = ""
+				else:
+					_hud.show_build_panel()
+					_build_mode = true
+		elif event.keycode == KEY_T:
 			_handle_train()
 		elif event.keycode == KEY_ESCAPE:
 			if _selection:
 				_selection.remove_all_selection()
 			else:
 				_selected.clear()
-# Also hide build panel
 			if _hud:
 				_hud.hide_build_panel()
+			_build_mode = false
+			_build_type = ""
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over_shown and event is InputEventKey and event.pressed:
@@ -651,7 +663,7 @@ func _handle_right_click() -> void:
 					cmds.append({
 						"action": "build",
 						"builder_id": uid,
-						"building_type": "barracks",
+						"building_type": _build_type if _build_type != "" else "barracks",
 						"pos_x": tgt_world.x,
 						"pos_y": tgt_world.y,
 						"issuer": 1,
@@ -686,6 +698,8 @@ func _handle_right_click() -> void:
 	# Hide build panel after placing
 	if _build_mode and _hud:
 		_hud.hide_build_panel()
+	_build_mode = false
+	_build_type = ""
 
 func _handle_single_click() -> void:
 	var wp := _screen_to_world(_drag_start)

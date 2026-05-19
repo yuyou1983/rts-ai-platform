@@ -8,6 +8,7 @@ extends Control
 signal ability_clicked(ability_id: StringName)
 signal build_clicked(building_type: String)
 signal train_clicked(unit_type: String)
+signal build_panel_closed
 
 # ── Layout Constants ─────────────────────────────────────────────────────────
 const HUD_HEIGHT := 140
@@ -469,6 +470,8 @@ func _toggle_build_panel() -> void:
 	_build_panel.visible = _build_visible
 	if _build_visible:
 		_hide_train_panel()
+	else:
+		build_panel_closed.emit()
 
 func _toggle_train_panel() -> void:
 	_train_visible = not _train_visible
@@ -571,6 +574,7 @@ func show_build_panel() -> void:
 func hide_build_panel() -> void:
 	_build_visible = false
 	_build_panel.visible = false
+	build_panel_closed.emit()
 
 func is_train_panel_visible() -> bool:
 	return _train_visible
