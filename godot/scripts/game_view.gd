@@ -82,7 +82,7 @@ var _game_over_shown := false
 var _replay_mode := false
 var _replay_player: ReplayPlayer
 var _replay_overlay: Control
-var _game_over_panel: Panel
+var _game_over_panel: Control
 var _game_over_label: Label
 
 # ─── Fog of war ────────────────────────────────────────────
@@ -323,11 +323,17 @@ func _ready() -> void:
 	_zoom_out_btn.pressed.connect(func(): _cam_ctrl._zoom_out() if _cam_ctrl else null)
 
 	# ─── Game Over Panel (in CanvasLayer, hidden by default) ───
-	_game_over_panel = Panel.new()
+	_game_over_panel = Control.new()
 	_game_over_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_game_over_panel.modulate = Color(0, 0, 0, 0.6)
 	_game_over_panel.visible = false
+	_game_over_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_ui_layer.add_child(_game_over_panel)
+	# Dark background behind the text
+	var go_bg := ColorRect.new()
+	go_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	go_bg.color = Color(0, 0, 0, 0.6)
+	go_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_game_over_panel.add_child(go_bg)
 	var go_vbox := VBoxContainer.new()
 	go_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
 	go_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -335,6 +341,7 @@ func _ready() -> void:
 	_game_over_label = Label.new()
 	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_over_label.add_theme_font_size_override("font_size", 48)
+	_game_over_label.add_theme_color_override("font_color", Color.GREEN)
 	go_vbox.add_child(_game_over_label)
 	var restart_label := Label.new()
 	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -452,12 +459,10 @@ func _find_nearest_enemy(from_px: float, from_py: float) -> Dictionary:
 
 # ─── Input ─────────────────────────────────────────────────
 func _input(event: InputEvent) -> void:
-	if _replay_mode or _game_over_shown:
-		return
-
 	# Right-click: context action
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		_handle_right_click()
+		if not _replay_mode and not _game_over_shown:
+			_handle_right_click()
 		return
 
 	# Left-click: check minimap first, then selection
@@ -519,9 +524,20 @@ func _input(event: InputEvent) -> void:
 				_selection.remove_all_selection()
 			else:
 				_selected.clear()
-			# Also hide build panel
+# Also hide build panel
 			if _hud:
 				_hud.hide_build_panel()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _game_over_shown and event is InputEventKey and event.pressed:
+		if event.keycode == KEY_R:
+			_restart_game()
+			_bridge.start_game(42)
+		elif event.keycode == KEY_Q:
+			get_tree().quit()
+	if _replay_mode and event is InputEventKey and event.pressed:
+		if event.keycode == KEY_Q:
+			get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 func _handle_right_click() -> void:
 	var selected_ids: Array = []
