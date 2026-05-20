@@ -46,9 +46,11 @@ All cross-layer communication through protobuf + gRPC.
 |---------|-------------|
 | `make build` | `pip install -e ".[dev]"` + compile protos |
 | `make test` | `pytest tests/ -q -n 4` |
+| `make test-core` | `pytest tests/ -q -n 4 -m "not integration"` (459 tests, no socket) |
+| `make test-integration` | `pytest tests/ -q -n 1 -m "integration"` (23 tests, needs gRPC) |
 | `make lint` | `ruff check . && mypy simcore/ agents/` |
 | `make lint-arch` | `python3 scripts/lint_deps.py` + `lint_quality.py` |
-| `make sim` | `python -m simcore.engine` (headless) |
+| `make sim` | `python3 -m simcore.engine` (headless) |
 | `make proto` | Compile protobuf definitions |
 
 ## Agent System
@@ -80,11 +82,11 @@ See `.claude/agents/` for full definitions.
 
 | Phase | Status | File |
 |-------|--------|------|
-| M0 Startup | 🟡 In Progress | `docs/milestones/m0-startup.md` |
-| M1 Multi-Agent | ⬜ Not Started | — |
-| M2 Production | ⬜ Not Started | — |
+| M0 Startup | ✅ Done | `docs/milestones/m0-startup.md` |
+| M1 Multi-Agent | ✅ Done | `docs/milestones/m1-multi-agent.md` |
+| M2 Production | 🟡 Phase 2 Active | `docs/milestones/m2-production.md` |
 
-Current stage: `production/stage.txt` = **M0**
+Current stage: `production/stage.txt` = **M2**
 
 ## CI
 

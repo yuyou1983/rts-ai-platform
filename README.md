@@ -95,7 +95,11 @@ rts-ai-platform/
 │   ├── grpc_client.py          # gRPC 客户端
 │   ├── http_gateway.py        # HTTP REST 网关（Godot → gRPC）
 │   └── proto_out/             # 编译后的 protobuf 文件
-├── agents/                     # 多 Agent 体系
+├── runtime/                    # 运行时编排层（L2）
+│   ├── agent_factory.py       # AI agent 工厂（Coordinator→ScriptAI fallback）
+│   ├── auto_step.py           # gRPC auto-step 驱动器
+│   └── gym_ai.py              # Gym P2 AI 命令注入
+├── agents/                     # 多 Agent 体系（L2）
 │   ├── coordinator.py         # 中央协调器
 │   ├── economy.py             # 经济 Agent
 │   ├── combat.py              # 战斗 Agent
@@ -123,7 +127,7 @@ rts-ai-platform/
 │   ├── cmd.proto              # 命令协议
 │   ├── obs.proto              # 观察协议
 │   └── service.proto          # gRPC 服务定义
-├── tests/                      # 测试套件（125 tests）
+├── tests/                      # 测试套件（459 core + 23 integration）
 ├── scripts/                    # 工具脚本
 │   ├── smoke_mvp.py           # MVP 冒烟测试
 │   └── test_e2e_godot_flows.py # 端到端流程测试
@@ -208,7 +212,9 @@ make stop           # 清理所有后台进程
 ### 运行测试
 
 ```bash
-make test           # 125 tests, 4 xdist workers
+make test-core      # 459 core tests, 4 xdist workers (no socket bind)
+make test-integration # 23 integration tests, needs gRPC server
+make test           # full suite (core + integration)
 make smoke-test-mvp # MVP 端到端冒烟验证
 ```
 
@@ -227,10 +233,11 @@ make smoke-test-mvp # MVP 端到端冒烟验证
 - 基线 ScriptAI 实现
 - 118 tests 全过
 
-### M2 — 可视化 + 训练 (2026-05 中)
-- **Phase 1**：HTTP Gateway，Godot ↔ SimCore 数据通路打通
-- **Phase 2**：训练基础设施（HarnessPool、Benchmark、Telemetry、GRPO 管线）
-- **Phase 3**：视觉打磨，100 局 benchmark 验证（0 崩溃，Coordinator 60% 胜率）
+### M2 — 训练生产闭环 (2026-05 中)
+- **Phase 1** ✅：Gym 环境, GRPO smoke-test, 150 局 benchmark 0 崩溃
+- **Phase 2** ✅：四层架构边界恢复 (simcore❌→agents), runtime 编排层, test-core/integration 拆分
+- **Phase 3** 🟡：TRL GRPOTrainer 集成, Rollout Worker, League 调度, Promotion Gate
+- **Phase 4** ⬜：训练可视化, replay 回放器, 长程训练脚本
 
 ### M3 — 战斗原型 / MVP (2026-05-11) ✅
 - **Human P1 vs AI P2** 完整闭环
@@ -243,7 +250,7 @@ make smoke-test-mvp # MVP 端到端冒烟验证
 - Game Over 判定 + R 重开 + Q 退出
 - 一键启动 `make play` / `make stop`
 - 冒烟测试 `make smoke-test-mvp`
-- **125 tests 全过**
+- **224 tests 全过**
 
 ### M4 — 三族 AI + 对战终结 (2026-05-12) ✅
 - **三族完整 AI**: ZergAI / ProtossAI / TerranAI — 各自独特策略
@@ -287,7 +294,7 @@ make smoke-test-mvp # MVP 端到端冒烟验证
 | 实验追踪 | MLflow Tracking |
 | 前端引擎 | Godot 4.6 (GDScript, HTTPRequest) |
 | 协议 | Protobuf 3 + gRPC + REST/JSON |
-| 测试 | pytest + xdist, 125 tests |
+| 测试 | pytest + xdist, 459 core + 23 integration |
 | 代码质量 | ruff + mypy |
 | 版本控制 | Git + GitHub |
 

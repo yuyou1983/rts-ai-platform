@@ -1,8 +1,8 @@
 # M2 里程碑：训练生产闭环
 
 **周期**: 6 周
-**状态**: 🟡 **进行中** (Phase 1 验证完成)
-**前置**: M1 Multi-Agent
+**状态**: 🟡 **进行中** (Phase 1-2 ✅, Phase 3 活跃)
+**前置**: M1 Multi-Agent ✅
 
 ---
 
@@ -16,6 +16,8 @@
 |--------|--------|------|----------|
 | Gym 环境 (SimCoreGym) | P0 | ✅ | step/reset/reward 符合 Gymnasium API |
 | GRPO smoke-test | P0 | ✅ | 1 episode 完成无 NaN |
+| 四层架构边界恢复 | P0 | ✅ | `make lint-arch` 0 violations |
+| test-core / test-integration 拆分 | P0 | ✅ | 459 core / 23 integration tests |
 | TRL GRPOTrainer 集成 | P0 | ❌ | 100 episode 稳定训练 |
 | Rollout Worker (异步采集) | P0 | ❌ | 32 路并发 |
 | League 调度器 | P1 | ❌ | Round-robin + 历史版本池 |
@@ -32,14 +34,23 @@
 - [x] 150局 benchmark 0 crash, 确定性回放 0 差异
 - [x] MemoryLake 插件配置
 
-### Phase 2: 训练闭环 🟡
+### Phase 2: 架构硬化 ✅ (2026-05-20 完成)
+
+- [x] 四层架构边界恢复: simcore(L1) ❌→ agents/runtime(L2)
+- [x] 新增 runtime/ 编排层: agent_factory, auto_step, gym_ai
+- [x] simcore 依赖注入: agent_factory 回调替代直接 import
+- [x] lint_deps.py: runtime=L2 约束注册
+- [x] Makefile: python→python3 统一, test-core/test-integration 拆分
+- [x] 集成测试标记: @pytest.mark.integration
+
+### Phase 3: 训练闭环 🟡 Active
 
 - [ ] TRL GRPOTrainer 集成 (替代 SimplePolicy)
 - [ ] Rollout Worker 异步采集
 - [ ] 自对弈 League 调度
 - [ ] Promotion Gate 自动晋级
 
-### Phase 3: 生产化 ⬜
+### Phase 4: 生产化 ⬜
 
 - [ ] 训练曲线可视化
 - [ ] 优秀对局自动提取
@@ -70,5 +81,6 @@ GRPO Trainer (TRL)
 ## 参考
 
 - Harness benchmark: `harness/output/benchmark_stats.json`
-- Phase1 验证: `docs/milestones/../exec-plans/`
+- Phase 1 验证: `docs/exec-plans/active/2026-05-18-gap-fix-m2-prep.md`
+- Phase 2 验证: git commits `973aa3b` `64ba9dc`
 - GRPO 论文: DeepSeek-R1 GRPO technique
