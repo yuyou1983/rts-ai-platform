@@ -1,0 +1,1135 @@
+{
+  "_meta": {
+    "generated_by": "scripts/generate_presentation_manifest.py",
+    "purpose": "Bridge design data, Godot assets, VFX, and runtime abstract entity ids."
+  },
+  "abstract_units": {
+    "1": {
+      "worker": "SCV",
+      "soldier": "Marine",
+      "scout": "Ghost"
+    },
+    "2": {
+      "worker": "Drone",
+      "soldier": "Zergling",
+      "scout": "Hydralisk"
+    },
+    "3": {
+      "worker": "Probe",
+      "soldier": "Zealot",
+      "scout": "Dragoon"
+    }
+  },
+  "abstract_buildings": {
+    "1": {
+      "base": "CommandCenter",
+      "barracks": "Barracks",
+      "factory": "Factory",
+      "refinery": "Refinery",
+      "starport": "Starport"
+    },
+    "2": {
+      "base": "Hatchery",
+      "barracks": "SpawningPool",
+      "refinery": "Extractor",
+      "lair": "Lair",
+      "hive": "Hive"
+    },
+    "3": {
+      "base": "Nexus",
+      "barracks": "Gateway",
+      "refinery": "Assimilator",
+      "pylon": "Pylon"
+    }
+  },
+  "unit_visuals": {
+    "SCV": {
+      "race": "terran",
+      "sprite": "SCV",
+      "sprite_config": "SCV",
+      "asset": "res://assets/sprites/units/SCV.png",
+      "vfx_profile": "terran_small_arms",
+      "audio_prefix": "SCV",
+      "render_scale": 0.0208,
+      "selection_radius": 0.688
+    },
+    "Marine": {
+      "race": "terran",
+      "sprite": "Marine",
+      "sprite_config": "Marine",
+      "asset": "res://assets/sprites/units/Marine.png",
+      "vfx_profile": "terran_small_arms",
+      "audio_prefix": "Marine",
+      "render_scale": 0.0072,
+      "selection_radius": 0.688
+    },
+    "Firebat": {
+      "race": "terran",
+      "sprite": "Firebat",
+      "sprite_config": "Firebat",
+      "asset": "res://assets/sprites/units/Firebat.png",
+      "vfx_profile": "terran_flame",
+      "audio_prefix": "Firebat",
+      "render_scale": 0.0234,
+      "selection_radius": 0.5
+    },
+    "Ghost": {
+      "race": "terran",
+      "sprite": "Ghost",
+      "sprite_config": "Ghost",
+      "asset": "res://assets/sprites/units/Ghost.png",
+      "vfx_profile": "terran_small_arms",
+      "audio_prefix": "Ghost",
+      "render_scale": 0.0208,
+      "selection_radius": 0.672
+    },
+    "Medic": {
+      "race": "terran",
+      "sprite": "Medic",
+      "sprite_config": "Medic",
+      "asset": "res://assets/sprites/units/Medic.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Medic",
+      "render_scale": 0.0234,
+      "selection_radius": 0.5
+    },
+    "Vulture": {
+      "race": "terran",
+      "sprite": "Vulture",
+      "sprite_config": "Vulture",
+      "asset": "res://assets/sprites/units/Vulture.png",
+      "vfx_profile": "terran_ordnance",
+      "audio_prefix": "Vulture",
+      "render_scale": 0.0208,
+      "selection_radius": 1.25
+    },
+    "Tank": {
+      "race": "terran",
+      "sprite": "Tank",
+      "sprite_config": "Tank",
+      "asset": "res://assets/sprites/units/Tank.png",
+      "vfx_profile": "terran_ordnance",
+      "audio_prefix": "Tank",
+      "render_scale": 0.0208,
+      "selection_radius": 1.25
+    },
+    "Goliath": {
+      "race": "terran",
+      "sprite": "Goliath",
+      "sprite_config": "Goliath",
+      "asset": "res://assets/sprites/units/Goliath.png",
+      "vfx_profile": "terran_ordnance",
+      "audio_prefix": "Goliath",
+      "render_scale": 0.0208,
+      "selection_radius": 1.188
+    },
+    "Wraith": {
+      "race": "terran",
+      "sprite": "Wraith",
+      "sprite_config": "Wraith",
+      "asset": "res://assets/sprites/units/Wraith.png",
+      "vfx_profile": "terran_ship",
+      "audio_prefix": "Wraith",
+      "render_scale": 0.0208,
+      "selection_radius": 0.781
+    },
+    "Dropship": {
+      "race": "terran",
+      "sprite": "Dropship",
+      "sprite_config": "Dropship",
+      "asset": "res://assets/sprites/units/Dropship.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Dropship",
+      "render_scale": 0.0208,
+      "selection_radius": 0.938
+    },
+    "Vessel": {
+      "race": "terran",
+      "sprite": "Vessel",
+      "sprite_config": "Vessel",
+      "asset": "res://assets/sprites/units/Vessel.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Vessel",
+      "render_scale": 0.0208,
+      "selection_radius": 1.094
+    },
+    "Valkyrie": {
+      "race": "terran",
+      "sprite": "Valkyrie",
+      "sprite_config": "Valkyrie",
+      "asset": "res://assets/sprites/units/Valkyrie.png",
+      "vfx_profile": "terran_ship",
+      "audio_prefix": "Valkyrie",
+      "render_scale": 0.0208,
+      "selection_radius": 0.906
+    },
+    "BattleCruiser": {
+      "race": "terran",
+      "sprite": "BattleCruiser",
+      "sprite_config": "BattleCruiser",
+      "asset": "res://assets/sprites/units/BattleCruiser.png",
+      "vfx_profile": "terran_ship",
+      "audio_prefix": "BattleCruiser",
+      "render_scale": 0.0208,
+      "selection_radius": 1.469
+    },
+    "Civilian": {
+      "race": "terran",
+      "sprite": "Civilian",
+      "sprite_config": "Civilian",
+      "asset": "res://assets/sprites/units/Civilian.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Civilian",
+      "render_scale": 0.0242,
+      "selection_radius": 0.484
+    },
+    "Drone": {
+      "race": "zerg",
+      "sprite": "Drone",
+      "sprite_config": "Drone",
+      "asset": "res://assets/sprites/units/Drone.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Drone",
+      "render_scale": 0.0107,
+      "selection_radius": 0.688
+    },
+    "Zergling": {
+      "race": "zerg",
+      "sprite": "Zergling",
+      "sprite_config": "Zergling",
+      "asset": "res://assets/sprites/units/Zergling.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Zergling",
+      "render_scale": 0.0087,
+      "selection_radius": 0.531
+    },
+    "Hydralisk": {
+      "race": "zerg",
+      "sprite": "Hydralisk",
+      "sprite_config": "Hydralisk",
+      "asset": "res://assets/sprites/units/Hydralisk.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Hydralisk",
+      "render_scale": 0.0121,
+      "selection_radius": 0.781
+    },
+    "Lurker": {
+      "race": "zerg",
+      "sprite": "Lurker",
+      "sprite_config": "Lurker",
+      "asset": "res://assets/sprites/units/Lurker.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Lurker",
+      "render_scale": 0.0208,
+      "selection_radius": 0.938
+    },
+    "Ultralisk": {
+      "race": "zerg",
+      "sprite": "Ultralisk",
+      "sprite_config": "Ultralisk",
+      "asset": "res://assets/sprites/units/Ultralisk.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Ultralisk",
+      "render_scale": 0.0208,
+      "selection_radius": 1.688
+    },
+    "Broodling": {
+      "race": "zerg",
+      "sprite": "Broodling",
+      "sprite_config": "Broodling",
+      "asset": "res://assets/sprites/units/Broodling.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Broodling",
+      "render_scale": 0.0208,
+      "selection_radius": 0.594
+    },
+    "InfestedTerran": {
+      "race": "zerg",
+      "sprite": "InfestedTerran",
+      "sprite_config": "InfestedTerran",
+      "asset": "res://assets/sprites/units/InfestedTerran.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "InfestedTerran",
+      "render_scale": 0.0208,
+      "selection_radius": 0.688
+    },
+    "Overlord": {
+      "race": "zerg",
+      "sprite": "Overlord",
+      "sprite_config": "Overlord",
+      "asset": "res://assets/sprites/units/Overlord.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Overlord",
+      "render_scale": 0.0208,
+      "selection_radius": 1.125
+    },
+    "Queen": {
+      "race": "zerg",
+      "sprite": "Queen",
+      "sprite_config": "Queen",
+      "asset": "res://assets/sprites/units/Queen.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Queen",
+      "render_scale": 0.0208,
+      "selection_radius": 1.219
+    },
+    "Defiler": {
+      "race": "zerg",
+      "sprite": "Defiler",
+      "sprite_config": "Defiler",
+      "asset": "res://assets/sprites/units/Defiler.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Defiler",
+      "render_scale": 0.0208,
+      "selection_radius": 1.125
+    },
+    "Mutalisk": {
+      "race": "zerg",
+      "sprite": "Mutalisk",
+      "sprite_config": "Mutalisk",
+      "asset": "res://assets/sprites/units/Mutalisk.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Mutalisk",
+      "render_scale": 0.0208,
+      "selection_radius": 1.172
+    },
+    "Guardian": {
+      "race": "zerg",
+      "sprite": "Guardian",
+      "sprite_config": "Guardian",
+      "asset": "res://assets/sprites/units/Guardian.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Guardian",
+      "render_scale": 0.0208,
+      "selection_radius": 1.266
+    },
+    "Devourer": {
+      "race": "zerg",
+      "sprite": "Devourer",
+      "sprite_config": "Devourer",
+      "asset": "res://assets/sprites/units/Devourer.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Devourer",
+      "render_scale": 0.0208,
+      "selection_radius": 1.344
+    },
+    "Scourge": {
+      "race": "zerg",
+      "sprite": "Scourge",
+      "sprite_config": "Scourge",
+      "asset": "res://assets/sprites/units/Scourge.png",
+      "vfx_profile": "zerg_acid",
+      "audio_prefix": "Scourge",
+      "render_scale": 0.0221,
+      "selection_radius": 0.531
+    },
+    "Larva": {
+      "race": "zerg",
+      "sprite": "Larva",
+      "sprite_config": "Larva",
+      "asset": "res://assets/sprites/units/Larva.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Larva",
+      "render_scale": 0.0234,
+      "selection_radius": 0.5
+    },
+    "Probe": {
+      "race": "protoss",
+      "sprite": "Probe",
+      "sprite_config": "Probe",
+      "asset": "res://assets/sprites/units/Probe.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Probe",
+      "render_scale": 0.0234,
+      "selection_radius": 0.5
+    },
+    "Zealot": {
+      "race": "protoss",
+      "sprite": "Zealot",
+      "sprite_config": "Zealot",
+      "asset": "res://assets/sprites/units/Zealot.png",
+      "vfx_profile": "protoss_psi_melee",
+      "audio_prefix": "Zealot",
+      "render_scale": 0.0109,
+      "selection_radius": 0.688
+    },
+    "Dragoon": {
+      "race": "protoss",
+      "sprite": "Dragoon",
+      "sprite_config": "Dragoon",
+      "asset": "res://assets/sprites/units/Dragoon.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Dragoon",
+      "render_scale": 0.0208,
+      "selection_radius": 0.875
+    },
+    "Templar": {
+      "race": "protoss",
+      "sprite": "Templar",
+      "sprite_config": "Templar",
+      "asset": "res://assets/sprites/units/Templar.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Templar",
+      "render_scale": 0.0208,
+      "selection_radius": 1.062
+    },
+    "DarkTemplar": {
+      "race": "protoss",
+      "sprite": "DarkTemplar",
+      "sprite_config": "DarkTemplar",
+      "asset": "res://assets/sprites/units/DarkTemplar.png",
+      "vfx_profile": "protoss_psi_melee",
+      "audio_prefix": "DarkTemplar",
+      "render_scale": 0.0208,
+      "selection_radius": 0.969
+    },
+    "Archon": {
+      "race": "protoss",
+      "sprite": "Archon",
+      "sprite_config": "Archon",
+      "asset": "res://assets/sprites/units/Archon.png",
+      "vfx_profile": "protoss_psi_melee",
+      "audio_prefix": "Archon",
+      "render_scale": 0.0208,
+      "selection_radius": 1.25
+    },
+    "DarkArchon": {
+      "race": "protoss",
+      "sprite": "DarkArchon",
+      "sprite_config": "DarkArchon",
+      "asset": "res://assets/sprites/units/DarkArchon.png",
+      "vfx_profile": "none",
+      "audio_prefix": "DarkArchon",
+      "render_scale": 0.0208,
+      "selection_radius": 1.25
+    },
+    "Reaver": {
+      "race": "protoss",
+      "sprite": "Reaver",
+      "sprite_config": "Reaver",
+      "asset": "res://assets/sprites/units/Reaver.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Reaver",
+      "render_scale": 0.0208,
+      "selection_radius": 1.312
+    },
+    "Shuttle": {
+      "race": "protoss",
+      "sprite": "Shuttle",
+      "sprite_config": "Shuttle",
+      "asset": "res://assets/sprites/units/Shuttle.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Shuttle",
+      "render_scale": 0.0208,
+      "selection_radius": 0.938
+    },
+    "Observer": {
+      "race": "protoss",
+      "sprite": "Observer",
+      "sprite_config": "Observer",
+      "asset": "res://assets/sprites/units/Observer.png",
+      "vfx_profile": "none",
+      "audio_prefix": "Observer",
+      "render_scale": 0.0208,
+      "selection_radius": 0.625
+    },
+    "Arbiter": {
+      "race": "protoss",
+      "sprite": "Arbiter",
+      "sprite_config": "Arbiter",
+      "asset": "res://assets/sprites/units/Arbiter.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Arbiter",
+      "render_scale": 0.0208,
+      "selection_radius": 1.188
+    },
+    "Scout": {
+      "race": "protoss",
+      "sprite": "Scout",
+      "sprite_config": "Scout",
+      "asset": "res://assets/sprites/units/Scout.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Scout",
+      "render_scale": 0.0208,
+      "selection_radius": 0.875
+    },
+    "Carrier": {
+      "race": "protoss",
+      "sprite": "Carrier",
+      "sprite_config": "Carrier",
+      "asset": "res://assets/sprites/units/Carrier.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Carrier",
+      "render_scale": 0.0176,
+      "selection_radius": 2.0
+    },
+    "Corsair": {
+      "race": "protoss",
+      "sprite": "Corsair",
+      "sprite_config": "Corsair",
+      "asset": "res://assets/sprites/units/Corsair.png",
+      "vfx_profile": "protoss_energy",
+      "audio_prefix": "Corsair",
+      "render_scale": 0.0208,
+      "selection_radius": 0.938
+    }
+  },
+  "building_visuals": {
+    "CommandCenter": {
+      "race": "terran",
+      "sprite_config": "CommandCenter",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "CommandCenter",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "SupplyDepot": {
+      "race": "terran",
+      "sprite_config": "SupplyDepot",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "SupplyDepot",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Refinery": {
+      "race": "terran",
+      "sprite_config": "Refinery",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Refinery",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Barracks": {
+      "race": "terran",
+      "sprite_config": "Barracks",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Barracks",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "EngineeringBay": {
+      "race": "terran",
+      "sprite_config": "EngineeringBay",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "EngineeringBay",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "MissileTurret": {
+      "race": "terran",
+      "sprite_config": "MissileTurret",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "MissileTurret",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Academy": {
+      "race": "terran",
+      "sprite_config": "Academy",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Academy",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Bunker": {
+      "race": "terran",
+      "sprite_config": "Bunker",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Bunker",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Factory": {
+      "race": "terran",
+      "sprite_config": "Factory",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Factory",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Starport": {
+      "race": "terran",
+      "sprite_config": "Starport",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Starport",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "ScienceFacility": {
+      "race": "terran",
+      "sprite_config": "ScienceFacility",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ScienceFacility",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Armory": {
+      "race": "terran",
+      "sprite_config": "Armory",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Armory",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "ComstatStation": {
+      "race": "terran",
+      "sprite_config": "ComstatStation",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ComstatStation",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "NuclearSilo": {
+      "race": "terran",
+      "sprite_config": "NuclearSilo",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "NuclearSilo",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "MachineShop": {
+      "race": "terran",
+      "sprite_config": "MachineShop",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "MachineShop",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "ControlTower": {
+      "race": "terran",
+      "sprite_config": "ControlTower",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ControlTower",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "PhysicsLab": {
+      "race": "terran",
+      "sprite_config": "PhysicsLab",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "PhysicsLab",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "ConvertOps": {
+      "race": "terran",
+      "sprite_config": "ConvertOps",
+      "asset": "res://assets/sprites/buildings/TerranBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ConvertOps",
+      "render_scale": 0.0156,
+      "selection_radius": 4.156
+    },
+    "Hatchery": {
+      "race": "zerg",
+      "sprite_config": "Hatchery",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Hatchery",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "Lair": {
+      "race": "zerg",
+      "sprite_config": "Lair",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Lair",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "Hive": {
+      "race": "zerg",
+      "sprite_config": "Hive",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Hive",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "CreepColony": {
+      "race": "zerg",
+      "sprite_config": "CreepColony",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "CreepColony",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "SunkenColony": {
+      "race": "zerg",
+      "sprite_config": "SunkenColony",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "SunkenColony",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "SporeColony": {
+      "race": "zerg",
+      "sprite_config": "SporeColony",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "SporeColony",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "Extractor": {
+      "race": "zerg",
+      "sprite_config": "Extractor",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Extractor",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "SpawningPool": {
+      "race": "zerg",
+      "sprite_config": "SpawningPool",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "SpawningPool",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "EvolutionChamber": {
+      "race": "zerg",
+      "sprite_config": "EvolutionChamber",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "EvolutionChamber",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "HydraliskDen": {
+      "race": "zerg",
+      "sprite_config": "HydraliskDen",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "HydraliskDen",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "Spire": {
+      "race": "zerg",
+      "sprite_config": "Spire",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Spire",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "GreaterSpire": {
+      "race": "zerg",
+      "sprite_config": "GreaterSpire",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "GreaterSpire",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "QueenNest": {
+      "race": "zerg",
+      "sprite_config": "QueenNest",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "QueenNest",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "NydusCanal": {
+      "race": "zerg",
+      "sprite_config": "NydusCanal",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "NydusCanal",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "UltraliskCavern": {
+      "race": "zerg",
+      "sprite_config": "UltraliskCavern",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "UltraliskCavern",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "DefilerMound": {
+      "race": "zerg",
+      "sprite_config": "DefilerMound",
+      "asset": "res://assets/sprites/buildings/ZergBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "DefilerMound",
+      "render_scale": 0.0107,
+      "selection_radius": 7.594
+    },
+    "Nexus": {
+      "race": "protoss",
+      "sprite_config": "Nexus",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Nexus",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "Pylon": {
+      "race": "protoss",
+      "sprite_config": "Pylon",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Pylon",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "Assimilator": {
+      "race": "protoss",
+      "sprite_config": "Assimilator",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Assimilator",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "Gateway": {
+      "race": "protoss",
+      "sprite_config": "Gateway",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Gateway",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "Forge": {
+      "race": "protoss",
+      "sprite_config": "Forge",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Forge",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "PhotonCannon": {
+      "race": "protoss",
+      "sprite_config": "PhotonCannon",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "PhotonCannon",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "CyberneticsCore": {
+      "race": "protoss",
+      "sprite_config": "CyberneticsCore",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "CyberneticsCore",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "ShieldBattery": {
+      "race": "protoss",
+      "sprite_config": "ShieldBattery",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ShieldBattery",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "RoboticsFacility": {
+      "race": "protoss",
+      "sprite_config": "RoboticsFacility",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "RoboticsFacility",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "StarGate": {
+      "race": "protoss",
+      "sprite_config": "StarGate",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "StarGate",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "CitadelOfAdun": {
+      "race": "protoss",
+      "sprite_config": "CitadelOfAdun",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "CitadelOfAdun",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "RoboticsSupportBay": {
+      "race": "protoss",
+      "sprite_config": "RoboticsSupportBay",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "RoboticsSupportBay",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "FleetBeacon": {
+      "race": "protoss",
+      "sprite_config": "FleetBeacon",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "FleetBeacon",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "TemplarArchives": {
+      "race": "protoss",
+      "sprite_config": "TemplarArchives",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "TemplarArchives",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "Observatory": {
+      "race": "protoss",
+      "sprite_config": "Observatory",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "Observatory",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    },
+    "ArbiterTribunal": {
+      "race": "protoss",
+      "sprite_config": "ArbiterTribunal",
+      "asset": "res://assets/sprites/buildings/ProtossBuilding.png",
+      "vfx_profile": "building",
+      "audio_prefix": "ArbiterTribunal",
+      "render_scale": 0.0156,
+      "selection_radius": 3.266
+    }
+  },
+  "spell_visuals": {
+    "Burrow": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Burrow"
+    },
+    "Unburrow": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Unburrow"
+    },
+    "Parasite": {
+      "race": "zerg",
+      "target": "unit",
+      "effect": "acid_hit",
+      "sfx": "Parasite"
+    },
+    "SpawnBroodling": {
+      "race": "zerg",
+      "target": "unit",
+      "effect": "acid_hit",
+      "sfx": "SpawnBroodling"
+    },
+    "Ensnare": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "Ensnare"
+    },
+    "Consume": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Consume"
+    },
+    "DarkSwarm": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "DarkSwarm"
+    },
+    "Plague": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "Plague"
+    },
+    "Stimpack": {
+      "race": "terran",
+      "target": "self",
+      "effect": "muzzle_flash_small",
+      "sfx": "Stimpack"
+    },
+    "Cloak": {
+      "race": "terran",
+      "target": "self",
+      "effect": "hit_spark",
+      "sfx": "Cloak"
+    },
+    "PersonalCloak": {
+      "race": "terran",
+      "target": "self",
+      "effect": "hit_spark",
+      "sfx": "PersonalCloak"
+    },
+    "Lockdown": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "Lockdown"
+    },
+    "NuclearStrike": {
+      "race": "terran",
+      "target": "point",
+      "effect": "shell_impact",
+      "sfx": "NuclearStrike"
+    },
+    "EMPShockwave": {
+      "race": "terran",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "EMPShockwave"
+    },
+    "Irradiate": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "Irradiate"
+    },
+    "DefensiveMatrix": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "DefensiveMatrix"
+    },
+    "ScannerSweep": {
+      "race": "terran",
+      "target": "point",
+      "effect": "muzzle_flash_small",
+      "sfx": "ScannerSweep"
+    },
+    "YamatoGun": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "shell_impact",
+      "sfx": "YamatoGun"
+    },
+    "Repair": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Repair"
+    },
+    "Heal": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Heal"
+    },
+    "Restoration": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Restoration"
+    },
+    "OpticalFlare": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "OpticalFlare"
+    },
+    "PsiStorm": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "PsiStorm"
+    },
+    "Hallucination": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "Hallucination"
+    },
+    "Meld": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "Meld"
+    },
+    "DarkMeld": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "DarkMeld"
+    },
+    "Feedback": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "Feedback"
+    },
+    "Maelstrom": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "Maelstrom"
+    },
+    "MindControl": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "MindControl"
+    },
+    "Recall": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "Recall"
+    },
+    "StasisField": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "StasisField"
+    },
+    "DisruptionWeb": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "DisruptionWeb"
+    },
+    "BuildInterceptor": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "BuildInterceptor"
+    },
+    "BuildScarab": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "BuildScarab"
+    }
+  }
+}

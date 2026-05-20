@@ -31,6 +31,8 @@ const CameraControllerScript = preload("res://scripts/camera_controller.gd")
 const HUDScene := preload("res://scenes/hud.tscn")
 const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
+const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
+const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 # ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
@@ -113,6 +115,8 @@ var _building_textures: Dictionary = {}
 var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
 var _sprite_container: Node2D = null  # parent for all entity sprites
 var _vfx_manager: VFXManager = null
+var _sprite_loader: SpriteLoader = null
+var _presentation_manifest: Dictionary = {}
 var _map_texture: Texture2D = null
 
 # ─── Sprint 4 Components ──────────────────────────────────
@@ -217,6 +221,8 @@ func _ready() -> void:
 	_sprite_container.z_index = 1  # Above map bg (z=-100)
 	z_index = 5  # game_view _draw() renders above entity sprites
 	add_child(_sprite_container)
+	_sprite_loader = SpriteLoaderScript.new()
+	_load_presentation_manifest()
 
 	# ─── Combat VFX layer ───
 	_vfx_manager = VFXManagerScript.new()
@@ -831,18 +837,7 @@ func _visual_unit_name(e: Dictionary) -> String:
 	var entity_type := str(e.get("type", e.get("entity_type", "")))
 	if entity_type == "building":
 		return "building"
-	var unit_type := str(e.get("unit_type", ""))
-	if unit_type != "" and unit_type != entity_type:
-		return unit_type
-	match entity_type:
-		"worker":
-			return "SCV"
-		"soldier":
-			return "Marine"
-		"scout":
-			return "Ghost"
-		_:
-			return entity_type
+	return _resolve_visual_id(e)
 
 # ─── Sprint 4: Rally Point System ──────────────────────────
 func _set_rally_point(building_id: String, world_pos: Vector2) -> void:
@@ -965,6 +960,77 @@ func _to_f(value, fallback: float = 0.0) -> float:
 	if value == null:
 		return fallback
 	return value + 0.0
+
+func _load_presentation_manifest() -> void:
+	if not FileAccess.file_exists(PRESENTATION_MANIFEST_PATH):
+		push_warning("[GameView] Missing presentation manifest: %s" % PRESENTATION_MANIFEST_PATH)
+		_presentation_manifest = {}
+		return
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(PRESENTATION_MANIFEST_PATH))
+	if parsed is Dictionary:
+		_presentation_manifest = parsed
+	else:
+		push_warning("[GameView] Invalid presentation manifest: %s" % PRESENTATION_MANIFEST_PATH)
+		_presentation_manifest = {}
+
+func _resolve_visual_id(e: Dictionary) -> String:
+	var etype := str(e.get("type", e.get("entity_type", "")))
+	var owner_key := str(int(e.get("owner", 0)))
+	if etype == "building":
+		var btype := str(e.get("building_type", ""))
+		if _is_known_building_visual(btype):
+			return btype
+		var abstract_buildings: Dictionary = _presentation_manifest.get("abstract_buildings", {})
+		var owner_buildings: Dictionary = abstract_buildings.get(owner_key, {})
+		return str(owner_buildings.get(btype, btype))
+
+	var unit_type := str(e.get("unit_type", ""))
+	if unit_type != "" and unit_type != "unit" and _is_known_unit_visual(unit_type):
+		return unit_type
+	if unit_type != "" and unit_type != etype and unit_type != "unit":
+		return unit_type
+
+	var abstract_units: Dictionary = _presentation_manifest.get("abstract_units", {})
+	var owner_units: Dictionary = abstract_units.get(owner_key, {})
+	return str(owner_units.get(etype, etype))
+
+func _is_known_unit_visual(visual_id: String) -> bool:
+	if visual_id == "":
+		return false
+	var unit_visuals: Dictionary = _presentation_manifest.get("unit_visuals", {})
+	return unit_visuals.has(visual_id) or (_sprite_loader != null and _sprite_loader.is_unit(visual_id))
+
+func _is_known_building_visual(visual_id: String) -> bool:
+	if visual_id == "":
+		return false
+	var building_visuals: Dictionary = _presentation_manifest.get("building_visuals", {})
+	return building_visuals.has(visual_id) or (_sprite_loader != null and _sprite_loader.is_building(visual_id))
+
+func _is_building_entity_visual(e: Dictionary, visual_id: String) -> bool:
+	return str(e.get("type", e.get("entity_type", ""))) == "building" or _is_known_building_visual(visual_id)
+
+func _visual_scale(visual_id: String, is_building: bool) -> Vector2:
+	var section_name := "building_visuals" if is_building else "unit_visuals"
+	var section: Dictionary = _presentation_manifest.get(section_name, {})
+	var visual: Dictionary = section.get(visual_id, {})
+	var fallback := 0.018 if is_building else 0.022
+	var scale := float(visual.get("render_scale", fallback))
+	return Vector2(scale, scale)
+
+func _unit_animation_key(e: Dictionary, frames: SpriteFrames) -> String:
+	var base := "idle"
+	if str(e.get("attack_target_id", "")) != "":
+		base = "attack"
+	elif not bool(e.get("is_idle", true)):
+		base = "moving"
+	var key := _sprite_loader.get_animation_key(base, 6)
+	if frames.has_animation(key):
+		return key
+	key = _sprite_loader.get_animation_key("idle", 6)
+	if frames.has_animation(key):
+		return key
+	var names := frames.get_animation_names()
+	return str(names[0]) if names.size() > 0 else ""
 
 func _parse(state: Dictionary) -> void:
 	var old_entities := _prev_entities.duplicate(true)
@@ -1316,7 +1382,7 @@ func _get_building_region(btype: String, owner: int) -> Dictionary:
 
 	return {"region": region, "scale": scale_sz}
 
-## Sync Sprite2D nodes with entity data each tick.
+## Sync sprite nodes with entity data each tick.
 func _update_entity_sprites() -> void:
 	if not _sprite_container:
 		return
@@ -1332,66 +1398,53 @@ func _update_entity_sprites() -> void:
 				_sprite_pool[eid].visible = false
 			continue
 
-		var sprite: Sprite2D = _sprite_pool.get(eid, null)
-		if not sprite:
-			sprite = Sprite2D.new()
-			sprite.name = "Ent_" + eid
-			sprite.z_index = 1
-			sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
-			_sprite_container.add_child(sprite)
-			_sprite_pool[eid] = sprite
+		var visual_id := _resolve_visual_id(e)
+		var is_building := _is_building_entity_visual(e, visual_id)
+		var node: Node2D = _sprite_pool.get(eid, null)
+		var needs_animated := not is_building
+		if node == null or (needs_animated and not (node is AnimatedSprite2D)) or (is_building and not (node is Sprite2D)):
+			if node:
+				node.queue_free()
+			node = AnimatedSprite2D.new() if needs_animated else Sprite2D.new()
+			node.name = "Ent_" + eid
+			node.z_index = 1
+			_sprite_container.add_child(node)
+			_sprite_pool[eid] = node
 
-		# Determine texture and region based on entity type
-		var tex: Texture2D = null
-		var region: Rect2 = Rect2()
-		var scale_sz := Vector2.ONE
-
-		match e.type:
-			"worker":
-				tex = _unit_textures.get("worker_%d" % e.owner, null)
-				if tex:
-					region = _calc_unit_region("worker", e.owner, 0, _anim_frame)
-					scale_sz = Vector2(0.02, 0.02)  # ~0.7 world units
-			"soldier":
-				tex = _unit_textures.get("soldier_%d" % e.owner, null)
-				if tex:
-					region = _calc_unit_region("soldier", e.owner, 0, _anim_frame)
-					scale_sz = Vector2(0.03, 0.03)  # ~0.7 world units
-			"scout":
-				tex = _unit_textures.get("scout_%d" % e.owner, null)
-				if tex:
-					region = _calc_unit_region("scout", e.owner, 0, _anim_frame)
-					scale_sz = Vector2(0.03, 0.03)  # ~0.7 world units
-			"building":
-				tex = _building_textures.get(e.owner, null)
-				if tex:
-					var btype: String = e.get("building_type", "")
-					var binfo: Dictionary = _get_building_region(btype, e.owner)
-					region = binfo["region"]
-					scale_sz = binfo["scale"]
-			_:
-				pass
-
-		if tex:
-			sprite.texture = tex
-			sprite.region_enabled = true
-			sprite.region_rect = region
-			sprite.scale = scale_sz
-			sprite.visible = true
-			sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
-			sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			# Color by owner
-			if e.owner == 2:
-				sprite.modulate = Color(1.0, 0.4, 0.4)
-			elif e.owner == 1:
-				sprite.modulate = Color.CYAN
+		if is_building:
+			var sprite := node as Sprite2D
+			var atlas := _sprite_loader.get_building_atlas(visual_id) if _sprite_loader else null
+			if atlas:
+				sprite.texture = atlas
+				sprite.region_enabled = false
+				sprite.scale = _visual_scale(visual_id, true)
+				sprite.visible = true
+				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			else:
-				sprite.modulate = Color.WHITE
+				sprite.texture = null
+				sprite.visible = false
 		else:
-			sprite.texture = null
-			sprite.visible = false
+			var anim_sprite := node as AnimatedSprite2D
+			var frames := _sprite_loader.get_frames(visual_id) if _sprite_loader else null
+			if frames:
+				anim_sprite.sprite_frames = frames
+				var anim_key := _unit_animation_key(e, frames)
+				if anim_key != "":
+					if anim_sprite.animation != anim_key:
+						anim_sprite.animation = anim_key
+					if not anim_sprite.is_playing():
+						anim_sprite.play()
+				anim_sprite.scale = _visual_scale(visual_id, false)
+				anim_sprite.visible = true
+				anim_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			else:
+				anim_sprite.sprite_frames = null
+				anim_sprite.visible = false
 
-		sprite.position = Vector2(e.px, e.py)
+		if node.visible:
+			node.modulate = Color.WHITE
+		node.position = Vector2(e.px, e.py)
 
 	# Hide sprites for entities that no longer exist
 	for eid in _sprite_pool:

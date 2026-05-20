@@ -1,8 +1,18 @@
 {
   "defaults": {
     "texture": "",
-    "color": [1.0, 0.95, 0.65, 1.0],
-    "secondary_color": [1.0, 0.25, 0.12, 0.75],
+    "color": [
+      1.0,
+      0.95,
+      0.65,
+      1.0
+    ],
+    "secondary_color": [
+      1.0,
+      0.25,
+      0.12,
+      0.75
+    ],
     "lifetime": 0.22,
     "radius": 0.55,
     "scale": 1.0,
@@ -11,8 +21,18 @@
   "effects": {
     "muzzle_flash_small": {
       "texture": "res://assets/effects/Magic.png",
-      "color": [1.0, 0.92, 0.45, 0.95],
-      "secondary_color": [1.0, 0.38, 0.1, 0.65],
+      "color": [
+        1.0,
+        0.92,
+        0.45,
+        0.95
+      ],
+      "secondary_color": [
+        1.0,
+        0.38,
+        0.1,
+        0.65
+      ],
       "lifetime": 0.12,
       "radius": 0.34,
       "scale": 0.025,
@@ -20,8 +40,18 @@
     },
     "hit_spark": {
       "texture": "res://assets/effects/Burst.png",
-      "color": [1.0, 0.78, 0.28, 0.9],
-      "secondary_color": [1.0, 0.22, 0.08, 0.65],
+      "color": [
+        1.0,
+        0.78,
+        0.28,
+        0.9
+      ],
+      "secondary_color": [
+        1.0,
+        0.22,
+        0.08,
+        0.65
+      ],
       "lifetime": 0.24,
       "radius": 0.5,
       "scale": 0.028,
@@ -29,8 +59,18 @@
     },
     "acid_hit": {
       "texture": "res://assets/sprites/effects/Mud.png",
-      "color": [0.35, 1.0, 0.22, 0.85],
-      "secondary_color": [0.04, 0.45, 0.04, 0.65],
+      "color": [
+        0.35,
+        1.0,
+        0.22,
+        0.85
+      ],
+      "secondary_color": [
+        0.04,
+        0.45,
+        0.04,
+        0.65
+      ],
       "lifetime": 0.34,
       "radius": 0.6,
       "scale": 0.035,
@@ -38,8 +78,18 @@
     },
     "shell_impact": {
       "texture": "res://assets/effects/Burst.png",
-      "color": [1.0, 0.76, 0.32, 0.95],
-      "secondary_color": [1.0, 0.16, 0.05, 0.8],
+      "color": [
+        1.0,
+        0.76,
+        0.32,
+        0.95
+      ],
+      "secondary_color": [
+        1.0,
+        0.16,
+        0.05,
+        0.8
+      ],
       "lifetime": 0.38,
       "radius": 0.95,
       "scale": 0.055,
@@ -47,8 +97,18 @@
     },
     "shield_hit": {
       "texture": "res://assets/effects/Magic.png",
-      "color": [0.35, 0.85, 1.0, 0.85],
-      "secondary_color": [0.75, 1.0, 1.0, 0.65],
+      "color": [
+        0.35,
+        0.85,
+        1.0,
+        0.85
+      ],
+      "secondary_color": [
+        0.75,
+        1.0,
+        1.0,
+        0.65
+      ],
       "lifetime": 0.28,
       "radius": 0.7,
       "scale": 0.034,
@@ -56,12 +116,60 @@
     },
     "building_burst": {
       "texture": "res://assets/effects/BuildingBurst.png",
-      "color": [1.0, 0.68, 0.28, 0.95],
-      "secondary_color": [0.35, 0.28, 0.22, 0.75],
+      "color": [
+        1.0,
+        0.68,
+        0.28,
+        0.95
+      ],
+      "secondary_color": [
+        0.35,
+        0.28,
+        0.22,
+        0.75
+      ],
       "lifetime": 0.72,
       "radius": 1.5,
       "scale": 0.08,
       "rings": 3
+    },
+    "flame_burst": {
+      "texture": "res://assets/effects/Magic.png",
+      "color": [
+        1.0,
+        0.42,
+        0.08,
+        0.92
+      ],
+      "secondary_color": [
+        1.0,
+        0.12,
+        0.02,
+        0.7
+      ],
+      "lifetime": 0.26,
+      "radius": 0.72,
+      "scale": 0.04,
+      "rings": 2
+    },
+    "psi_flash": {
+      "texture": "res://assets/effects/Magic.png",
+      "color": [
+        0.55,
+        0.85,
+        1.0,
+        0.9
+      ],
+      "secondary_color": [
+        0.95,
+        0.95,
+        1.0,
+        0.68
+      ],
+      "lifetime": 0.3,
+      "radius": 0.82,
+      "scale": 0.04,
+      "rings": 2
     }
   },
   "unit_effects": {
@@ -81,7 +189,7 @@
       "death": "shell_impact"
     },
     "Zergling": {
-      "attack": "hit_spark",
+      "attack": "acid_hit",
       "hit": "acid_hit",
       "death": "acid_hit"
     },
@@ -98,6 +206,385 @@
     "building": {
       "hit": "hit_spark",
       "death": "building_burst"
+    },
+    "SCV": {
+      "attack": "muzzle_flash_small",
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Firebat": {
+      "attack": "flame_burst",
+      "hit": "flame_burst",
+      "death": "hit_spark"
+    },
+    "Medic": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Vulture": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "Goliath": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "Wraith": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "Dropship": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Vessel": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Valkyrie": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "BattleCruiser": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "Civilian": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Drone": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Lurker": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Ultralisk": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Broodling": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "InfestedTerran": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Overlord": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Queen": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Defiler": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Mutalisk": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Guardian": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Devourer": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Scourge": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Larva": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Probe": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Dragoon": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Templar": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "DarkTemplar": {
+      "attack": "shield_hit",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Archon": {
+      "attack": "shield_hit",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "DarkArchon": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Reaver": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Shuttle": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Observer": {
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Arbiter": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Scout": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Carrier": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "Corsair": {
+      "attack": "psi_flash",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    }
+  },
+  "spell_effects": {
+    "Burrow": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Burrow"
+    },
+    "Unburrow": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Unburrow"
+    },
+    "Parasite": {
+      "race": "zerg",
+      "target": "unit",
+      "effect": "acid_hit",
+      "sfx": "Parasite"
+    },
+    "SpawnBroodling": {
+      "race": "zerg",
+      "target": "unit",
+      "effect": "acid_hit",
+      "sfx": "SpawnBroodling"
+    },
+    "Ensnare": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "Ensnare"
+    },
+    "Consume": {
+      "race": "zerg",
+      "target": "self",
+      "effect": "acid_hit",
+      "sfx": "Consume"
+    },
+    "DarkSwarm": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "DarkSwarm"
+    },
+    "Plague": {
+      "race": "zerg",
+      "target": "point",
+      "effect": "acid_hit",
+      "sfx": "Plague"
+    },
+    "Stimpack": {
+      "race": "terran",
+      "target": "self",
+      "effect": "muzzle_flash_small",
+      "sfx": "Stimpack"
+    },
+    "Cloak": {
+      "race": "terran",
+      "target": "self",
+      "effect": "hit_spark",
+      "sfx": "Cloak"
+    },
+    "PersonalCloak": {
+      "race": "terran",
+      "target": "self",
+      "effect": "hit_spark",
+      "sfx": "PersonalCloak"
+    },
+    "Lockdown": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "Lockdown"
+    },
+    "NuclearStrike": {
+      "race": "terran",
+      "target": "point",
+      "effect": "shell_impact",
+      "sfx": "NuclearStrike"
+    },
+    "EMPShockwave": {
+      "race": "terran",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "EMPShockwave"
+    },
+    "Irradiate": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "Irradiate"
+    },
+    "DefensiveMatrix": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "DefensiveMatrix"
+    },
+    "ScannerSweep": {
+      "race": "terran",
+      "target": "point",
+      "effect": "muzzle_flash_small",
+      "sfx": "ScannerSweep"
+    },
+    "YamatoGun": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "shell_impact",
+      "sfx": "YamatoGun"
+    },
+    "Repair": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Repair"
+    },
+    "Heal": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Heal"
+    },
+    "Restoration": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "muzzle_flash_small",
+      "sfx": "Restoration"
+    },
+    "OpticalFlare": {
+      "race": "terran",
+      "target": "unit",
+      "effect": "hit_spark",
+      "sfx": "OpticalFlare"
+    },
+    "PsiStorm": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "PsiStorm"
+    },
+    "Hallucination": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "Hallucination"
+    },
+    "Meld": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "Meld"
+    },
+    "DarkMeld": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "DarkMeld"
+    },
+    "Feedback": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "Feedback"
+    },
+    "Maelstrom": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "Maelstrom"
+    },
+    "MindControl": {
+      "race": "protoss",
+      "target": "unit",
+      "effect": "psi_flash",
+      "sfx": "MindControl"
+    },
+    "Recall": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "Recall"
+    },
+    "StasisField": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "StasisField"
+    },
+    "DisruptionWeb": {
+      "race": "protoss",
+      "target": "point",
+      "effect": "psi_flash",
+      "sfx": "DisruptionWeb"
+    },
+    "BuildInterceptor": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "BuildInterceptor"
+    },
+    "BuildScarab": {
+      "race": "protoss",
+      "target": "self",
+      "effect": "psi_flash",
+      "sfx": "BuildScarab"
     }
   }
 }

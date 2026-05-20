@@ -13,7 +13,7 @@ import argparse
 import asyncio
 import logging
 import signal
-from concurrent.futures import futures
+import concurrent.futures
 from typing import Any, Callable
 
 import grpc
@@ -290,7 +290,7 @@ async def serve(port: int = 50051, auto_step: bool = False,
                 tick_rate: float = 10.0,
                 agent_factory: AgentFactory | None = None) -> None:
     """Start the gRPC server with graceful shutdown."""
-    server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.aio.server(concurrent.futures.ThreadPoolExecutor(max_workers=4))
     servicer = SimCoreServicer(
         auto_step=auto_step,
         tick_rate=tick_rate,

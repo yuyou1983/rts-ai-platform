@@ -83,13 +83,6 @@ func get_frames(entity_name: String) -> SpriteFrames:
 		var frame_count: int = int(animations[anim_name])
 
 		for dir_idx in range(directions):
-			var mirror := dir_idx >= 4
-			var src_dir := dir_idx
-			if mirror:
-				# Mirror left-facing from right-facing:
-				# 4(W)→0(E), 5(SW)→3(NW), 6(S)→2(N), 7(SE)→1(NE)
-				src_dir = (8 - dir_idx) % 8
-
 			var anim_key := "%s_%s" % [anim_name, DIRECTION_NAMES[dir_idx]]
 			sprite_frames.add_animation(anim_key)
 			sprite_frames.set_animation_speed(anim_key, 1000.0 / FRAME_TIME_MS)  # 10 FPS
@@ -98,11 +91,9 @@ func get_frames(entity_name: String) -> SpriteFrames:
 				var atlas := AtlasTexture.new()
 				atlas.atlas = texture
 				var region_x := frame_idx * frame_w
-				var region_y := src_dir * frame_h
+				var region_y := dir_idx * frame_h
 				atlas.region = Rect2(region_x, region_y, frame_w, frame_h)
 				atlas.filter_clip = true
-				if mirror:
-					atlas.flip_h = true
 				sprite_frames.add_frame(anim_key, atlas)
 
 	# Also create a default "idle" animation pointing south for quick setup
