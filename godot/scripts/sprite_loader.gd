@@ -10,6 +10,7 @@ extends RefCounted
 # ─── Constants ────────────────────────────────────────────────────────────────
 const CONFIG_PATH := "res://resources/sprite_frames_config.json"
 const FRAME_TIME_MS := 100  # 10 FPS → 100ms per frame (matches original SC tick)
+const BUILDING_ATLAS_PADDING := 12
 
 # ─── Internal state ───────────────────────────────────────────────────────────
 var _config: Dictionary = {}
@@ -75,7 +76,7 @@ func get_frames(entity_name: String) -> SpriteFrames:
 
 	var frame_w: int = int(info["frame_width"])
 	var frame_h: int = int(info["frame_height"])
-	var directions: int = int(info.get("directions", 8))
+	var directions: int = mini(int(info.get("directions", 8)), maxi(1, int(texture.get_height() / max(frame_h, 1))))
 	var animations: Dictionary = info.get("animations", {})
 
 	# Create animation for each (anim_name, direction) pair
@@ -126,14 +127,19 @@ func get_building_atlas(entity_name: String) -> AtlasTexture:
 	if texture == null:
 		return null
 
-	var atlas := AtlasTexture.new()
-	atlas.atlas = texture
-	atlas.region = Rect2(
+	var raw_region := Rect2(
 		int(info.get("offset_x", 0)),
 		int(info.get("offset_y", 0)),
 		int(info.get("frame_width", 128)),
 		int(info.get("frame_height", 128))
 	)
+	var expanded_region := raw_region.grow(BUILDING_ATLAS_PADDING)
+	var texture_rect := Rect2(Vector2.ZERO, texture.get_size())
+	var final_region := expanded_region.intersection(texture_rect)
+
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = final_region
 	atlas.filter_clip = true
 
 	_building_cache[entity_name] = atlas

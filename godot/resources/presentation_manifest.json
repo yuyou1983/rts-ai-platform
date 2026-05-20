@@ -482,7 +482,7 @@
       "vfx_profile": "building",
       "audio_prefix": "CommandCenter",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 4.1
     },
     "SupplyDepot": {
       "race": "terran",
@@ -491,7 +491,7 @@
       "vfx_profile": "building",
       "audio_prefix": "SupplyDepot",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.0
     },
     "Refinery": {
       "race": "terran",
@@ -500,7 +500,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Refinery",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.8
     },
     "Barracks": {
       "race": "terran",
@@ -509,7 +509,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Barracks",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.2
     },
     "EngineeringBay": {
       "race": "terran",
@@ -518,7 +518,7 @@
       "vfx_profile": "building",
       "audio_prefix": "EngineeringBay",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.2
     },
     "MissileTurret": {
       "race": "terran",
@@ -527,7 +527,7 @@
       "vfx_profile": "building",
       "audio_prefix": "MissileTurret",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.5
     },
     "Academy": {
       "race": "terran",
@@ -536,7 +536,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Academy",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.0
     },
     "Bunker": {
       "race": "terran",
@@ -545,7 +545,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Bunker",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.8
     },
     "Factory": {
       "race": "terran",
@@ -554,7 +554,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Factory",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.5
     },
     "Starport": {
       "race": "terran",
@@ -563,7 +563,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Starport",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.5
     },
     "ScienceFacility": {
       "race": "terran",
@@ -572,7 +572,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ScienceFacility",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.5
     },
     "Armory": {
       "race": "terran",
@@ -581,7 +581,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Armory",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.0
     },
     "ComstatStation": {
       "race": "terran",
@@ -590,7 +590,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ComstatStation",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.5
     },
     "NuclearSilo": {
       "race": "terran",
@@ -599,7 +599,7 @@
       "vfx_profile": "building",
       "audio_prefix": "NuclearSilo",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.8
     },
     "MachineShop": {
       "race": "terran",
@@ -608,7 +608,7 @@
       "vfx_profile": "building",
       "audio_prefix": "MachineShop",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.5
     },
     "ControlTower": {
       "race": "terran",
@@ -617,7 +617,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ControlTower",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 2.5
     },
     "PhysicsLab": {
       "race": "terran",
@@ -626,7 +626,7 @@
       "vfx_profile": "building",
       "audio_prefix": "PhysicsLab",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.0
     },
     "ConvertOps": {
       "race": "terran",
@@ -635,7 +635,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ConvertOps",
       "render_scale": 0.0156,
-      "selection_radius": 4.156
+      "selection_radius": 3.0
     },
     "Hatchery": {
       "race": "zerg",
@@ -644,7 +644,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Hatchery",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 4.1
     },
     "Lair": {
       "race": "zerg",
@@ -653,7 +653,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Lair",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 4.1
     },
     "Hive": {
       "race": "zerg",
@@ -662,7 +662,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Hive",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 4.1
     },
     "CreepColony": {
       "race": "zerg",
@@ -671,7 +671,7 @@
       "vfx_profile": "building",
       "audio_prefix": "CreepColony",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.5
     },
     "SunkenColony": {
       "race": "zerg",
@@ -680,7 +680,7 @@
       "vfx_profile": "building",
       "audio_prefix": "SunkenColony",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.8
     },
     "SporeColony": {
       "race": "zerg",
@@ -689,7 +689,7 @@
       "vfx_profile": "building",
       "audio_prefix": "SporeColony",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.8
     },
     "Extractor": {
       "race": "zerg",
@@ -698,7 +698,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Extractor",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.5
     },
     "SpawningPool": {
       "race": "zerg",
@@ -707,7 +707,7 @@
       "vfx_profile": "building",
       "audio_prefix": "SpawningPool",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.8
     },
     "EvolutionChamber": {
       "race": "zerg",
@@ -716,7 +716,7 @@
       "vfx_profile": "building",
       "audio_prefix": "EvolutionChamber",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.8
     },
     "HydraliskDen": {
       "race": "zerg",
@@ -725,7 +725,7 @@
       "vfx_profile": "building",
       "audio_prefix": "HydraliskDen",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.0
     },
     "Spire": {
       "race": "zerg",
@@ -734,7 +734,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Spire",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.0
     },
     "GreaterSpire": {
       "race": "zerg",
@@ -743,7 +743,7 @@
       "vfx_profile": "building",
       "audio_prefix": "GreaterSpire",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.5
     },
     "QueenNest": {
       "race": "zerg",
@@ -752,7 +752,7 @@
       "vfx_profile": "building",
       "audio_prefix": "QueenNest",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.0
     },
     "NydusCanal": {
       "race": "zerg",
@@ -761,7 +761,7 @@
       "vfx_profile": "building",
       "audio_prefix": "NydusCanal",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 2.8
     },
     "UltraliskCavern": {
       "race": "zerg",
@@ -770,7 +770,7 @@
       "vfx_profile": "building",
       "audio_prefix": "UltraliskCavern",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.2
     },
     "DefilerMound": {
       "race": "zerg",
@@ -779,7 +779,7 @@
       "vfx_profile": "building",
       "audio_prefix": "DefilerMound",
       "render_scale": 0.0107,
-      "selection_radius": 7.594
+      "selection_radius": 3.0
     },
     "Nexus": {
       "race": "protoss",
@@ -788,7 +788,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Nexus",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 4.1
     },
     "Pylon": {
       "race": "protoss",
@@ -797,7 +797,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Pylon",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.0
     },
     "Assimilator": {
       "race": "protoss",
@@ -806,7 +806,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Assimilator",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.8
     },
     "Gateway": {
       "race": "protoss",
@@ -815,7 +815,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Gateway",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.2
     },
     "Forge": {
       "race": "protoss",
@@ -824,7 +824,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Forge",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.8
     },
     "PhotonCannon": {
       "race": "protoss",
@@ -833,7 +833,7 @@
       "vfx_profile": "building",
       "audio_prefix": "PhotonCannon",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.5
     },
     "CyberneticsCore": {
       "race": "protoss",
@@ -842,7 +842,7 @@
       "vfx_profile": "building",
       "audio_prefix": "CyberneticsCore",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.0
     },
     "ShieldBattery": {
       "race": "protoss",
@@ -851,7 +851,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ShieldBattery",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.5
     },
     "RoboticsFacility": {
       "race": "protoss",
@@ -860,7 +860,7 @@
       "vfx_profile": "building",
       "audio_prefix": "RoboticsFacility",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.5
     },
     "StarGate": {
       "race": "protoss",
@@ -869,7 +869,7 @@
       "vfx_profile": "building",
       "audio_prefix": "StarGate",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.5
     },
     "CitadelOfAdun": {
       "race": "protoss",
@@ -878,7 +878,7 @@
       "vfx_profile": "building",
       "audio_prefix": "CitadelOfAdun",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.2
     },
     "RoboticsSupportBay": {
       "race": "protoss",
@@ -887,7 +887,7 @@
       "vfx_profile": "building",
       "audio_prefix": "RoboticsSupportBay",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.8
     },
     "FleetBeacon": {
       "race": "protoss",
@@ -896,7 +896,7 @@
       "vfx_profile": "building",
       "audio_prefix": "FleetBeacon",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.5
     },
     "TemplarArchives": {
       "race": "protoss",
@@ -905,7 +905,7 @@
       "vfx_profile": "building",
       "audio_prefix": "TemplarArchives",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.0
     },
     "Observatory": {
       "race": "protoss",
@@ -914,7 +914,7 @@
       "vfx_profile": "building",
       "audio_prefix": "Observatory",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 2.5
     },
     "ArbiterTribunal": {
       "race": "protoss",
@@ -923,7 +923,7 @@
       "vfx_profile": "building",
       "audio_prefix": "ArbiterTribunal",
       "render_scale": 0.0156,
-      "selection_radius": 3.266
+      "selection_radius": 3.0
     }
   },
   "spell_visuals": {

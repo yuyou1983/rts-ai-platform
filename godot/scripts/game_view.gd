@@ -244,6 +244,7 @@ func _ready() -> void:
 	_unit_textures["scout_3"] = load("res://assets/units/Dragoon.png")
 	_building_textures[1] = load("res://assets/buildings/TerranBuilding.png")
 	_building_textures[2] = load("res://assets/buildings/ZergBuilding.png")
+	_building_textures[3] = load("res://assets/buildings/ProtossBuilding.png")
 	# ─── Unit animation metadata (row, total_cols, frame_w, frame_h, south_col) ───
 	# SCV: 8-dir, row0 walk, row1 carry, row2 attack, row3 gather
 	_unit_anim_info["worker_1"] = {"rows": 4, "cols": [8,8,8,4], "fw": [33,41,42,46], "fh": [41,40,40,48], "south": [4,4,4,2]}
@@ -1017,16 +1018,28 @@ func _visual_scale(visual_id: String, is_building: bool) -> Vector2:
 	var scale := float(visual.get("render_scale", fallback))
 	return Vector2(scale, scale)
 
+func _visual_radius(e: Dictionary) -> float:
+	var visual_id := _resolve_visual_id(e)
+	var is_building := _is_building_entity_visual(e, visual_id)
+	var section_name := "building_visuals" if is_building else "unit_visuals"
+	var section: Dictionary = _presentation_manifest.get(section_name, {})
+	var visual: Dictionary = section.get(visual_id, {})
+	var fallback := 1.5 if is_building else 0.55
+	var radius := float(visual.get("selection_radius", fallback))
+	if is_building:
+		return clampf(radius * 0.34, 0.95, 1.65)
+	return clampf(radius * 0.78, 0.38, 0.72)
+
 func _unit_animation_key(e: Dictionary, frames: SpriteFrames) -> String:
 	var base := "idle"
 	if str(e.get("attack_target_id", "")) != "":
 		base = "attack"
 	elif not bool(e.get("is_idle", true)):
 		base = "moving"
-	var key := _sprite_loader.get_animation_key(base, 6)
+	var key := _sprite_loader.get_animation_key(base, 0)
 	if frames.has_animation(key):
 		return key
-	key = _sprite_loader.get_animation_key("idle", 6)
+	key = _sprite_loader.get_animation_key("idle", 0)
 	if frames.has_animation(key):
 		return key
 	var names := frames.get_animation_names()
@@ -1170,8 +1183,8 @@ func _draw() -> void:
 	var co := Vector2.ZERO
 	_draw_map_background(co)
 	_draw_grid(co)
-	_draw_fog_of_war(co)
 	_draw_entities(co)
+	_draw_fog_of_war(co)
 	_draw_combat_effects(co)
 	_draw_health_bars(co)
 	_draw_selection_rings(co)
@@ -1339,22 +1352,30 @@ func _get_building_region(btype: String, owner: int) -> Dictionary:
 	if owner == 1:  # Terran
 		match btype:
 			"base":
-				# Command Center COMPLETE form (2nd of 3): x=191-379
-				region = Rect2(191, 108, 189, 188)
-				scale_sz = Vector2(0.022, 0.022)  # 189*0.022≈4.2 world units
+				# Command Center complete form, tightly cropped to the building body.
+				# The surrounding sprite sheet contains adjacent build frames/addons.
+				region = Rect2(205, 190, 145, 95)
+				scale_sz = Vector2(0.040, 0.040)
 			"barracks":
-				region = Rect2(120, 1, 145, 114)
-				scale_sz = Vector2(0.017, 0.017)
+				# Barracks complete form: bottom block of the 3-phase column.
+				# Full column width (building body fills the slot).
+				region = Rect2(573, 197, 191, 69)
+				scale_sz = Vector2(0.0319, 0.0319)
 			"factory":
-				# Factory is 3rd section in Row1: x=381-574
-				region = Rect2(381, 108, 193, 188)
-				scale_sz = Vector2(0.021, 0.021)
+				# Factory complete form: last block of the 4-phase column.
+				# Left-cropped to exclude the empty gap before the building body.
+				region = Rect2(409, 466, 164, 47)
+				scale_sz = Vector2(0.0426, 0.0426)
 			"refinery":
-				region = Rect2(941, 1, 186, 109)
-				scale_sz = Vector2(0.014, 0.014)
+				# Refinery complete form: bottom block of the 3-phase column.
+				# Full column width (pipe structure extends across the slot).
+				region = Rect2(382, 189, 191, 77)
+				scale_sz = Vector2(0.026, 0.026)
 			"starport":
-				region = Rect2(577, 108, 363, 184)
-				scale_sz = Vector2(0.012, 0.012)
+				# Starport complete form: last block of the 4-phase column.
+				# Full column width (building body fills the slot).
+				region = Rect2(573, 446, 191, 86)
+				scale_sz = Vector2(0.0256, 0.0256)
 			_:
 				region = Rect2(1, 1, 128, 109)
 				scale_sz = Vector2(0.015, 0.015)
@@ -1382,6 +1403,35 @@ func _get_building_region(btype: String, owner: int) -> Dictionary:
 
 	return {"region": region, "scale": scale_sz}
 
+func _has_building_region_override(btype: String, owner: int) -> bool:
+	if owner == 1:
+		return btype in ["base", "barracks", "factory", "refinery", "starport"]
+	if owner == 2:
+		return btype in ["base", "barracks", "lair", "hive"]
+	return false
+
+func _has_unit_region_override(e: Dictionary) -> bool:
+	return str(e.get("type", e.get("entity_type", ""))) in ["worker", "soldier", "scout"]
+
+func _get_unit_region_override(e: Dictionary) -> Dictionary:
+	var etype := str(e.get("type", e.get("entity_type", "")))
+	var owner := int(e.get("owner", 0))
+	var texture_key := "%s_%d" % [etype, owner]
+	var row := 0
+	var scale_sz := Vector2(0.022, 0.022)
+	match etype:
+		"worker":
+			scale_sz = Vector2(0.026, 0.026)
+		"soldier":
+			scale_sz = Vector2(0.024, 0.024)
+		"scout":
+			scale_sz = Vector2(0.024, 0.024)
+	return {
+		"texture_key": texture_key,
+		"region": _calc_unit_region(etype, owner, row, _anim_frame),
+		"scale": scale_sz,
+	}
+
 ## Sync sprite nodes with entity data each tick.
 func _update_entity_sprites() -> void:
 	if not _sprite_container:
@@ -1400,9 +1450,10 @@ func _update_entity_sprites() -> void:
 
 		var visual_id := _resolve_visual_id(e)
 		var is_building := _is_building_entity_visual(e, visual_id)
+		var has_unit_override := _has_unit_region_override(e)
 		var node: Node2D = _sprite_pool.get(eid, null)
-		var needs_animated := not is_building
-		if node == null or (needs_animated and not (node is AnimatedSprite2D)) or (is_building and not (node is Sprite2D)):
+		var needs_animated := not is_building and not has_unit_override
+		if node == null or (needs_animated and not (node is AnimatedSprite2D)) or (not needs_animated and not (node is Sprite2D)):
 			if node:
 				node.queue_free()
 			node = AnimatedSprite2D.new() if needs_animated else Sprite2D.new()
@@ -1413,11 +1464,38 @@ func _update_entity_sprites() -> void:
 
 		if is_building:
 			var sprite := node as Sprite2D
-			var atlas := _sprite_loader.get_building_atlas(visual_id) if _sprite_loader else null
-			if atlas:
-				sprite.texture = atlas
-				sprite.region_enabled = false
-				sprite.scale = _visual_scale(visual_id, true)
+			var btype := str(e.get("building_type", ""))
+			var override_texture: Texture2D = _building_textures.get(int(e.owner), null)
+			if _has_building_region_override(btype, int(e.owner)) and override_texture:
+				var binfo: Dictionary = _get_building_region(btype, int(e.owner))
+				sprite.texture = override_texture
+				sprite.region_enabled = true
+				sprite.region_rect = binfo["region"]
+				sprite.scale = binfo["scale"]
+				sprite.visible = true
+				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			else:
+				var atlas := _sprite_loader.get_building_atlas(visual_id) if _sprite_loader else null
+				if atlas:
+					sprite.texture = atlas
+					sprite.region_enabled = false
+					sprite.scale = _visual_scale(visual_id, true)
+					sprite.visible = true
+					sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+					sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				else:
+					sprite.texture = null
+					sprite.visible = false
+		elif has_unit_override:
+			var sprite := node as Sprite2D
+			var uinfo: Dictionary = _get_unit_region_override(e)
+			var texture: Texture2D = _unit_textures.get(str(uinfo["texture_key"]), null)
+			if texture:
+				sprite.texture = texture
+				sprite.region_enabled = true
+				sprite.region_rect = uinfo["region"]
+				sprite.scale = uinfo["scale"]
 				sprite.visible = true
 				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
 				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -1518,10 +1596,13 @@ func _draw_health_bars(co: Vector2) -> void:
 			continue
 		if e.owner != 1 and _is_in_fog(e):
 			continue
+		if not _selected.has(e.id) and e.health >= e.max_health:
+			continue
 		var pos := Vector2(e.px, e.py) 
-		var bar_w := 1.2
+		var radius := _visual_radius(e)
+		var bar_w := clampf(radius * 1.45, 0.55, 2.8)
 		var bar_h := 0.15
-		var bar_y := pos.y - 1.0
+		var bar_y := pos.y - radius - 0.28
 		var frac: float = e.health / e.max_health
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
 		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
@@ -1533,7 +1614,8 @@ func _draw_selection_rings(co: Vector2) -> void:
 		if e.is_empty():
 			continue
 		var pos := Vector2(e.px, e.py) 
-		draw_arc(pos, 0.8, 0.0, TAU, 16, Color(0.2, 1.0, 0.2, 0.9), 0.12, true)
+		var radius := _visual_radius(e)
+		draw_arc(pos, radius, 0.0, TAU, 24, Color(0.2, 1.0, 0.2, 0.88), 0.055, true)
 
 # ─── Sprint 4: Draw Rally Point Lines ──────────────────────
 func _draw_rally_lines(co: Vector2) -> void:

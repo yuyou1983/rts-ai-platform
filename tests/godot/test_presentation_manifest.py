@@ -1,4 +1,5 @@
 import json
+import struct
 from pathlib import Path
 
 
@@ -28,6 +29,11 @@ def _res_path_exists(path: str) -> bool:
     if not path.startswith("res://"):
         return False
     return (ROOT / "godot" / path.removeprefix("res://")).exists()
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    header = path.read_bytes()[:24]
+    return struct.unpack(">II", header[16:24])
 
 
 def test_presentation_manifest_covers_units_buildings_and_spells() -> None:
@@ -79,3 +85,16 @@ def test_vfx_references_resolve_to_known_effects() -> None:
 
     for mapping in vfx["spell_effects"].values():
         assert mapping["effect"] in known_effects
+
+
+def test_default_unit_sprite_frame_is_inside_texture() -> None:
+    config = _load_json(ROOT / "godot/resources/sprite_frames_config.json")
+
+    for unit_name, info in config["units"].items():
+        texture_path = ROOT / "godot" / info["file"].removeprefix("res://")
+        width, height = _png_size(texture_path)
+        frame_width = int(info["frame_width"])
+        frame_height = int(info["frame_height"])
+
+        assert frame_width <= width, unit_name
+        assert frame_height <= height, unit_name
