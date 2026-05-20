@@ -19,7 +19,7 @@ Usage:
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Callable
 
 import gymnasium as gym
 import numpy as np
@@ -39,6 +39,9 @@ UNIT_TYPE_MAP = {t: i for i, t in enumerate(UNIT_TYPES)}
 
 COMMAND_TYPES = ["move", "gather", "attack", "build", "train", "noop"]
 COMMAND_TYPE_MAP = {t: i for i, t in enumerate(COMMAND_TYPES)}
+
+# Type alias: agent_factory(player_id) -> agent with .decide(obs)
+AgentFactory = Callable[[int], Any]
 
 
 class RTSSimCoreEnv(gym.Env):
@@ -68,6 +71,7 @@ class RTSSimCoreEnv(gym.Env):
         two_player: bool = False,
         reward_shaping: str = "sparse",
         render_mode: str | None = None,
+        agent_factory: AgentFactory | None = None,
     ) -> None:
         super().__init__()
 
@@ -76,6 +80,10 @@ class RTSSimCoreEnv(gym.Env):
         self._two_player = two_player
         self._reward_shaping = reward_shaping
         self.render_mode = render_mode
+
+        # Agent factory — injected by the runtime layer.
+        # If not provided, we lazily import from runtime when needed.
+        self._agent_factory = agent_factory
 
         self._engine = SimCore(max_ticks=max_ticks)
         self._prev_resources: dict[str, int] = {}
@@ -103,6 +111,14 @@ class RTSSimCoreEnv(gym.Env):
         self._n_actions = n_cmd * n_units * n_targets
         self.action_space = spaces.Discrete(self._n_actions)
 
+    def _get_agent_factory(self) -> AgentFactory:
+        """Return the agent factory, dynamically loading from runtime if needed."""
+        if self._agent_factory is None:
+            import importlib
+            _mod = importlib.import_module("runtime.agent_factory")
+            self._agent_factory = _mod.create_ai_agent
+        return self._agent_factory
+
     def reset(
         self, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
@@ -121,15 +137,15 @@ class RTSSimCoreEnv(gym.Env):
         # Decode action
         commands = self._decode_action(action)
 
-        # Add ScriptAI for P2 if single-player
+        # Inject AI commands for P2 in single-player mode via runtime
         all_commands = list(commands)
-        if not self._two_player and self._engine.state:
-            from agents.script_ai import ScriptAI
-            ai = ScriptAI(player_id=2)
-            obs_p2 = self._engine.state.get_observations()[1]
-            ai_result = ai.decide(obs_p2)
-            ai_cmds = ai_result.get("commands", []) if isinstance(ai_result, dict) else []
-            all_commands.extend(ai_cmds)
+        if not self._two_player and self._engine.state is not None:
+            factory = self._get_agent_factory()
+            import importlib
+            _gym_ai = importlib.import_module("runtime.gym_ai")
+            all_commands = _gym_ai.inject_ai_commands(
+                self._engine, commands, self._two_player, factory,
+            )
 
         # Step engine
         prev_state = self._engine.state

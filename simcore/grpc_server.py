@@ -13,26 +13,36 @@ import argparse
 import asyncio
 import logging
 import signal
-from concurrent import futures
+from concurrent.futures import futures
+from typing import Any, Callable
 
 import grpc
 
-from agents.script_ai import ScriptAI
 from simcore.engine import SimCore
 from simcore.proto_out.proto import service_pb2, service_pb2_grpc, state_pb2
 
 logger = logging.getLogger(__name__)
 
+# Type alias: agent_factory(player_id) -> agent with .decide(obs)
+AgentFactory = Callable[[int], Any]
+
 
 class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
     """gRPC service implementation backed by SimCore engine."""
 
-    def __init__(self, auto_step: bool = False, tick_rate: float = 10.0) -> None:
+    def __init__(
+        self,
+        auto_step: bool = False,
+        tick_rate: float = 10.0,
+        agent_factory: AgentFactory | None = None,
+    ) -> None:
         self.engine = SimCore()
         self._lock = asyncio.Lock()
         self._auto_step = auto_step
         self._tick_rate = tick_rate
-        self._ai_agents: dict[int, ScriptAI] = {}
+        # AI agent support — injected by the runtime layer
+        self._agent_factory = agent_factory
+        self._ai_agents: dict[int, Any] = {}
         self._auto_task: asyncio.Task | None = None
 
     async def StartGame(self, request, context):
@@ -49,8 +59,12 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                 config={"map_size": config.map_width or 64, "max_ticks": max_ticks},
             )
 
-            # Create AI agents for all players
-            self._ai_agents = {1: ScriptAI(player_id=1), 2: ScriptAI(player_id=2)}
+            # Create AI agents if a factory was injected
+            if self._agent_factory is not None:
+                self._ai_agents = {
+                    1: self._agent_factory(1),
+                    2: self._agent_factory(2),
+                }
 
             # Start auto-step loop if enabled
             if self._auto_step and self._auto_task is None:
@@ -113,7 +127,12 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                     for pid, ai in self._ai_agents.items():
                         idx = pid - 1
                         if idx < len(obs):
-                            all_commands.extend(ai.decide(obs[idx]))
+                            result = ai.decide(obs[idx])
+                            # Support both dict and list return shapes
+                            if isinstance(result, dict):
+                                all_commands.extend(result.get("commands", []))
+                            else:
+                                all_commands.extend(list(result) if result else [])
                     self.engine.step(all_commands)
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:
@@ -268,10 +287,15 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
 
 
 async def serve(port: int = 50051, auto_step: bool = False,
-                tick_rate: float = 10.0) -> None:
+                tick_rate: float = 10.0,
+                agent_factory: AgentFactory | None = None) -> None:
     """Start the gRPC server with graceful shutdown."""
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=4))
-    servicer = SimCoreServicer(auto_step=auto_step, tick_rate=tick_rate)
+    servicer = SimCoreServicer(
+        auto_step=auto_step,
+        tick_rate=tick_rate,
+        agent_factory=agent_factory,
+    )
     service_pb2_grpc.add_SimCoreServiceServicer_to_server(servicer, server)
     server.add_insecure_port(f"[::]:{port}")
     await server.start()
@@ -299,7 +323,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=50051, help="gRPC port")
     parser.add_argument("--auto-step", action="store_true",
                         help="Server auto-advances ticks via AI")
-    parser.add_argument("--tick-rate", type=float, default=20.0,
+    parser.add_argument("--tick-rate", type=float, default=10.0,
                         help="Ticks per second (auto-step mode)")
     parser.add_argument("--log-level", default="INFO", help="Log level")
     args = parser.parse_args()
@@ -308,7 +332,16 @@ def main() -> None:
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
-    asyncio.run(serve(args.port, args.auto_step, args.tick_rate))
+
+    # Load agent factory dynamically to avoid L1→L2 import violation.
+    # runtime.agent_factory is L2; simcore must not statically import it.
+    agent_factory = None
+    if args.auto_step:
+        import importlib
+        _mod = importlib.import_module("runtime.agent_factory")
+        agent_factory = _mod.create_ai_agent
+
+    asyncio.run(serve(args.port, args.auto_step, args.tick_rate, agent_factory))
 
 
 if __name__ == "__main__":

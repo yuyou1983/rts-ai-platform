@@ -1,0 +1,103 @@
+{
+  "defaults": {
+    "texture": "",
+    "color": [1.0, 0.95, 0.65, 1.0],
+    "secondary_color": [1.0, 0.25, 0.12, 0.75],
+    "lifetime": 0.22,
+    "radius": 0.55,
+    "scale": 1.0,
+    "rings": 1
+  },
+  "effects": {
+    "muzzle_flash_small": {
+      "texture": "res://assets/effects/Magic.png",
+      "color": [1.0, 0.92, 0.45, 0.95],
+      "secondary_color": [1.0, 0.38, 0.1, 0.65],
+      "lifetime": 0.12,
+      "radius": 0.34,
+      "scale": 0.025,
+      "rings": 1
+    },
+    "hit_spark": {
+      "texture": "res://assets/effects/Burst.png",
+      "color": [1.0, 0.78, 0.28, 0.9],
+      "secondary_color": [1.0, 0.22, 0.08, 0.65],
+      "lifetime": 0.24,
+      "radius": 0.5,
+      "scale": 0.028,
+      "rings": 2
+    },
+    "acid_hit": {
+      "texture": "res://assets/sprites/effects/Mud.png",
+      "color": [0.35, 1.0, 0.22, 0.85],
+      "secondary_color": [0.04, 0.45, 0.04, 0.65],
+      "lifetime": 0.34,
+      "radius": 0.6,
+      "scale": 0.035,
+      "rings": 2
+    },
+    "shell_impact": {
+      "texture": "res://assets/effects/Burst.png",
+      "color": [1.0, 0.76, 0.32, 0.95],
+      "secondary_color": [1.0, 0.16, 0.05, 0.8],
+      "lifetime": 0.38,
+      "radius": 0.95,
+      "scale": 0.055,
+      "rings": 3
+    },
+    "shield_hit": {
+      "texture": "res://assets/effects/Magic.png",
+      "color": [0.35, 0.85, 1.0, 0.85],
+      "secondary_color": [0.75, 1.0, 1.0, 0.65],
+      "lifetime": 0.28,
+      "radius": 0.7,
+      "scale": 0.034,
+      "rings": 2
+    },
+    "building_burst": {
+      "texture": "res://assets/effects/BuildingBurst.png",
+      "color": [1.0, 0.68, 0.28, 0.95],
+      "secondary_color": [0.35, 0.28, 0.22, 0.75],
+      "lifetime": 0.72,
+      "radius": 1.5,
+      "scale": 0.08,
+      "rings": 3
+    }
+  },
+  "unit_effects": {
+    "Marine": {
+      "attack": "muzzle_flash_small",
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Ghost": {
+      "attack": "muzzle_flash_small",
+      "hit": "hit_spark",
+      "death": "hit_spark"
+    },
+    "Tank": {
+      "attack": "muzzle_flash_small",
+      "hit": "shell_impact",
+      "death": "shell_impact"
+    },
+    "Zergling": {
+      "attack": "hit_spark",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Hydralisk": {
+      "attack": "acid_hit",
+      "hit": "acid_hit",
+      "death": "acid_hit"
+    },
+    "Zealot": {
+      "attack": "shield_hit",
+      "hit": "shield_hit",
+      "death": "shield_hit"
+    },
+    "building": {
+      "hit": "hit_spark",
+      "death": "building_burst"
+    }
+  }
+}

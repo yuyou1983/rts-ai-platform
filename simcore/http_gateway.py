@@ -17,6 +17,7 @@ import json
 import logging
 import signal
 from pathlib import Path
+from typing import Any, Callable
 
 from aiohttp import web
 
@@ -28,6 +29,9 @@ from harness.pool import MatchConfig, MatchResult, MatchScheduler, SimulationPoo
 
 logger = logging.getLogger(__name__)
 
+# Type alias: agent_factory(player_id) -> agent with .decide(obs)
+AgentFactory = Callable[[int], Any]
+
 # Global client — initialized in main()
 _client: SimCoreClient | None = None
 # AI configuration — set by start_game
@@ -35,6 +39,8 @@ _ai_player: int = 0  # 0 = no AI, 1 or 2 = that player is AI-controlled
 _ai_agent = None
 # Store last full state for AI observation generation
 _last_state_dict: dict = {}
+# Agent factory — injected by the runtime layer at startup
+_agent_factory: AgentFactory | None = None
 
 # League instance — lazily initialized
 _league: League | None = None
@@ -42,14 +48,22 @@ _league: League | None = None
 _replay_dir: Path = Path("harness/output/replays")
 
 
+def set_agent_factory(factory: AgentFactory) -> None:
+    """Set the agent factory for AI command generation.
+
+    Called by the runtime layer to inject the agent-creation callback
+    without requiring simcore to import from agents directly.
+    """
+    global _agent_factory
+    _agent_factory = factory
+
+
 def _create_ai_agent(player_id: int):
-    """Create the appropriate AI agent based on availability."""
-    try:
-        from agents.coordinator import CoordinatorAgent
-        return CoordinatorAgent(player_id=player_id)
-    except ImportError:
-        from agents.script_ai import ScriptAI
-        return ScriptAI(player_id=player_id)
+    """Create an AI agent using the injected factory (if available)."""
+    if _agent_factory is not None:
+        return _agent_factory(player_id)
+    logger.warning("No agent_factory set — cannot create AI agent")
+    return None
 
 
 def _state_to_observations(state_dict: dict) -> list[dict]:
@@ -84,7 +98,8 @@ async def handle_start_game(req: web.Request) -> web.Response:
     _last_state_dict = {}
     if _ai_player in (1, 2):
         _ai_agent = _create_ai_agent(_ai_player)
-        logger.info("AI agent created for P%d: %s", _ai_player, type(_ai_agent).__name__)
+        if _ai_agent is not None:
+            logger.info("AI agent created for P%d: %s", _ai_player, type(_ai_agent).__name__)
     else:
         _ai_agent = None
     result = await _client.start_game(
@@ -149,12 +164,7 @@ async def handle_health(req: web.Request) -> web.Response:
 
 
 async def handle_replay(req: web.Request) -> web.Response:
-    """GET /api/replay/{match_id} — read replay data.
-
-    Tries to read from harness/output/replays/{match_id}.jsonl first.
-    If the file doesn't exist, falls back to the gRPC client's current
-    engine replay data.
-    """
+    """GET /api/replay/{match_id} — read replay data."""
     match_id = req.match_info["match_id"]
     json_path = _replay_dir / f"{match_id}.json"
     jsonl_path = _replay_dir / f"{match_id}.jsonl"
@@ -179,20 +189,14 @@ async def handle_replay(req: web.Request) -> web.Response:
                     ticks.append(json.loads(line))
     else:
         # Fallback: request current replay from the gRPC server
-        # The gRPC client doesn't have a dedicated replay method,
-        # so we try to get the state which may contain replay snapshots.
         try:
             if _client:
                 state = await _client.get_state()
-                # The engine stores snapshots in engine._replay; if the
-                # state dict includes a "replay" key, use it directly.
                 ticks = state.get("replay", [])
         except Exception as exc:
             logger.warning("Failed to fetch replay via gRPC: %s", exc)
 
     # Normalize tick format for Godot client compatibility
-    # Engine raw: resources={"p1_mineral":200,...}, fog={"1":{"tiles":...}}
-    # Godot expects: resources={"1":{"minerals":200,...}}, fog same structure
     replay_meta = {}
     for tick in ticks:
         # ── Normalize resources ──
@@ -207,9 +211,6 @@ async def handle_replay(req: web.Request) -> web.Response:
         if "map_width" not in tick:
             tick["map_width"] = 64
             tick["map_height"] = 64
-
-    # Collect metadata from JSON file if available
-    # (replay_meta already populated in the if-branch above)
 
     return web.json_response({
         "match_id": match_id,
@@ -236,10 +237,7 @@ async def handle_league_ranking(req: web.Request) -> web.Response:
 
 
 async def handle_league_match(req: web.Request) -> web.Response:
-    """POST /api/league/match — create and run a League match.
-
-    Request body: {"p1_version": "v1", "p2_version": "v2", "map_seed": 42, "max_ticks": 5000}
-    """
+    """POST /api/league/match — create and run a League match."""
     league = _get_league()
     params = await req.json()
 
@@ -294,10 +292,7 @@ async def handle_league_match(req: web.Request) -> web.Response:
 
 
 async def handle_league_submit_result(req: web.Request) -> web.Response:
-    """POST /api/league/submit_result — submit a match result to update ELO.
-
-    Request body: {"p1_version": "v1", "p2_version": "v2", "winner": 1, "ticks": 1234}
-    """
+    """POST /api/league/submit_result — submit a match result to update ELO."""
     league = _get_league()
     params = await req.json()
 
@@ -314,10 +309,6 @@ async def handle_league_submit_result(req: web.Request) -> web.Response:
                 type=AgentType.SCRIPT,
                 creation_tick=0,
             ))
-
-    # Capture ELO before update
-    p1_elo_before = league.get_elo(p1_version_name)
-    p2_elo_before = league.get_elo(p2_version_name)
 
     league.record_result(MatchupResult(
         player1=p1_version_name,
@@ -383,8 +374,14 @@ async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = 
     return app
 
 
-async def serve(grpc_port: int = 50051, http_port: int = 8080) -> None:
+async def serve(grpc_port: int = 50051, http_port: int = 8080,
+                agent_factory: AgentFactory | None = None) -> None:
     grpc_address = f"localhost:{grpc_port}"
+
+    # Inject agent factory from runtime layer
+    if agent_factory is not None:
+        set_agent_factory(agent_factory)
+
     app = await app_factory(grpc_address)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -419,7 +416,18 @@ def main() -> None:
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
-    asyncio.run(serve(args.grpc_port, args.http_port))
+
+    # Load agent factory dynamically to avoid L1→L2 import violation.
+    # runtime.agent_factory is L2; simcore must not statically import it.
+    agent_factory = None
+    try:
+        import importlib
+        _mod = importlib.import_module("runtime.agent_factory")
+        agent_factory = _mod.create_ai_agent
+    except ImportError:
+        logger.debug("runtime package not available — AI agents disabled")
+
+    asyncio.run(serve(args.grpc_port, args.http_port, agent_factory))
 
 
 if __name__ == "__main__":

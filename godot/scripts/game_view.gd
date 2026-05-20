@@ -30,6 +30,7 @@ const CallableStateMachine = preload("res://scripts/callable_state_machine.gd")
 const CameraControllerScript = preload("res://scripts/camera_controller.gd")
 const HUDScene := preload("res://scenes/hud.tscn")
 const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
+const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
 
 # ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
@@ -46,6 +47,7 @@ var _analysis_written := false
 # Entity cache
 var _ents: Array = []
 var _prev_hp: Dictionary = {}
+var _prev_entities: Dictionary = {}
 var _dmg_floats: Array = []
 
 # ─── Drag-select ───────────────────────────────────────────
@@ -110,6 +112,7 @@ var _unit_textures: Dictionary = {}
 var _building_textures: Dictionary = {}
 var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
 var _sprite_container: Node2D = null  # parent for all entity sprites
+var _vfx_manager: VFXManager = null
 var _map_texture: Texture2D = null
 
 # ─── Sprint 4 Components ──────────────────────────────────
@@ -214,6 +217,11 @@ func _ready() -> void:
 	_sprite_container.z_index = 1  # Above map bg (z=-100)
 	z_index = 5  # game_view _draw() renders above entity sprites
 	add_child(_sprite_container)
+
+	# ─── Combat VFX layer ───
+	_vfx_manager = VFXManagerScript.new()
+	_vfx_manager.name = "VFXManager"
+	add_child(_vfx_manager)
 
 	# ─── Preload sprite textures ───
 	# Terran units
@@ -652,24 +660,28 @@ func _handle_right_click() -> void:
 		match action:
 			"attack":
 				if _is_own_combat(e):
-					cmds.append({
-						"action": "attack",
-						"attacker_id": uid,
-						"target_id": clicked_ent.id,
-						"issuer": 1,
-					})
-					_emit_attack_indicator(Vector2(e.px, e.py))
+						cmds.append({
+							"action": "attack",
+							"attacker_id": uid,
+							"target_id": clicked_ent.id,
+							"issuer": 1,
+						})
+						if _vfx_manager:
+							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py))
+						_emit_attack_indicator(Vector2(e.px, e.py))
 			"attack_nearest":
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
 					if not nearest_enemy.is_empty():
-						cmds.append({
-							"action": "attack",
-							"attacker_id": uid,
-							"target_id": nearest_enemy.id,
-							"issuer": 1,
-						})
-						_emit_attack_indicator(Vector2(e.px, e.py))
+							cmds.append({
+								"action": "attack",
+								"attacker_id": uid,
+								"target_id": nearest_enemy.id,
+								"issuer": 1,
+							})
+							if _vfx_manager:
+								_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py))
+							_emit_attack_indicator(Vector2(e.px, e.py))
 					else:
 						moving_ids.append(uid)
 			"gather":
@@ -815,6 +827,23 @@ func _get_ent_by_id(eid: String) -> Dictionary:
 			return e
 	return {}
 
+func _visual_unit_name(e: Dictionary) -> String:
+	var entity_type := str(e.get("type", e.get("entity_type", "")))
+	if entity_type == "building":
+		return "building"
+	var unit_type := str(e.get("unit_type", ""))
+	if unit_type != "" and unit_type != entity_type:
+		return unit_type
+	match entity_type:
+		"worker":
+			return "SCV"
+		"soldier":
+			return "Marine"
+		"scout":
+			return "Ghost"
+		_:
+			return entity_type
+
 # ─── Sprint 4: Rally Point System ──────────────────────────
 func _set_rally_point(building_id: String, world_pos: Vector2) -> void:
 	if not _rally_indicators.has(building_id):
@@ -921,6 +950,10 @@ func _restart_game() -> void:
 	_bridge._pending_commands.clear()
 	_ents.clear()
 	_entity_cache_by_id.clear()
+	_prev_hp.clear()
+	_prev_entities.clear()
+	if _vfx_manager:
+		_vfx_manager.clear()
 	# Clear rally indicators
 	for bid in _rally_indicators:
 		_rally_indicators[bid].queue_free()
@@ -933,21 +966,24 @@ func _to_f(value, fallback: float = 0.0) -> float:
 		return fallback
 	return value + 0.0
 
-func _parse(state: Dictionary) -> void:
-	_ents.clear()
-	_entity_cache_by_id.clear()
-	var entities: Dictionary = state.get("entities", {})
+	func _parse(state: Dictionary) -> void:
+		var old_entities := _prev_entities.duplicate(true)
+		_ents.clear()
+		_entity_cache_by_id.clear()
+		var entities: Dictionary = state.get("entities", {})
 	for eid in entities:
 		var e: Dictionary = entities[eid]
-		var etype: String = str(e.get("entity_type", ""))
-		var btype: String = str(e.get("building_type", ""))
+			var etype: String = str(e.get("entity_type", ""))
+			var utype: String = str(e.get("unit_type", etype))
+			var btype: String = str(e.get("building_type", ""))
 		var rtype: String = str(e.get("resource_type", ""))
 		var ent_dict := {
 			"id": str(eid),
-			"owner": int(e.get("owner") if e.get("owner") != null else 0),
-			"type": etype,
-			"entity_type": etype,
-			"building_type": btype,
+				"owner": int(e.get("owner") if e.get("owner") != null else 0),
+				"type": etype,
+				"entity_type": etype,
+				"unit_type": utype,
+				"building_type": btype,
 			"resource_type": rtype,
 			"resource_amount": _to_f(e.get("resource_amount"), 0.0),
 			"px": _to_f(e.get("pos_x"), 0.0),  # TILE_SIZE=1, world=tile
@@ -1020,25 +1056,42 @@ func _parse(state: Dictionary) -> void:
 			break
 
 	# Detect damage and attack events
-	for e in _ents:
-		var eid_str: String = e.id
-		var hp: float = e.health
-		if _prev_hp.has(eid_str):
-			var prev: float = _prev_hp[eid_str]
-			if hp < prev and prev > 0:
-				var dmg: float = prev - hp
+		for e in _ents:
+			var eid_str: String = e.id
+			var hp: float = e.health
+			if _prev_hp.has(eid_str):
+				var prev: float = _prev_hp[eid_str]
+				if hp < prev and prev > 0:
+					var dmg: float = prev - hp
 				_dmg_floats.append({
 					"id": eid_str,
 					"x": e.px,
 					"y": e.py - 1.2,
 					"amount": dmg,
 					"ttl": 30,
-				})
-				# Attack indicator on minimap
-				_emit_attack_indicator(Vector2(e.px, e.py))
-	_prev_hp.clear()
-	for e in _ents:
-		_prev_hp[e.id] = e.health
+					})
+					if _vfx_manager:
+						_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg)
+					# Attack indicator on minimap
+					_emit_attack_indicator(Vector2(e.px, e.py))
+
+		for old_id in old_entities:
+			if not _entity_cache_by_id.has(old_id):
+				var old_e: Dictionary = old_entities[old_id]
+				if float(old_e.get("health", 0.0)) > 0.0:
+					var death_pos := Vector2(float(old_e.get("px", 0.0)), float(old_e.get("py", 0.0)))
+					if _vfx_manager:
+						_vfx_manager.spawn_death(
+							_visual_unit_name(old_e),
+							str(old_e.get("type", old_e.get("entity_type", ""))),
+							int(old_e.get("owner", 0)),
+							death_pos
+						)
+		_prev_hp.clear()
+		_prev_entities.clear()
+		for e in _ents:
+			_prev_hp[e.id] = e.health
+			_prev_entities[e.id] = e.duplicate(true)
 
 	# Purge dead entities from selection
 	var valid_ids: Array = []
@@ -1410,20 +1463,10 @@ func _is_in_fog(e: Dictionary) -> bool:
 		return _fog_tiles[idx] < 2
 	return true
 
-func _draw_combat_effects(co: Vector2) -> void:
-	for e in _ents:
-		if e.owner != 1:
-			continue
-		if e.attack_target_id != "":
-			var pos := Vector2(e.px, e.py) 
-			var pulse: float = 0.4 + 0.6 * abs(sin(_frame * 0.15))
-			draw_arc(pos, 0.7, 0, TAU, 16, Color(1.0, 0.15, 0.15, pulse), 0.15, true)
-	for f in _dmg_floats:
-		if f.ttl > 25:
-			var tgt = _get_ent_by_id(f.id)
-			if not tgt.is_empty():
-				var pos := Vector2(tgt.px, tgt.py) 
-				draw_circle(pos, 0.8, Color(1.0, 0.2, 0.2, 0.35))
+	func _draw_combat_effects(co: Vector2) -> void:
+		# Combat impact visuals are handled by VFXManager. Keep this hook for
+		# older draw ordering without reintroducing debug-style red rings.
+		pass
 
 func _draw_damage_floats(co: Vector2) -> void:
 	for f in _dmg_floats:

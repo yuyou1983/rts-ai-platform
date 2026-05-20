@@ -33,7 +33,7 @@ lint: lint-arch
 
 lint-arch:
 	@echo "Checking architecture constraints..."
-	@python3 scripts/lint_deps.py simcore/ agents/ proto/
+	@python3 scripts/lint_deps.py simcore/ agents/ runtime/ proto/
 	@python3 scripts/lint_quality.py simcore/ agents/
 	@echo "✓ Architecture checks passed"
 

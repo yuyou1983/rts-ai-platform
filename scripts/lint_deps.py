@@ -2,14 +2,14 @@
 """Architecture dependency linter for RTS-AI-Platform.
 
 Enforces four-layer import constraints:
-  L0 (proto/) → nothing
+  L0 (proto/)   → nothing
   L1 (simcore/) → L0 only
-  L2 (agents/) → L0, L1
-  L3 (godot/) → L0, L1, L2
+  L2 (agents/, runtime/) → L0, L1
+  L3 (godot/)   → L0, L1, L2
 
 Usage:
   python3 scripts/lint_deps.py [dirs...]
-  python3 scripts/lint_deps.py simcore/ agents/ proto/
+  python3 scripts/lint_deps.py simcore/ agents/ runtime/ proto/
 """
 from __future__ import annotations
 
@@ -21,12 +21,13 @@ LAYERS = {
     "proto": 0,
     "simcore": 1,
     "agents": 2,
+    "runtime": 2,
     "godot": 3,
 }
 
 FORBIDDEN = {
-    0: {"simcore", "agents", "godot"},
-    1: {"agents", "godot"},
+    0: {"simcore", "agents", "runtime", "godot"},
+    1: {"agents", "runtime", "godot"},
     2: {"godot"},
     3: set(),
 }
@@ -90,7 +91,7 @@ def check_file(filepath: Path, root: Path) -> None:
 
 def main() -> None:
     root = Path.cwd()
-    dirs = sys.argv[1:] or ["simcore", "agents", "proto"]
+    dirs = sys.argv[1:] or ["simcore", "agents", "runtime", "proto"]
 
     for d in dirs:
         path = root / d
