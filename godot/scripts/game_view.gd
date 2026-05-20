@@ -660,28 +660,28 @@ func _handle_right_click() -> void:
 		match action:
 			"attack":
 				if _is_own_combat(e):
-						cmds.append({
-							"action": "attack",
-							"attacker_id": uid,
-							"target_id": clicked_ent.id,
-							"issuer": 1,
-						})
-						if _vfx_manager:
-							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py))
-						_emit_attack_indicator(Vector2(e.px, e.py))
+					cmds.append({
+						"action": "attack",
+						"attacker_id": uid,
+						"target_id": clicked_ent.id,
+						"issuer": 1,
+					})
+					if _vfx_manager:
+						_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py))
+					_emit_attack_indicator(Vector2(e.px, e.py))
 			"attack_nearest":
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
 					if not nearest_enemy.is_empty():
-							cmds.append({
-								"action": "attack",
-								"attacker_id": uid,
-								"target_id": nearest_enemy.id,
-								"issuer": 1,
-							})
-							if _vfx_manager:
-								_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py))
-							_emit_attack_indicator(Vector2(e.px, e.py))
+						cmds.append({
+							"action": "attack",
+							"attacker_id": uid,
+							"target_id": nearest_enemy.id,
+							"issuer": 1,
+						})
+						if _vfx_manager:
+							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py))
+						_emit_attack_indicator(Vector2(e.px, e.py))
 					else:
 						moving_ids.append(uid)
 			"gather":
@@ -966,24 +966,24 @@ func _to_f(value, fallback: float = 0.0) -> float:
 		return fallback
 	return value + 0.0
 
-	func _parse(state: Dictionary) -> void:
-		var old_entities := _prev_entities.duplicate(true)
-		_ents.clear()
-		_entity_cache_by_id.clear()
-		var entities: Dictionary = state.get("entities", {})
+func _parse(state: Dictionary) -> void:
+	var old_entities := _prev_entities.duplicate(true)
+	_ents.clear()
+	_entity_cache_by_id.clear()
+	var entities: Dictionary = state.get("entities", {})
 	for eid in entities:
 		var e: Dictionary = entities[eid]
-			var etype: String = str(e.get("entity_type", ""))
-			var utype: String = str(e.get("unit_type", etype))
-			var btype: String = str(e.get("building_type", ""))
+		var etype: String = str(e.get("entity_type", ""))
+		var utype: String = str(e.get("unit_type", etype))
+		var btype: String = str(e.get("building_type", ""))
 		var rtype: String = str(e.get("resource_type", ""))
 		var ent_dict := {
 			"id": str(eid),
-				"owner": int(e.get("owner") if e.get("owner") != null else 0),
-				"type": etype,
-				"entity_type": etype,
-				"unit_type": utype,
-				"building_type": btype,
+			"owner": int(e.get("owner") if e.get("owner") != null else 0),
+			"type": etype,
+			"entity_type": etype,
+			"unit_type": utype,
+			"building_type": btype,
 			"resource_type": rtype,
 			"resource_amount": _to_f(e.get("resource_amount"), 0.0),
 			"px": _to_f(e.get("pos_x"), 0.0),  # TILE_SIZE=1, world=tile
@@ -1021,7 +1021,7 @@ func _to_f(value, fallback: float = 0.0) -> float:
 	var resources: Dictionary = state.get("resources", {})
 	var p1_res: Dictionary = resources.get("1", {})
 	if p1_res.is_empty() and resources.has("p1_mineral"):
-		# Fallback: engine raw format p1_mineral → normalize
+		# Fallback: engine raw format p1_mineral -> normalize
 		p1_res = {
 			"minerals": resources.get("p1_mineral", 0),
 			"gas": resources.get("p1_gas", 0),
@@ -1033,10 +1033,8 @@ func _to_f(value, fallback: float = 0.0) -> float:
 	_p1_supply_used = int(_to_f(p1_res.get("supply_used"), 0.0))
 	_p1_supply_cap = int(_to_f(p1_res.get("supply_cap"), 0.0))
 
-	# Update HUD resources
 	if _hud:
 		_hud.update_resources(_p1_minerals, _p1_gas, _p1_supply_used, _p1_supply_cap)
-		# Feed completed buildings for prereq gating
 		var completed: PackedStringArray = []
 		for e in _ents:
 			if e.type == "building" and e.owner == 1 and e.health > 0:
@@ -1045,66 +1043,52 @@ func _to_f(value, fallback: float = 0.0) -> float:
 					completed.append(bt)
 		_hud.update_completed_buildings(completed)
 
-	# Update entity Sprite2D nodes
 	_update_entity_sprites()
-	if _frame == 60:
-		print("[DEBUG] Entity sprites: %d active, %d in pool" % [_sprite_pool.size(), _sprite_pool.size()])
-		for eid in _sprite_pool:
-			var s = _sprite_pool[eid]
-			if s.visible:
-				print("[DEBUG] Visible sprite: id=%s pos=(%.1f,%.1f) tex=%s scale=%s" % [eid, s.position.x, s.position.y, str(s.texture).get_file() if s.texture else "null", str(s.scale)])
-			break
 
-	# Detect damage and attack events
-		for e in _ents:
-			var eid_str: String = e.id
-			var hp: float = e.health
-			if _prev_hp.has(eid_str):
-				var prev: float = _prev_hp[eid_str]
-				if hp < prev and prev > 0:
-					var dmg: float = prev - hp
+	for e in _ents:
+		var eid_str: String = e.id
+		var hp: float = e.health
+		if _prev_hp.has(eid_str):
+			var prev: float = _prev_hp[eid_str]
+			if hp < prev and prev > 0:
+				var dmg: float = prev - hp
 				_dmg_floats.append({
 					"id": eid_str,
 					"x": e.px,
 					"y": e.py - 1.2,
 					"amount": dmg,
 					"ttl": 30,
-					})
-					if _vfx_manager:
-						_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg)
-					# Attack indicator on minimap
-					_emit_attack_indicator(Vector2(e.px, e.py))
+				})
+				if _vfx_manager:
+					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg)
+				_emit_attack_indicator(Vector2(e.px, e.py))
 
-		for old_id in old_entities:
-			if not _entity_cache_by_id.has(old_id):
-				var old_e: Dictionary = old_entities[old_id]
-				if float(old_e.get("health", 0.0)) > 0.0:
-					var death_pos := Vector2(float(old_e.get("px", 0.0)), float(old_e.get("py", 0.0)))
-					if _vfx_manager:
-						_vfx_manager.spawn_death(
-							_visual_unit_name(old_e),
-							str(old_e.get("type", old_e.get("entity_type", ""))),
-							int(old_e.get("owner", 0)),
-							death_pos
-						)
-		_prev_hp.clear()
-		_prev_entities.clear()
-		for e in _ents:
-			_prev_hp[e.id] = e.health
-			_prev_entities[e.id] = e.duplicate(true)
+	for old_id in old_entities:
+		if not _entity_cache_by_id.has(old_id):
+			var old_e: Dictionary = old_entities[old_id]
+			if float(old_e.get("health", 0.0)) > 0.0:
+				var death_pos := Vector2(float(old_e.get("px", 0.0)), float(old_e.get("py", 0.0)))
+				if _vfx_manager:
+					_vfx_manager.spawn_death(
+						_visual_unit_name(old_e),
+						str(old_e.get("type", old_e.get("entity_type", ""))),
+						int(old_e.get("owner", 0)),
+						death_pos
+					)
 
-	# Purge dead entities from selection
+	_prev_hp.clear()
+	_prev_entities.clear()
+	for e in _ents:
+		_prev_hp[e.id] = e.health
+		_prev_entities[e.id] = e.duplicate(true)
+
 	var valid_ids: Array = []
 	for e in _ents:
 		valid_ids.append(e.id)
 	if _selection:
 		_selection.purge_invalid_ids(valid_ids)
-
-	# Update selectables_on_screen
-	if _selection:
 		_selection.selectables_on_screen = _entity_cache_by_id.duplicate()
 
-	# Update rally indicator building positions
 	for bid in _rally_indicators:
 		var indicator = _rally_indicators[bid]
 		var e = _get_ent_by_id(bid)
@@ -1463,10 +1447,10 @@ func _is_in_fog(e: Dictionary) -> bool:
 		return _fog_tiles[idx] < 2
 	return true
 
-	func _draw_combat_effects(co: Vector2) -> void:
-		# Combat impact visuals are handled by VFXManager. Keep this hook for
-		# older draw ordering without reintroducing debug-style red rings.
-		pass
+func _draw_combat_effects(co: Vector2) -> void:
+	# Combat impact visuals are handled by VFXManager. Keep this hook for
+	# older draw ordering without reintroducing debug-style red rings.
+	pass
 
 func _draw_damage_floats(co: Vector2) -> void:
 	for f in _dmg_floats:

@@ -8,6 +8,8 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 from simcore.grpc_client import SimCoreClient
 
 

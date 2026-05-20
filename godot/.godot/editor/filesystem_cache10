@@ -1,5 +1,5 @@
 72322a848ab928aa5c89f0cb78209805
-::res://::1779244061
+::res://::1779244511
 export_presets.cfg::TextFile::-1::1778327580::0::1::::<><><>0<>0<><>::
 ::res://assets/::1778578882
 ::res://assets/audio/::1778558338
@@ -353,7 +353,7 @@ game_view.tscn::PackedScene::-1::1778740159::0::1::::<><><>0<>0<><>::res://scrip
 hud.tscn::PackedScene::-1::1778564427::0::1::::<><><>0<>0<><>::res://scripts/hud.gd
 main_menu.tscn::PackedScene::-1::1779105874::0::1::::<><><>0<>0<><>::res://scripts/main_menu.gd
 replay_overlay.tscn::PackedScene::-1::1779107314::0::1::::<><><>0<>0<><>::res://scripts/replay_overlay.gd
-::res://scripts/::1779243933
+::res://scripts/::1779244061
 ability_manager.gd::GDScript::1462615476716111855::1778740159::0::1::::<>Node<><>0<>0<><>::
 ability_resource.gd::GDScript::2455148767086506523::1778561399::0::1::::AbilityResource<>Resource<><>0<>0<><>::
 audio_manager.gd::GDScript::3161070472107961202::1778740159::0::1::::<>Node<><>0<>0<><>::
@@ -364,7 +364,7 @@ entity_state.gd::GDScript::3028457398350986072::1778303428::0::1::::EntityState<
 entity_visual.gd::GDScript::296357795083468032::1778572235::0::1::::EntityVisual<>AnimatedSprite2D<><>0<>0<><>::
 event_bus.gd::GDScript::1739031026962091357::1778564480::0::1::::EventBus<>Node<><>0<>0<><>::
 fog_renderer.gd::GDScript::5748939900306480128::1778740159::0::1::::<>Node2D<><>0<>0<><>::
-game_view.gd::GDScript::7097666510623240550::1779243998::0::1::::<>Node2D<><>0<>0<><>::
+game_view.gd::GDScript::7097666510623240550::1779244305::0::1::::<>Node2D<><>0<>0<><>::
 grpc_bridge.gd::GDScript::3829642289321534844::1779156169::0::1::::GrpcBridge<>Node<><>0<>0<><>::
 hud.gd::GDScript::8373712465010340074::1779170484::0::1::::<>Control<><>0<>0<><>::
 main_menu.gd::GDScript::1990540224865693774::1779105843::0::1::::<>Control<><>0<>0<><>::

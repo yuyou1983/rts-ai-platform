@@ -1,8 +1,8 @@
-.PHONY: build test lint lint-arch format clean proto sim smoke-test play stop
+.PHONY: build test test-core test-integration lint lint-arch format clean proto sim smoke-test play stop
 
 # ─── Protocol Buffers ──────────────────────────────────────
 proto:
-	python -m grpc_tools.protoc -Iproto \
+	python3 -m grpc_tools.protoc -Iproto \
 		--python_out=simcore/proto_out \
 		--grpc_python_out=simcore/proto_out \
 		proto/*.proto
@@ -15,11 +15,17 @@ build: proto
 
 # ─── Testing ────────────────────────────────────────────────
 test:
-	python -m pytest tests/ -q -n 4
+	scripts/run_tests.sh
+
+test-core:
+	PYTHONPATH=harness:. python3 -m pytest tests/ -q -n 4 -m "not integration"
+
+test-integration:
+	PYTHONPATH=harness:. python3 -m pytest tests/integration/ tests/test_http_integration.py -q -n 1 -m "integration"
 
 smoke-test:
 	@echo "Running headless smoke battle..."
-	@python -m simcore.engine --seed 42 --max-ticks 1000 --ai baseline vs baseline
+	@python3 -m simcore.engine --seed 42 --max-ticks 1000 --ai baseline vs baseline
 	@echo "✓ Smoke test passed"
 
 smoke-test-mvp:
@@ -40,9 +46,9 @@ lint-arch:
 format:
 	ruff format .
 
-# ─── Run ────────────────────────────────────────────────────
+# ─── Run ───────────────────────────────────────────────────
 sim:
-	python -m simcore.engine
+	python3 -m simcore.engine
 
 # ─── Play (MVP) ─────────────────────────────────────────────
 # Launches backend servers + Godot for Human P1 vs AI P2

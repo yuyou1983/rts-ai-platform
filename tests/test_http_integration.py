@@ -13,7 +13,7 @@ The request/response shapes mirror exactly what grpc_bridge.gd sends:
   - POST /api/health      body: {}
 
 Key behaviours under test:
-  1. start_game → step → get_state full flow (matching grpc_bridge.gd poll loop)
+  1. start_game -> step -> get_state full flow (matching grpc_bridge.gd poll loop)
   2. ai_player=2 causes AI commands to be auto-injected each step
   3. AI builds buildings and trains units over many steps
   4. Terminal conditions (max_ticks, base destruction) propagate correctly
@@ -82,7 +82,7 @@ def _player_has_building(state: dict, player: int, building_type: str) -> bool:
 
 # Serialise all tests in this file — the http_gateway uses module-level globals
 # so concurrent tests would race.
-pytestmark = pytest.mark.xdist_group(name="http_integration")
+pytestmark = [pytest.mark.xdist_group(name="http_integration"), pytest.mark.integration]
 
 
 @pytest.fixture(scope="session")

@@ -6,4 +6,4 @@ set -euo pipefail
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || echo .)"
 
-PYTHONPATH=harness:. python -m pytest "$@" -q -n 4
+PYTHONPATH=harness:. python3 -m pytest "$@" -q -n 4
