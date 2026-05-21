@@ -3,6 +3,7 @@ from simcore.engine import SimCore
 from simcore.entities import Building, Entity, Resource, Unit
 from simcore.rules import RuleEngine, calculate_damage, get_armor_type
 from simcore.state import GameState
+from simcore.hash import fnv1a_64
 from simcore.map import TileMap, generate_tile_map
 from simcore.pathfinder import find_path, smooth_path
 from simcore.movement import move_entities, collision_separate, is_at_target
@@ -13,6 +14,9 @@ from simcore.commands import (
 from simcore.projectile import process_projectiles, create_projectile
 from simcore.spells import process_spells, regen_energy
 from simcore.upgrades import apply_upgrade_effects
+
+from simcore.order import Order, OrderQueue
+from simcore.replay import ReplayRecorder, ReplayV2
 
 __all__ = [
     "SimCore",
@@ -46,4 +50,9 @@ __all__ = [
     "process_spells",
     "regen_energy",
     "apply_upgrade_effects",
+    "fnv1a_64",
+    "Order",
+    "OrderQueue",
+    "ReplayRecorder",
+    "ReplayV2",
 ]

@@ -1,9 +1,12 @@
 """Immutable game state snapshots for deterministic replay."""
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass, field
 from typing import Any
+
+from simcore.hash import fnv1a_64
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,19 @@ class GameState:
     resources: dict[str, int] = field(default_factory=dict)
     is_terminal: bool = False
     winner: int = 0  # 0=none/draw, 1=P1, 2=P2
+
+    def state_hash(self) -> int:
+        """Compute a deterministic FNV-1a 64-bit hash of this state.
+
+        Uses canonical JSON with sorted keys and compact separators.
+        All floats are rounded to 4 decimal places for normalization
+        before serialization.
+
+        Returns:
+            Unsigned 64-bit integer hash.
+        """
+        snapshot = self.to_snapshot()
+        return _hash_snapshot(snapshot)
 
     def to_snapshot(self) -> dict:
         """Serialize state to a dict suitable for replay storage."""
@@ -89,3 +105,25 @@ class GameState:
                 "fog_of_war": pf,  # Include own fog state for rendering
             })
         return obs
+
+
+def _normalize_floats(obj: Any) -> Any:
+    """Recursively round all floats to 4 decimal places."""
+    if isinstance(obj, float):
+        r = round(obj, 4)
+        # Normalize -0.0 to 0.0
+        return 0.0 if r == 0.0 else r
+    if isinstance(obj, dict):
+        return {k: _normalize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalize_floats(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_normalize_floats(v) for v in obj)
+    return obj
+
+
+def _hash_snapshot(snapshot: dict) -> int:
+    """Hash a snapshot dict using canonical JSON + FNV-1a 64-bit."""
+    normalized = _normalize_floats(snapshot)
+    canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    return fnv1a_64(canonical.encode("utf-8"))

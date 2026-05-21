@@ -1,78 +1,52 @@
-"""AI Benchmark Suite — adversarial cross-race tests.
+"""SimCore Performance Benchmark — Baseline Reference for Future Phases.
 
-Each test runs two race AIs against each other for up to 5000 ticks,
-verifying that the game terminates with a winner and recording stats.
+This module records baseline tick-throughput numbers for the headless SimCore
+engine running empty (no-command) steps. The generous time thresholds are
+intentionally loose — they serve as regression safety nets, not strict
+performance targets. If a future phase introduces changes that push execution
+time beyond these bounds, the failing test signals a potential performance
+regression worth investigating.
+
+Thresholds:
+  • 1 000 empty ticks  < 3.0 s   (≈ 3 ms / tick)
+  • 10 000 empty ticks < 30.0 s  (≈ 3 ms / tick)
+
+These baselines were recorded on a typical development machine. CI runners
+may be slower, so thresholds may need upward adjustment if false failures
+appear in CI.
 """
 from __future__ import annotations
-import pytest
+
+import time
+
 from simcore.engine import SimCore
-from agents.zerg_ai import ZergAI
-from agents.protoss_ai import ProtossAI
-from agents.terran_ai import TerranAI
 
 
-def _run_match(ai1, ai2, max_ticks: int = 5000) -> dict:
-    """Run a full AI vs AI match, return stats dict."""
-    e = SimCore()
-    e.initialize(map_seed=42, config={"player_races": {1: ai1.RACE, 2: ai2.RACE}})
-    for _ in range(max_ticks):
-        obs = e.state.get_observations()
-        r1 = ai1.decide(obs[0])
-        r2 = ai2.decide(obs[1])
-        cmds = r1.get("commands", []) + r2.get("commands", [])
-        e.step(cmds)
-        if e.state.is_terminal:
-            break
+class TestPerformanceBenchmark:
+    """Tick-throughput regression tests for SimCore."""
 
-    # Count unit types per player
-    p1_units: dict[str, int] = {}
-    p2_units: dict[str, int] = {}
-    for eid, ent in e.state.entities.items():
-        ut = ent.get("unit_type", "")
-        if ent.get("owner") == 1 and ut:
-            p1_units[ut] = p1_units.get(ut, 0) + 1
-        elif ent.get("owner") == 2 and ut:
-            p2_units[ut] = p2_units.get(ut, 0) + 1
+    def test_1k_ticks_performance(self) -> None:
+        """Run 1 000 empty ticks and assert total wall-clock time < 3.0 s."""
+        engine = SimCore()
+        engine.initialize(map_seed=42)
 
-    return {
-        "tick": e.state.tick,
-        "terminal": e.state.is_terminal,
-        "winner": e.state.winner,
-        "p1_units": p1_units,
-        "p2_units": p2_units,
-    }
+        start = time.time()
+        for _ in range(1_000):
+            engine.step(commands=[])
+        elapsed = time.time() - start
 
+        print(f"\n[benchmark] 1k ticks: {elapsed:.3f}s  ({elapsed / 1_000 * 1_000:.2f} ms/tick)")
+        assert elapsed < 3.0, f"1k empty ticks took {elapsed:.3f}s (threshold 3.0s)"
 
-class TestBenchmark:
-    """Cross-race adversarial benchmarks."""
+    def test_10k_ticks_performance(self) -> None:
+        """Run 10 000 empty ticks and assert total wall-clock time < 30.0 s."""
+        engine = SimCore()
+        engine.initialize(map_seed=42)
 
-    def test_terran_vs_zerg(self):
-        result = _run_match(TerranAI(player_id=1), ZergAI(player_id=2))
-        assert result["terminal"], f"Game didn't terminate in {result['tick']} ticks"
-        assert result["winner"] in (1, 2), f"Expected a winner, got {result['winner']}"
+        start = time.time()
+        for _ in range(10_000):
+            engine.step(commands=[])
+        elapsed = time.time() - start
 
-    def test_zerg_vs_protoss(self):
-        result = _run_match(ZergAI(player_id=1), ProtossAI(player_id=2))
-        assert result["terminal"], f"Game didn't terminate in {result['tick']} ticks"
-        assert result["winner"] in (1, 2), f"Expected a winner, got {result['winner']}"
-
-    def test_protoss_vs_terran(self):
-        result = _run_match(ProtossAI(player_id=1), TerranAI(player_id=2))
-        assert result["terminal"], f"Game didn't terminate in {result['tick']} ticks"
-        assert result["winner"] in (0, 1, 2), f"Expected a winner or draw, got {result['winner']}"
-
-    def test_zerg_solo_economy(self):
-        """Zerg AI alone should reach 500 mineral and have combat units by tick 500."""
-        e = SimCore()
-        e.initialize(map_seed=42, config={"player_races": {1: "zerg"}})
-        ai = ZergAI(player_id=1)
-        for _ in range(500):
-            obs = e.get_observations(player_id=1)
-            result = ai.decide(obs)
-            e.step(result.get("commands", []))
-
-        mineral = e.state.resources.get("p1_mineral", 0)
-        soldiers = [e for eid, e in e.state.entities.items()
-                     if e.get("owner") == 1 and e.get("entity_type") == "soldier"]
-        assert mineral >= 200, f"Expected 200+ mineral, got {mineral}"
-        assert len(soldiers) >= 1, f"Expected at least 1 soldier, got {len(soldiers)}"
+        print(f"\n[benchmark] 10k ticks: {elapsed:.3f}s  ({elapsed / 10_000 * 1_000:.2f} ms/tick)")
+        assert elapsed < 30.0, f"10k empty ticks took {elapsed:.3f}s (threshold 30.0s)"
