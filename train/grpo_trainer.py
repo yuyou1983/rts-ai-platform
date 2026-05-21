@@ -9,8 +9,13 @@ Architecture:
   3. Update policy via PPO-style clipped objective
   4. Repeat
 
+When TRL is available, TRLGRPOTrainer (from train.trl_trainer) is used
+for full PyTorch-based GRPO training with TRL's group-relative advantage
+formula. Falls back to SimplePolicy (numpy-only) when TRL/PyTorch absent.
+
 Usage:
     python -m train.grpo_trainer --episodes 1000 --batch-size 32
+    python -m train.grpo_trainer --episodes 100 --use-trl
 """
 from __future__ import annotations
 
@@ -25,6 +30,17 @@ from typing import Any
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# ─── Optional TRL import ─────────────────────────────────────
+
+try:
+    import trl as _trl
+
+    HAS_TRL = True
+    _TRL_VERSION = _trl.__version__
+except ImportError:
+    HAS_TRL = False
+    _TRL_VERSION = ""
 
 # ─── Config ────────────────────────────────────────────────
 
@@ -55,6 +71,9 @@ class GRPOConfig:
     save_interval: int = 100
     output_dir: str = "train/output"
     reward_shaping: str = "shaped"
+
+    # TRL integration
+    use_trl: bool = True  # use TRLGRPOTrainer when TRL + PyTorch available
 
 
 # ─── Rollout Buffer ────────────────────────────────────────
@@ -261,6 +280,68 @@ class GRPOTrainer:
             json.dump(self.metrics, f, indent=2)
 
 
+# ─── TRL-aware factory ─────────────────────────────────────
+
+
+def create_grpo_trainer(
+    config: GRPOConfig | None = None,
+) -> GRPOTrainer:
+    """Create the appropriate GRPO trainer based on TRL availability.
+
+    When TRL is installed and ``config.use_trl`` is True (the default),
+    returns a :class:`~train.trl_trainer.TRLGRPOTrainer` which uses
+    PyTorch and TRL's group-relative advantage formula for full GRPO
+    training. Otherwise returns the numpy-only :class:`GRPOTrainer`
+    (SimplePolicy-based, for prototyping).
+
+    Parameters
+    ----------
+    config : GRPOConfig, optional
+        Training configuration.  When *None*, defaults are used.
+
+    Returns
+    -------
+    GRPOTrainer or TRLGRPOTrainer
+    """
+    config = config or GRPOConfig()
+
+    if config.use_trl and HAS_TRL:
+        try:
+            from train.trl_trainer import TRLGRPOConfig, TRLGRPOTrainer
+
+            trl_config = TRLGRPOConfig(
+                env_id=config.env_id,
+                seed=config.seed,
+                max_ticks=config.max_ticks,
+                reward_shaping=config.reward_shaping,
+                episodes=config.episodes,
+                batch_size=config.batch_size,
+                group_size=config.group_size,
+                learning_rate=config.learning_rate,
+                gamma=config.gamma,
+                clip_eps=config.clip_eps,
+                entropy_coeff=config.entropy_coeff,
+                value_coeff=config.value_coeff,
+                max_grad_norm=config.max_grad_norm,
+                log_interval=config.log_interval,
+                save_interval=config.save_interval,
+                output_dir=config.output_dir,
+            )
+            logger.info(
+                "TRL %s available — using TRLGRPOTrainer", _TRL_VERSION
+            )
+            return TRLGRPOTrainer(trl_config)  # type: ignore[return-value]
+        except Exception as exc:
+            logger.warning(
+                "TRLGRPOTrainer creation failed (%s) — falling back to "
+                "SimplePolicy GRPOTrainer",
+                exc,
+            )
+
+    logger.info("Using SimplePolicy GRPOTrainer (numpy-only)")
+    return GRPOTrainer(config)
+
+
 # ─── CLI ───────────────────────────────────────────────────
 
 
@@ -273,6 +354,14 @@ def main() -> None:
     parser.add_argument("--reward-shaping", default="shaped")
     parser.add_argument("--output-dir", default="train/output")
     parser.add_argument("--log-level", default="INFO")
+    parser.add_argument(
+        "--use-trl", action="store_true", default=True,
+        help="Use TRLGRPOTrainer when TRL is available (default: True)",
+    )
+    parser.add_argument(
+        "--no-trl", dest="use_trl", action="store_false",
+        help="Force SimplePolicy GRPOTrainer even when TRL is available",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -287,9 +376,10 @@ def main() -> None:
         learning_rate=args.lr,
         reward_shaping=args.reward_shaping,
         output_dir=args.output_dir,
+        use_trl=args.use_trl,
     )
 
-    trainer = GRPOTrainer(config)
+    trainer = create_grpo_trainer(config)
     result = trainer.train()
     print(f"\nTraining result: {result}")
 

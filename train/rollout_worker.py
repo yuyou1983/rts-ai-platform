@@ -34,9 +34,19 @@ import logging
 import multiprocessing as mp
 import pickle
 import time
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
 
+import numpy as np
 from train.grpo_trainer import Transition
+
+try:
+    from train.trl_trainer import GRPOPolicy as _GRPOPolicy, HAS_TORCH as _HAS_TORCH
+except ImportError:
+    _GRPOPolicy = None  # type: ignore[assignment,misc]
+    _HAS_TORCH = False
+
+if TYPE_CHECKING:
+    from train.shared_buffer import SharedRolloutBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +142,30 @@ async def _run_episode_in_process(
 # ─── RolloutWorker ──────────────────────────────────────────
 
 
+def _lazy_grpo_policy(obs: ObsType) -> int:
+    """Sentinel callable — replaced after lazy GRPOPolicy init."""
+    raise RuntimeError("GRPOPolicy not yet initialised; call _ensure_grpo_policy first.")
+
+
+class _GRPOPolicyWrapper:
+    """Picklable adapter: GRPOPolicy.act -> simple (obs) -> int callable.
+
+    GRPOPolicy.act returns (action, log_prob, value); the worker process
+    expects (obs) -> int.  This wrapper discards the extras.
+    """
+
+    def __init__(self, policy: Any) -> None:
+        self._policy = policy
+
+    def __call__(self, obs: ObsType) -> int:
+        action, _log_prob, _value = self._policy.act(obs)
+        return int(action)
+
+    def __reduce__(self):
+        # Make it picklable by saving the underlying policy
+        return (self.__class__, (self._policy,))
+
+
 class RolloutWorker:
     """Async rollout collector with concurrent multi-episode gathering.
 
@@ -147,6 +181,13 @@ class RolloutWorker:
         Must be picklable (lambda/closure over non-picklable objects will fail).
     max_steps : int
         Step limit per episode (prevents infinite loops in broken envs).
+    shared_buffer : SharedRolloutBuffer | None
+        If provided, collected transitions are added to this shared buffer
+        instead of being returned directly. Useful for concurrent collection
+        feeding into TRLGRPOTrainer.
+    policy_type : str
+        "simple" (default) uses SimplePolicy/numpy; "grpo" lazily creates
+        a GRPOPolicy (requires PyTorch).
     """
 
     def __init__(
@@ -155,19 +196,40 @@ class RolloutWorker:
         env_factory: Callable[[], Any] | None = None,
         policy: PolicyCallable | None = None,
         max_steps: int = 5000,
+        shared_buffer: SharedRolloutBuffer | None = None,
+        policy_type: str = "simple",
     ) -> None:
         self.num_workers = num_workers
         self.env_factory = env_factory or _default_env_factory
-        self.policy = policy or _default_policy
         self.max_steps = max_steps
+        self.shared_buffer = shared_buffer
+        self.policy_type = policy_type
+
+        # Lazy GRPO policy init (needs obs_dim / action_dim from env)
+        self._grpo_policy: Any | None = None
+
+        if policy is not None:
+            self.policy = policy
+        elif policy_type == "grpo" and _HAS_TORCH and _GRPOPolicy is not None:
+            # Will be lazily created on first use once env is available
+            self.policy = _lazy_grpo_policy  # type: ignore[assignment]
+        else:
+            self.policy = policy or _default_policy
 
         # Pre-pickle factory & policy once (child processes receive bytes)
+        if self.policy is not _lazy_grpo_policy:
+            self._policy_bytes = pickle.dumps(self.policy)
+        else:
+            self._policy_bytes = b""  # placeholder, set after lazy init
+
         self._env_factory_bytes = pickle.dumps(self.env_factory)
-        self._policy_bytes = pickle.dumps(self.policy)
 
         # Accumulated stats
         self._episodes_completed = 0
         self._total_steps = 0
+
+        # Throughput tracking
+        self._episode_times: list[float] = []
 
     # ── Public API ──────────────────────────────────────────
 
@@ -187,7 +249,10 @@ class RolloutWorker:
         if seed is None:
             seed = int(time.monotonic_ns()) % (2**31)
 
+        self._ensure_grpo_policy()
+
         loop = asyncio.get_running_loop()
+        t0 = time.perf_counter()
         transitions = await _run_episode_in_process(
             env_factory_bytes=self._env_factory_bytes,
             policy_bytes=self._policy_bytes,
@@ -196,10 +261,16 @@ class RolloutWorker:
             worker_id=0,
             loop=loop,
         )
+        elapsed = time.perf_counter() - t0
+        self._episode_times.append(elapsed)
 
         self._episodes_completed += 1
         self._total_steps += len(transitions)
         self._log_progress(episode_num=self._episodes_completed, steps=len(transitions))
+
+        if self.shared_buffer is not None:
+            self.shared_buffer.add_batch(transitions)
+
         return transitions
 
     async def collect_batch(
@@ -225,6 +296,8 @@ class RolloutWorker:
         list[list[Transition]]
             One list of Transitions per episode, in episode-index order.
         """
+        self._ensure_grpo_policy()
+
         loop = asyncio.get_running_loop()
         semaphore = asyncio.Semaphore(self.num_workers)
         results: dict[int, list[Transition]] = {}
@@ -233,6 +306,7 @@ class RolloutWorker:
         async def _guarded_collect(episode_idx: int) -> None:
             nonlocal completed_count
             async with semaphore:
+                t0 = time.perf_counter()
                 transitions = await _run_episode_in_process(
                     env_factory_bytes=self._env_factory_bytes,
                     policy_bytes=self._policy_bytes,
@@ -241,6 +315,9 @@ class RolloutWorker:
                     worker_id=episode_idx,
                     loop=loop,
                 )
+                elapsed = time.perf_counter() - t0
+                self._episode_times.append(elapsed)
+
                 results[episode_idx] = transitions
                 completed_count += 1
                 self._episodes_completed += 1
@@ -250,6 +327,9 @@ class RolloutWorker:
                     steps=len(transitions),
                     total=n_episodes,
                 )
+
+                if self.shared_buffer is not None:
+                    self.shared_buffer.add_batch(transitions)
 
         tasks = [asyncio.create_task(_guarded_collect(i)) for i in range(n_episodes)]
         await asyncio.gather(*tasks)
@@ -279,7 +359,55 @@ class RolloutWorker:
         # Reset per-run stats
         self._episodes_completed = 0
         self._total_steps = 0
+        self._episode_times.clear()
         return asyncio.run(self.collect_batch(n_episodes, base_seed))
+
+    # ── Throughput ──────────────────────────────────────────
+
+    @property
+    def games_per_hour(self) -> float:
+        """Estimated games per hour based on recent episode timings."""
+        if not self._episode_times:
+            return 0.0
+        avg_seconds = sum(self._episode_times) / len(self._episode_times)
+        if avg_seconds <= 0:
+            return 0.0
+        return 3600.0 / avg_seconds
+
+    # ── Lazy GRPO policy init ───────────────────────────────
+
+    def _ensure_grpo_policy(self) -> None:
+        """Lazily initialise GRPOPolicy when policy_type='grpo'."""
+        if self.policy_type != "grpo" or self._grpo_policy is not None:
+            return
+        if not _HAS_TORCH or _GRPOPolicy is None:
+            raise RuntimeError(
+                "Cannot create GRPOPolicy: PyTorch not available. "
+                "Install torch or use policy_type='simple'."
+            )
+
+        env = self.env_factory()
+        action_dim = env.action_space.n
+        obs_dim = 0
+        obs_space = env.observation_space
+        # Use .spaces dict to be compatible with both real and mock obs spaces
+        spaces = obs_space.spaces if hasattr(obs_space, "spaces") else {}
+        for key in ("entities", "resources", "tick"):
+            if key in spaces:
+                shape = spaces[key].shape
+                dim = 1
+                for s in shape:
+                    dim *= s
+                obs_dim += dim
+        env.close()
+
+        self._grpo_policy = _GRPOPolicy(
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+        )
+        wrapped = _GRPOPolicyWrapper(self._grpo_policy)
+        self.policy = wrapped  # type: ignore[assignment]
+        self._policy_bytes = pickle.dumps(wrapped)
 
     # ── Progress reporting ──────────────────────────────────
 

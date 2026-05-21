@@ -11,6 +11,11 @@ import pytest
 from train.grpo_trainer import Transition
 from train.rollout_worker import RolloutWorker
 
+try:
+    from train.trl_trainer import HAS_TORCH as _HAS_TORCH
+except ImportError:
+    _HAS_TORCH = False
+
 
 # ─── Mock Environment (module-level for pickle) ───────────────
 
@@ -217,3 +222,103 @@ class TestRun:
                 assert isinstance(t, Transition)
                 assert isinstance(t.action, int)
                 assert isinstance(t.reward, float)
+
+
+# ─── SharedRolloutBuffer integration ──────────────────────────
+
+
+class TestWorkerWithSharedBuffer:
+    def test_collects_into_shared_buffer(self):
+        from train.shared_buffer import SharedRolloutBuffer
+
+        shared_buf = SharedRolloutBuffer(group_size=4, max_transitions=1000)
+        w = RolloutWorker(
+            num_workers=2,
+            env_factory=_make_mock_env,
+            policy=_constant_policy,
+            max_steps=100,
+            shared_buffer=shared_buf,
+        )
+        episodes = w.run(n_episodes=4, base_seed=0)
+        # Transitions should have been added to shared buffer
+        total_transitions = sum(len(ep) for ep in episodes)
+        assert len(shared_buf) == total_transitions
+        assert total_transitions == 12  # 4 episodes × 3 steps
+
+    def test_shared_buffer_preserves_content(self):
+        from train.shared_buffer import SharedRolloutBuffer
+
+        shared_buf = SharedRolloutBuffer(group_size=2, max_transitions=1000)
+        w = RolloutWorker(
+            num_workers=1,
+            env_factory=_make_mock_env,
+            policy=_constant_policy,
+            max_steps=100,
+            shared_buffer=shared_buf,
+        )
+        w.run(n_episodes=2, base_seed=0)
+        transitions = shared_buf.get_transitions()
+        assert len(transitions) == 6  # 2 episodes × 3 steps
+        for t in transitions:
+            assert isinstance(t, Transition)
+
+
+# ─── GRPO Policy (torch-only) ────────────────────────────────
+
+
+class TestWorkerGRPOPolicy:
+    @pytest.mark.skipif(
+        not _HAS_TORCH, reason="PyTorch not available"
+    )
+    def test_grpo_policy_runs(self):
+        """RolloutWorker with policy_type='grpo' should collect episodes."""
+        w = RolloutWorker(
+            num_workers=2,
+            env_factory=_make_mock_env,
+            max_steps=100,
+            policy_type="grpo",
+        )
+        episodes = w.run(n_episodes=2, base_seed=0)
+        assert len(episodes) == 2
+        for ep in episodes:
+            assert len(ep) > 0
+
+    @pytest.mark.skipif(
+        _HAS_TORCH, reason="Test only valid without PyTorch"
+    )
+    def test_grpo_policy_fails_without_torch(self):
+        """Without PyTorch, policy_type='grpo' should raise RuntimeError."""
+        w = RolloutWorker(
+            num_workers=1,
+            env_factory=_make_mock_env,
+            max_steps=100,
+            policy_type="grpo",
+        )
+        with pytest.raises(RuntimeError, match="PyTorch not available"):
+            w.run(n_episodes=1, base_seed=0)
+
+
+# ─── Throughput measurement ──────────────────────────────────
+
+
+class TestWorkerThroughput:
+    def test_games_per_hour(self):
+        """4 workers, 8 episodes should yield a measurable games/hr rate > 100."""
+        w = RolloutWorker(
+            num_workers=4,
+            env_factory=_make_mock_env,
+            policy=_constant_policy,
+            max_steps=100,
+        )
+        w.run(n_episodes=8, base_seed=0)
+        # MockEnv episodes are very fast; expect high throughput
+        assert w.games_per_hour > 100
+
+    def test_games_per_hour_zero_before_run(self):
+        w = RolloutWorker(
+            num_workers=1,
+            env_factory=_make_mock_env,
+            policy=_constant_policy,
+            max_steps=100,
+        )
+        assert w.games_per_hour == 0.0
