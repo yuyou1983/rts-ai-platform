@@ -109,6 +109,12 @@ class TRLGRPOConfig:
     # Worker integration
     use_worker: bool = False  # use RolloutWorker for concurrent collection
 
+    # SimCore feature flags (OpenBW-inspired)
+    enable_state_hash: bool = False
+    enable_order_queue: bool = False
+    enable_event_log: bool = False
+    enable_replay_v2: bool = False
+
     def __post_init__(self) -> None:
         if HAS_TRL:
             self.trl_version = trl.__version__  # type: ignore[union-attr]
@@ -385,10 +391,14 @@ class TRLGRPOTrainer:
 
         # Create environment and policy
         env = gym.make(
-           cfg.env_id,
+            cfg.env_id,
             seed=cfg.seed,
             max_ticks=cfg.max_ticks,
             reward_shaping=cfg.reward_shaping,
+            enable_state_hash=cfg.enable_state_hash,
+            enable_order_queue=cfg.enable_order_queue,
+            enable_event_log=cfg.enable_event_log,
+            enable_replay_v2=cfg.enable_replay_v2,
         )
         policy = self._ensure_policy(env)
 
@@ -878,14 +888,23 @@ class TRLGRPOTrainer:
                 total += dim
         return total
 
-    @staticmethod
-    def _default_env_factory() -> Any:
-        """Default environment factory: creates rts-ai-v0."""
+    def _default_env_factory(self) -> Any:
+        """Default environment factory: creates rts-ai-v0 with config flags."""
         import gymnasium as gym
 
         import simcore.gym_env  # noqa: F401
 
-        return gym.make("rts-ai-v0")
+        cfg = self.config
+        return gym.make(
+            cfg.env_id,
+            seed=cfg.seed,
+            max_ticks=cfg.max_ticks,
+            reward_shaping=cfg.reward_shaping,
+            enable_state_hash=cfg.enable_state_hash,
+            enable_order_queue=cfg.enable_order_queue,
+            enable_event_log=cfg.enable_event_log,
+            enable_replay_v2=cfg.enable_replay_v2,
+        )
 
     def _export_curves(self, path: Path) -> None:
         """Export training curves as CSV with loss and reward columns."""

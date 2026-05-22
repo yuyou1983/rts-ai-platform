@@ -72,6 +72,10 @@ class RTSSimCoreEnv(gym.Env):
         reward_shaping: str = "sparse",
         render_mode: str | None = None,
         agent_factory: AgentFactory | None = None,
+        enable_state_hash: bool = False,
+        enable_order_queue: bool = False,
+        enable_event_log: bool = False,
+        enable_replay_v2: bool = False,
     ) -> None:
         super().__init__()
 
@@ -85,7 +89,19 @@ class RTSSimCoreEnv(gym.Env):
         # If not provided, we lazily import from runtime when needed.
         self._agent_factory = agent_factory
 
-        self._engine = SimCore(max_ticks=max_ticks)
+        # SimCore feature flags
+        self._enable_state_hash = enable_state_hash
+        self._enable_order_queue = enable_order_queue
+        self._enable_event_log = enable_event_log
+        self._enable_replay_v2 = enable_replay_v2
+
+        self._engine = SimCore(
+            max_ticks=max_ticks,
+            enable_state_hash=enable_state_hash,
+            enable_order_queue=enable_order_queue,
+            enable_event_log=enable_event_log,
+            enable_replay_v2=enable_replay_v2,
+        )
         self._prev_resources: dict[str, int] = {}
 
         # Observation: (MAX_ENTITIES, ENTITY_FEATURES) + resource vector
