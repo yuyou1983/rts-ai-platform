@@ -22,3 +22,9 @@ godot/.godot/shader_cache/
 godot/export_presets.cfg
 godot/scripts/*.gd.uid
 
+
+# Training outputs (models, checkpoints)
+train/output/**/final_model.pt
+train/output/**/round_*/
+train/output/**/training_curves.csv
+train/output/**/summary.json
