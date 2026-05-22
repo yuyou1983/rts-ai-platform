@@ -562,7 +562,7 @@ func _input(event: InputEvent) -> void:
 				else:
 					_hud.show_build_panel()
 					_build_mode = true
-elif event.keycode == KEY_T:
+		elif event.keycode == KEY_T:
 			# Determine unit_type based on selected building
 			var train_type := "worker"  # default for base
 			if _selection:
