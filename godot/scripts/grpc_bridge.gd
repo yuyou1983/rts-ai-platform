@@ -32,6 +32,9 @@ enum PollMode { STEP, GET_STATE }
 ## Which player is AI-controlled (0=none, 1 or 2). Set before start_game().
 @export var ai_player: int = 2
 
+## AI difficulty: "easy", "medium", "hard". Affects APM throttle, production caps, micro.
+@export var ai_difficulty: String = "medium"
+
 var current_state: State = State.IDLE
 var _tick: int = 0
 var _winner: int = 0
@@ -63,6 +66,7 @@ func start_game(seed: int = 42, max_ticks: int = 10000) -> void:
 		"seed": seed,
 		"max_ticks": max_ticks,
 		"ai_player": ai_player,
+		"ai_difficulty": ai_difficulty,
 	})
 	var url := http_address + "/api/start_game"
 	var err := _http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)

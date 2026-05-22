@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def create_ai_agent(player_id: int):
+def create_ai_agent(player_id: int, *, difficulty: str = "medium"):
     """Return the best available AI agent for *player_id*.
 
     Tries CoordinatorAgent first (multi-agent M1 architecture).
@@ -19,9 +19,9 @@ def create_ai_agent(player_id: int):
     """
     try:
         from agents.coordinator import CoordinatorAgent
-        logger.debug("Using CoordinatorAgent for player %d", player_id)
-        return CoordinatorAgent(player_id=player_id)
-    except ImportError:
+        logger.debug("Using CoordinatorAgent for player %d (difficulty=%s)", player_id, difficulty)
+        return CoordinatorAgent(player_id=player_id, difficulty=difficulty)
+    except (ImportError, TypeError):
         from agents.script_ai import ScriptAI
-        logger.debug("CoordinatorAgent unavailable, using ScriptAI for player %d", player_id)
-        return ScriptAI(player_id=player_id)
+        logger.debug("CoordinatorAgent unavailable, using ScriptAI for player %d (difficulty=%s)", player_id, difficulty)
+        return ScriptAI(player_id=player_id, difficulty=difficulty)

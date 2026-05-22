@@ -160,6 +160,11 @@ func _ready() -> void:
 
 	_bridge = GrpcBridgeScript.new()
 	_bridge.ai_player = 2
+	# Pick difficulty from main menu metadata (default "medium")
+	var _ai_diff: String = "medium"
+	if Engine.has_meta("ai_difficulty"):
+		_ai_diff = Engine.get_meta("ai_difficulty")
+	_bridge.ai_difficulty = _ai_diff
 	add_child(_bridge)
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)

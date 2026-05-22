@@ -37,6 +37,7 @@ _client: SimCoreClient | None = None
 # AI configuration — set by start_game
 _ai_player: int = 0  # 0 = no AI, 1 or 2 = that player is AI-controlled
 _ai_agent = None
+_ai_difficulty: str = "medium"
 # Store last full state for AI observation generation
 _last_state_dict: dict = {}
 # Agent factory — injected by the runtime layer at startup
@@ -58,10 +59,10 @@ def set_agent_factory(factory: AgentFactory) -> None:
     _agent_factory = factory
 
 
-def _create_ai_agent(player_id: int):
+def _create_ai_agent(player_id: int, difficulty: str = "medium"):
     """Create an AI agent using the injected factory (if available)."""
     if _agent_factory is not None:
-        return _agent_factory(player_id)
+        return _agent_factory(player_id, difficulty=difficulty)
     logger.warning("No agent_factory set — cannot create AI agent")
     return None
 
@@ -91,13 +92,14 @@ def _godot_state(state_dict: dict) -> dict:
 
 
 async def handle_start_game(req: web.Request) -> web.Response:
-    global _ai_player, _ai_agent, _last_state_dict
+    global _ai_player, _ai_agent, _last_state_dict, _ai_difficulty
     params = await req.json()
     assert _client
     _ai_player = params.get("ai_player", 0)
+    _ai_difficulty = params.get("ai_difficulty", "medium")
     _last_state_dict = {}
     if _ai_player in (1, 2):
-        _ai_agent = _create_ai_agent(_ai_player)
+        _ai_agent = _create_ai_agent(_ai_player, difficulty=_ai_difficulty)
         if _ai_agent is not None:
             logger.info("AI agent created for P%d: %s", _ai_player, type(_ai_agent).__name__)
     else:
