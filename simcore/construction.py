@@ -593,7 +593,16 @@ def process_construction(
         if building.get("is_constructing"):
             continue
         owner = building.get("owner", 1)
-        utype = cmd.get("unit_type", "worker")
+        utype = cmd.get("unit_type", "")
+        # Infer from building type if unit_type not specified
+        if not utype:
+            btype = building.get("building_type", "base")
+            _building_default_unit = {
+                "barracks": "Marine",
+                "factory": "Vulture",
+                "starport": "Wraith",
+            }
+            utype = _building_default_unit.get(btype, "worker")
         json_unit = _UNIT_TYPE_MAP.get(utype, utype)
 
         # Check train prerequisites
