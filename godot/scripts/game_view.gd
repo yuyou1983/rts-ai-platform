@@ -99,6 +99,10 @@ var _fog_h: int = 0
 var _jitter_count: int = 0
 var _total_jitter_px: float = 0.0
 
+# ─── Control group double-tap ──────────────────────────────
+var _last_group_key: int = -1
+var _last_group_time: float = 0.0
+
 # ─── Minimap ───────────────────────────────────────────────
 var _mm_size := Vector2(152, 136)  # minimap inner drawing area
 var _mm_margin := Vector2(12, 28)  # bottom-right float: x=8+4, y=8+20
@@ -546,7 +550,16 @@ func _input(event: InputEvent) -> void:
 				elif event.shift_pressed:
 					_selection.add_to_hotkey_group(group_idx)
 				else:
-					_selection.select_hotkey_group(group_idx)
+					# Double-tap detection: same key within 0.3s → jump camera
+					var now: float = Time.get_ticks_msec() / 1000.0
+					if _last_group_key == key and (now - _last_group_time) < 0.3:
+						_selection.jump_to_hotkey_group(group_idx)
+						_last_group_key = -1
+						_last_group_time = 0.0
+					else:
+						_selection.select_hotkey_group(group_idx)
+						_last_group_key = key
+						_last_group_time = now
 			return
 
 	# Ability hotkeys (if AbilityManager is loaded)
@@ -1105,6 +1118,8 @@ func _parse(state: Dictionary) -> void:
 			"speed": _to_f(e.get("speed"), 0.0),
 			"energy": _to_f(e.get("energy"), 0.0),
 			"max_energy": _to_f(e.get("max_energy"), 0.0),
+			"production_queue": e.get("production_queue", []),
+			"production_timers": e.get("production_timers", []),
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
@@ -1210,6 +1225,8 @@ func _draw() -> void:
 	_draw_fog_of_war(co)
 	_draw_combat_effects(co)
 	_draw_health_bars(co)
+	_draw_production_bars(co)
+	_draw_status_icons(co)
 	_draw_selection_rings(co)
 	_draw_rally_lines(co)
 	_draw_drag_box()
@@ -1630,6 +1647,109 @@ func _draw_health_bars(co: Vector2) -> void:
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
 		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * frac, bar_h), hp_color, true)
+
+# ─── Phase B1: Production Queue Visualization ────────────────
+func _unit_letter(unit_type: String) -> String:
+	match unit_type.to_lower():
+		"marine": return "M"
+		"firebat": return "F"
+		"ghost": return "G"
+		"medic": return "D"
+		"worker", "scv": return "W"
+		"vulture": return "V"
+		"tank", "siege_tank": return "T"
+		"goliath": return "L"
+		"wraith": return "R"
+		"dropship": return "P"
+		"vessel", "science_vessel": return "S"
+		"zergling": return "Z"
+		"hydralisk": return "H"
+		"ultralisk": return "U"
+		"overlord": return "O"
+		"queen": return "Q"
+		"mutalisk": return "Mu"
+		_: return unit_type.left(1).to_upper()
+
+func _draw_production_bars(_co: Vector2) -> void:
+	for e in _ents:
+		if e.type != "building":
+			continue
+		var queue: Array = e.get("production_queue", [])
+		if queue.is_empty():
+			continue
+		if e.owner != 1 and _is_in_fog(e):
+			continue
+		var pos := Vector2(e.px, e.py)
+		var radius := _visual_radius(e)
+		var bar_w := radius * 1.4
+		var bar_h := 0.12
+		var base_y := pos.y - radius - 0.48
+		var timers: Array = e.get("production_timers", [])
+		for i in range(queue.size()):
+			var bar_y := base_y - i * (bar_h + 0.04)
+			var unit_type: String = str(queue[i])
+			var letter := _unit_letter(unit_type)
+			# Background bar
+			draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.2, 0.2, 0.2, 0.8), true)
+			if i == 0 and timers.size() > 0:
+				# First item: green progress bar
+				var timer_val: float = _to_f(timers[0], 0.0)
+				var max_timer: float = 20.0  # approximate if unknown
+				var progress: float = clampf(1.0 - timer_val / max_timer, 0.0, 1.0)
+				draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * progress, bar_h), Color(0.2, 0.85, 0.2, 0.9), true)
+			# Unit type letter above the bar
+			var letter_y := bar_y - 0.14
+			draw_string(_default_font, Vector2(pos.x - 0.1, letter_y), letter, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(0.9, 0.9, 0.9, 0.9))
+
+# ─── Phase B5: Unit Status Icons ────────────────────────────
+func _draw_status_icons(_co: Vector2) -> void:
+	for e in _ents:
+		if e.type == "resource" or e.type == "building":
+			continue
+		if e.owner != 1 and _is_in_fog(e):
+			continue
+		var pos := Vector2(e.px, e.py)
+		var radius := _visual_radius(e)
+		var icon_y := pos.y - radius - 0.50
+		var icon_x := pos.x
+		var has_target: bool = str(e.get("attack_target_id", "")) != ""
+		var is_idle: bool = bool(e.get("is_idle", true))
+		var speed: float = _to_f(e.get("speed", 0.0), 0.0)
+		var is_moving: bool = not is_idle and not has_target and speed > 0.0
+		var carry_amount: float = _to_f(e.get("carry_amount", 0.0), 0.0)
+		var carry_cap: float = _to_f(e.get("carry_cap", 0.0), 0.0)
+		var is_gathering: bool = carry_amount > 0 and carry_cap > 0
+		if has_target:
+			# Attacking: small red triangle (sword icon)
+			var s := 0.12
+			var pts := PackedVector2Array([
+				Vector2(icon_x, icon_y + s),
+				Vector2(icon_x - s, icon_y - s * 0.6),
+				Vector2(icon_x + s, icon_y - s * 0.6),
+			])
+			draw_colored_polygon(pts, Color(1.0, 0.2, 0.2, 0.9))
+		elif is_gathering:
+			# Gathering: small yellow diamond (crystal icon)
+			var s := 0.10
+			var pts := PackedVector2Array([
+				Vector2(icon_x, icon_y + s),
+				Vector2(icon_x - s, icon_y),
+				Vector2(icon_x, icon_y - s),
+				Vector2(icon_x + s, icon_y),
+			])
+			draw_colored_polygon(pts, Color(1.0, 0.9, 0.2, 0.9))
+		elif is_moving:
+			# Moving: small blue chevron
+			var s := 0.12
+			var pts := PackedVector2Array([
+				Vector2(icon_x - s, icon_y + s * 0.5),
+				Vector2(icon_x, icon_y - s * 0.5),
+				Vector2(icon_x + s, icon_y + s * 0.5),
+			])
+			draw_colored_polygon(pts, Color(0.3, 0.6, 1.0, 0.9))
+		elif is_idle:
+			# Idle: small white dot
+			draw_circle(Vector2(icon_x, icon_y), 0.08, Color(1.0, 1.0, 1.0, 0.6))
 
 func _draw_selection_rings(co: Vector2) -> void:
 	for uid in _selected:
