@@ -570,18 +570,22 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_T:
 			# Determine unit_type based on selected building
 			var train_type := "worker"  # default for base
+			var sel_ids: Array = []
 			if _selection:
-				for uid in _selection.get_selected_ids():
-					var e = _get_ent_by_id(uid)
-					if e.is_empty(): continue
-					if e.type == "building" and e.owner == 1:
-						var btype = e.get("building_type", "base")
-						match btype:
-							"barracks": train_type = "Marine"
-							"factory":  train_type = "Vulture"
-							"starport": train_type = "Wraith"
-							_:          train_type = "worker"  # base → SCV
-						break  # use first selected building
+				sel_ids = _selection.get_selected_ids()
+			else:
+				sel_ids = _selected.keys()
+			for uid in sel_ids:
+				var e = _get_ent_by_id(uid)
+				if e.is_empty(): continue
+				if e.type == "building" and e.owner == 1:
+					var btype = e.get("building_type", "base")
+					match btype:
+						"barracks": train_type = "Marine"
+						"factory":  train_type = "Vulture"
+						"starport": train_type = "Wraith"
+						_:          train_type = "worker"  # base → SCV
+					break  # use first selected building
 			_handle_train(train_type)
 		elif event.keycode == KEY_ESCAPE:
 			if _selection:
