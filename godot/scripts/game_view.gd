@@ -1267,7 +1267,7 @@ func _draw_elevation(_co: Vector2) -> void:
 	var rows := _height_map.size()
 	if rows == 0:
 		return
-	var cols := _height_map[0].size()
+	var cols: int = _height_map[0].size()
 	# ── Height-based terrain tint (draw small rects per tile) ──
 	for y in range(rows):
 		var row = _height_map[y]
