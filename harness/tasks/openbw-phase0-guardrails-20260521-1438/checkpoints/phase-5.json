@@ -1,0 +1,54 @@
+{
+  "phase": 5,
+  "summary": "Phase 4 complete: ReplayV2 with command+keyframe+hash, enable_replay_v2 flag, reexecute verification, 9 new tests pass, 523/523 core green, V1 untouched",
+  "timestamp": "2026-05-21T15:09:21.034155",
+  "context_snapshot": {
+    "completed": [
+      "Phase 1: Phase 0 complete: ADR written, determinism smoke (3 tests pass), benchmark baseline (0.37ms/tick at 1k, 0.32ms/tick at 10k), core 488/488 green",
+      "Phase 2: Phase 1 complete: FNV-1a 64-bit hash, float normalization, enable_state_hash flag, 15 new hash tests pass, 0 regressions",
+      "Phase 3: Phase 2 complete: OrderQueue with replace/append/interrupt/auto-resume, enable_order_queue flag, 22 new tests pass, 502/502 core green",
+      "Phase 4: Phase 3 complete: Event log with 6 event types (unit_created/destroyed, building_completed, resource_depleted, combat_hit, order_completed), enable_event_log flag, snapshot-diff detection pattern, 12 new tests pass, 514/514 core green",
+      "Phase 5: Phase 4 complete: ReplayV2 with command+keyframe+hash, enable_replay_v2 flag, reexecute verification, 9 new tests pass, 523/523 core green, V1 untouched"
+    ],
+    "current": "Phase 6",
+    "remaining": [
+      "Phase 2",
+      "Phase 3"
+    ],
+    "key_decisions": [
+      "pos_x/pos_y unchanged \u2014 new coords are additive fields",
+      "event_log not callbacks \u2014 SimCore writes events_this_tick",
+      "Replay V1+V2 dual-track not replacement",
+      "float normalization: round 4dp + -0.0 fix",
+      "hash goes into snapshot dict when flag on",
+      "GameState.state_hash() is standalone method, not in to_snapshot()",
+      "interrupt saves ALL current work (current+queue) to interrupted stack",
+      "order_queue stored as serialized list in entity dict, not OrderQueue object",
+      "flag off = no order_queue field, no behavior change",
+      "events detected by snapshot-diff, not callbacks",
+      "combat_hit uses reverse-map from attack_target_id for attacker_id",
+      "UNIT_CREATED detected by comparing entity keys against start-of-tick",
+      "V1+V2 dual-track, V1 for Godot, V2 for training",
+      "reexecute() creates fresh SimCore with enable_state_hash=True for verification",
+      "keyframe_interval=100 as default, configurable"
+    ],
+    "files_modified": [
+      "docs/architecture/adr-openbw-upgrades.md",
+      "simcore/engine.py",
+      "simcore/state.py",
+      "simcore/replay.py"
+    ],
+    "files_created": [
+      "tests/simcore/test_events.py",
+      "simcore/order.py",
+      "tests/simcore/test_hash.py",
+      "docs/architecture/adr-openbw-upgrades.md",
+      "simcore/hash.py",
+      "tests/simcore/test_determinism_smoke.py",
+      "tests/simcore/test_order.py",
+      "tests/simcore/test_replay_v2.py",
+      "simcore/events.py",
+      "tests/simcore/test_benchmark.py"
+    ]
+  }
+}

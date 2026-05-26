@@ -1,0 +1,31 @@
+{
+  "task_id": "openbw-phase0-guardrails-20260521-1438",
+  "task": "Phase 0 of OpenBW roadmap: ADR, determinism smoke test, benchmark baseline",
+  "started_at": "2026-05-21T14:38:05.772994",
+  "phase": 7,
+  "total_phases": 3,
+  "status": "completed",
+  "plan_path": "docs/exec-plans/2026-05-20-openbw-engine-upgrades.md",
+  "completed_at": "2026-05-21T15:10:14.330388",
+  "summary": "All 6 phases complete: ADR + determinism smoke + benchmark (P0), FNV-1a state hash (P1), OrderQueue with replace/append/interrupt (P2), Event log with snapshot-diff detection (P3), ReplayV2 dual-track (P4), Multi-coords + elevation design docs (P5). 523 core tests green, 0 regressions. 5 feature flags: enable_state_hash, enable_order_queue, enable_event_log, enable_replay_v2, enable_elevation.",
+  "files_changed": [
+    "simcore/state.py",
+    "simcore/engine.py",
+    "simcore/replay.py",
+    "simcore/__init__.py"
+  ],
+  "files_created": [
+    "simcore/hash.py",
+    "simcore/order.py",
+    "simcore/events.py",
+    "tests/simcore/test_hash.py",
+    "tests/simcore/test_order.py",
+    "tests/simcore/test_events.py",
+    "tests/simcore/test_replay_v2.py",
+    "tests/simcore/test_determinism_smoke.py",
+    "tests/simcore/test_benchmark.py",
+    "docs/architecture/adr-openbw-upgrades.md",
+    "docs/architecture/design-multi-coords.md",
+    "docs/architecture/design-elevation-vision.md"
+  ]
+}

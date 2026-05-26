@@ -1,0 +1,28 @@
+{
+  "phase": 1,
+  "summary": "Phase 0 complete: ADR written, determinism smoke (3 tests pass), benchmark baseline (0.37ms/tick at 1k, 0.32ms/tick at 10k), core 488/488 green",
+  "timestamp": "2026-05-21T14:49:16.228596",
+  "context_snapshot": {
+    "completed": [
+      "Phase 1: Phase 0 complete: ADR written, determinism smoke (3 tests pass), benchmark baseline (0.37ms/tick at 1k, 0.32ms/tick at 10k), core 488/488 green"
+    ],
+    "current": "Phase 2",
+    "remaining": [
+      "Phase 2",
+      "Phase 3"
+    ],
+    "key_decisions": [
+      "pos_x/pos_y unchanged \u2014 new coords are additive fields",
+      "event_log not callbacks \u2014 SimCore writes events_this_tick",
+      "Replay V1+V2 dual-track not replacement"
+    ],
+    "files_modified": [
+      "docs/architecture/adr-openbw-upgrades.md"
+    ],
+    "files_created": [
+      "docs/architecture/adr-openbw-upgrades.md",
+      "tests/simcore/test_determinism_smoke.py",
+      "tests/simcore/test_benchmark.py"
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 72322a848ab928aa5c89f0cb78209805
-::res://::1779244511
+::res://::1779781625
 export_presets.cfg::TextFile::-1::1778327580::0::1::::<><><>0<>0<><>::
 ::res://assets/::1778578882
 ::res://assets/audio/::1778558338
@@ -334,7 +334,8 @@ Vulture.png::CompressedTexture2D::2962279601643677485::1778578882::1778732499::1
 Wraith.png::CompressedTexture2D::1717233256464763895::1778578882::1778732499::1::::<><><>0<>0<>b5a4cd4f81b460e59152106377fab38a<>res://.godot/imported/Wraith.png-754293d3c8d1c4b85a67108c011244d3.ctex::
 Zealot.png::CompressedTexture2D::3439950462263066367::1778578883::1778732499::1::::<><><>0<>0<>8d79236b9c34b86b2bfe92663280651f<>res://.godot/imported/Zealot.png-36f2838d89d74585a91fe5a4db8503df.ctex::
 Zergling.png::CompressedTexture2D::7714391038059299679::1778578882::1778732499::1::::<><><>0<>0<>56b4debf35af526cb8768c92112e6e8b<>res://.godot/imported/Zergling.png-5bea82c5cec29562ac196a0615e58805.ctex::
-::res://resources/::1779243933
+::res://resources/::1779245197
+presentation_manifest.json::JSON::-1::1779260592::0::1::::<><><>0<>0<><>::
 sprite_frames_config.json::JSON::-1::1778572255::0::1::::<><><>0<>0<><>::
 ::res://resources/abilities/::1778561630
 attack.tres::Resource/AbilityResource::-1::1778561626::0::1::::<><><>0<>0<><>::res://scripts/ability_resource.gd
@@ -347,7 +348,7 @@ stop.tres::Resource/AbilityResource::-1::1778561625::0::1::::<><><>0<>0<><>::res
 train_soldier.tres::Resource/AbilityResource::-1::1778561630::0::1::::<><><>0<>0<><>::res://scripts/ability_resource.gd
 train_worker.tres::Resource/AbilityResource::-1::1778561629::0::1::::<><><>0<>0<><>::res://scripts/ability_resource.gd
 ::res://resources/vfx/::1779243933
-vfx_catalog.json::JSON::-1::1779243975::0::1::::<><><>0<>0<><>::
+vfx_catalog.json::JSON::-1::1779246510::0::1::::<><><>0<>0<><>::
 ::res://scenes/::1779084268
 game_view.tscn::PackedScene::-1::1778740159::0::1::::<><><>0<>0<><>::res://scripts/game_view.gd
 hud.tscn::PackedScene::-1::1778564427::0::1::::<><><>0<>0<><>::res://scripts/hud.gd
@@ -364,17 +365,17 @@ entity_state.gd::GDScript::3028457398350986072::1778303428::0::1::::EntityState<
 entity_visual.gd::GDScript::296357795083468032::1778572235::0::1::::EntityVisual<>AnimatedSprite2D<><>0<>0<><>::
 event_bus.gd::GDScript::1739031026962091357::1778564480::0::1::::EventBus<>Node<><>0<>0<><>::
 fog_renderer.gd::GDScript::5748939900306480128::1778740159::0::1::::<>Node2D<><>0<>0<><>::
-game_view.gd::GDScript::7097666510623240550::1779244305::0::1::::<>Node2D<><>0<>0<><>::
-grpc_bridge.gd::GDScript::3829642289321534844::1779156169::0::1::::GrpcBridge<>Node<><>0<>0<><>::
+game_view.gd::GDScript::7097666510623240550::1779780855::0::1::::<>Node2D<><>0<>0<><>::
+grpc_bridge.gd::GDScript::3829642289321534844::1779776206::0::1::::GrpcBridge<>Node<><>0<>0<><>::
 hud.gd::GDScript::8373712465010340074::1779170484::0::1::::<>Control<><>0<>0<><>::
-main_menu.gd::GDScript::1990540224865693774::1779105843::0::1::::<>Control<><>0<>0<><>::
+main_menu.gd::GDScript::1990540224865693774::1779445036::0::1::::<>Control<><>0<>0<><>::
 minimap_rect.gd::GDScript::2489548044372658312::1778740159::0::1::::<>ColorRect<><>0<>0<><>::
 object_pool.gd::GDScript::8887889538103205611::1778561301::0::1::::ObjectPool<>Node<><>0<>0<><>::
 rally_point_indicator.gd::GDScript::4399128323490671560::1778740159::0::1::::RallyPointIndicator<>Node2D<><>0<>0<><>::
 replay_overlay.gd::GDScript::2779435637093036626::1779106792::0::1::::<>Control<><>0<>0<><>::
 replay_player.gd::GDScript::1591698184618124904::1779156176::0::1::::ReplayPlayer<>Node<><>0<>0<><>::
 selection_manager.gd::GDScript::491063890535349253::1778740159::0::1::::SelectionManager<>Node<><>0<>0<><>::
-sprite_loader.gd::GDScript::8611796385427565165::1778559436::0::1::::SpriteLoader<>RefCounted<><>0<>0<><>::
+sprite_loader.gd::GDScript::8611796385427565165::1779247998::0::1::::SpriteLoader<>RefCounted<><>0<>0<><>::
 vfx_manager.gd::GDScript::8355685726220060980::1779243933::0::1::::VFXManager<>Node2D<><>0<>0<><>::
 victory_screen.gd::GDScript::7831928034239131918::1778566221::0::1::::<>CanvasLayer<><>0<>0<><>::
 visual_feedback.gd::GDScript::1295153822382215503::1778740159::0::1::::<>Node2D<><>0<>0<><>::

@@ -1,0 +1,91 @@
+{
+  "total_time": 151.90159583091736,
+  "rounds": 3,
+  "leaderboard": [
+    {
+      "name": "script-v0",
+      "elo": 1000.0,
+      "games_played": 0,
+      "wins": 0
+    },
+    {
+      "name": "grpo-v0",
+      "elo": 1000.0,
+      "games_played": 4,
+      "wins": 0
+    },
+    {
+      "name": "grpo-v1",
+      "elo": 1000.0,
+      "games_played": 2,
+      "wins": 0
+    },
+    {
+      "name": "grpo-v2",
+      "elo": 1000.0,
+      "games_played": 2,
+      "wins": 0
+    }
+  ],
+  "promotion_log": [
+    {
+      "round": 0,
+      "version": "grpo-v0",
+      "promoted": true,
+      "reason": "auto"
+    },
+    {
+      "round": 1,
+      "version": "grpo-v1",
+      "promoted": false,
+      "win_rate": 0.0,
+      "elo": 1000.0
+    },
+    {
+      "round": 2,
+      "version": "grpo-v2",
+      "promoted": false,
+      "win_rate": 0.0,
+      "elo": 1000.0
+    }
+  ],
+  "round_metrics": [
+    {
+      "round": 0,
+      "version": "grpo-v0",
+      "train_result": {
+        "total_time": 49.4225811958313,
+        "episodes": 20
+      },
+      "matchups": 0,
+      "promoted": true,
+      "elo": 1000.0
+    },
+    {
+      "round": 1,
+      "version": "grpo-v1",
+      "train_result": {
+        "total_time": 41.017727851867676,
+        "episodes": 20
+      },
+      "matchups": 2,
+      "eval_games": 2,
+      "win_rate": 0.0,
+      "elo": 1000.0,
+      "promoted": false
+    },
+    {
+      "round": 2,
+      "version": "grpo-v2",
+      "train_result": {
+        "total_time": 48.05763792991638,
+        "episodes": 20
+      },
+      "matchups": 2,
+      "eval_games": 2,
+      "win_rate": 0.0,
+      "elo": 1000.0,
+      "promoted": false
+    }
+  ]
+}

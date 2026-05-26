@@ -1,0 +1,38 @@
+{
+  "completed": [
+    "Phase 1: T1 complete: TRL GRPOTrainer integrated (train/trl_trainer.py), factory pattern in grpo_trainer.py (create_grpo_trainer), 20 new tests pass (1 slow deselected), 542/542 core green",
+    "Phase 2: T2 complete: SharedRolloutBuffer (thread-safe, max capacity), RolloutWorker with shared_buffer + grpo policy + throughput, 17 new tests, 563/563 core green",
+    "Phase 3: T3+T4 complete: training closed loop \u2014 RolloutWorker integration in TRLGRPOTrainer, League registration, PromotionGate evaluation, 9 new loop tests pass, 572/572 core green"
+  ],
+  "current": "Phase 4",
+  "remaining": [
+    "Phase 2",
+    "Phase 3",
+    "Phase 4",
+    "Phase 5"
+  ],
+  "key_decisions": [
+    "TRL GRPOTrainer wraps PyTorch PPO with group-relative advantage estimation",
+    "Factory pattern: create_grpo_trainer auto-selects TRL or SimplePolicy",
+    "Loss divergence test uses absolute value comparison for negative losses",
+    "SharedRolloutBuffer wraps existing RolloutBuffer with thread lock",
+    "GRPOPolicy lazily initialized on first worker call",
+    "games_per_hour measured from per-episode timing",
+    "train_with_worker() uses RolloutWorker for concurrent collection",
+    "train_and_promote() chains: train \u2192 register \u2192 evaluate",
+    "League and PromotionGate are optional \u2014 existing API unchanged"
+  ],
+  "files_modified": [
+    "train/rollout_worker.py",
+    "train/trl_trainer.py",
+    "train/grpo_trainer.py",
+    "tests/train/test_rollout_worker.py"
+  ],
+  "files_created": [
+    "tests/train/test_training_loop.py",
+    "tests/train/test_shared_buffer.py",
+    "tests/train/test_trl_grpo.py",
+    "train/shared_buffer.py",
+    "train/trl_trainer.py"
+  ]
+}

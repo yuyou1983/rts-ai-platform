@@ -28,3 +28,5 @@ train/output/**/final_model.pt
 train/output/**/round_*/
 train/output/**/training_curves.csv
 train/output/**/summary.json
+train/output/
+train/models/

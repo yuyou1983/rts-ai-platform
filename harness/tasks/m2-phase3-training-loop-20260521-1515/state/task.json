@@ -1,0 +1,11 @@
+{
+  "task_id": "m2-phase3-training-loop-20260521-1515",
+  "task": "M2 Phase 3: GRPO self-play training closed loop \u2014 T1 TRL integration, T2 Rollout Worker, T3 League, T4 Promotion Gate, T5 Validation",
+  "started_at": "2026-05-21T15:15:34.491594",
+  "phase": 4,
+  "total_phases": 5,
+  "status": "completed",
+  "plan_path": "docs/exec-plans/active/2026-05-20-m2-phase3-training-loop.md",
+  "completed_at": "2026-05-21T16:10:23.020543",
+  "summary": "M2 Phase 3 complete: TRL GRPOTrainer + SharedRolloutBuffer + RolloutWorker async + League self-play + PromotionGate. 572 core tests green, lint-arch clean. Training closed loop operational."
+}

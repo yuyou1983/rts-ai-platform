@@ -1,0 +1,36 @@
+{
+  "phase": 2,
+  "summary": "Phase 1 complete: FNV-1a 64-bit hash, float normalization, enable_state_hash flag, 15 new hash tests pass, 0 regressions",
+  "timestamp": "2026-05-21T14:51:16.309097",
+  "context_snapshot": {
+    "completed": [
+      "Phase 1: Phase 0 complete: ADR written, determinism smoke (3 tests pass), benchmark baseline (0.37ms/tick at 1k, 0.32ms/tick at 10k), core 488/488 green",
+      "Phase 2: Phase 1 complete: FNV-1a 64-bit hash, float normalization, enable_state_hash flag, 15 new hash tests pass, 0 regressions"
+    ],
+    "current": "Phase 3",
+    "remaining": [
+      "Phase 2",
+      "Phase 3"
+    ],
+    "key_decisions": [
+      "pos_x/pos_y unchanged \u2014 new coords are additive fields",
+      "event_log not callbacks \u2014 SimCore writes events_this_tick",
+      "Replay V1+V2 dual-track not replacement",
+      "float normalization: round 4dp + -0.0 fix",
+      "hash goes into snapshot dict when flag on",
+      "GameState.state_hash() is standalone method, not in to_snapshot()"
+    ],
+    "files_modified": [
+      "simcore/engine.py",
+      "docs/architecture/adr-openbw-upgrades.md",
+      "simcore/state.py"
+    ],
+    "files_created": [
+      "tests/simcore/test_determinism_smoke.py",
+      "tests/simcore/test_benchmark.py",
+      "simcore/hash.py",
+      "tests/simcore/test_hash.py",
+      "docs/architecture/adr-openbw-upgrades.md"
+    ]
+  }
+}
