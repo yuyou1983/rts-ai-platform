@@ -34,6 +34,7 @@ AgentFactory = Callable[[int], Any]
 
 # Global client — initialized in main()
 _client: SimCoreClient | None = None
+_height_map_cache: list | None = None  # Phase D: cached on start_game
 # AI configuration — set by start_game
 _ai_player: int = 0  # 0 = no AI, 1 or 2 = that player is AI-controlled
 _ai_agent = None
@@ -85,19 +86,24 @@ def _state_to_observations(state_dict: dict) -> list[dict]:
 
 def _godot_state(state_dict: dict) -> dict:
     """Build a Godot-friendly state: all entities visible, fog for rendering only."""
+    global _height_map_cache
     result = dict(state_dict)
     # Keep fog_of_war for visual rendering
     # But entities are the FULL set (not filtered by fog)
+    # Phase D: inject cached height_map
+    if _height_map_cache is not None:
+        result["height_map"] = _height_map_cache
     return result
 
 
 async def handle_start_game(req: web.Request) -> web.Response:
-    global _ai_player, _ai_agent, _last_state_dict, _ai_difficulty
+    global _ai_player, _ai_agent, _last_state_dict, _ai_difficulty, _height_map_cache
     params = await req.json()
     assert _client
     _ai_player = params.get("ai_player", 0)
     _ai_difficulty = params.get("ai_difficulty", "medium")
     _last_state_dict = {}
+    _height_map_cache = None
     if _ai_player in (1, 2):
         _ai_agent = _create_ai_agent(_ai_player, difficulty=_ai_difficulty)
         if _ai_agent is not None:
@@ -108,8 +114,13 @@ async def handle_start_game(req: web.Request) -> web.Response:
         seed=params.get("seed", 42),
         max_ticks=params.get("max_ticks", 10000),
         tick_rate=params.get("tick_rate", 10.0),
+        enable_elevation=params.get("enable_elevation", True),
     )
     _last_state_dict = result
+    # Phase D: cache height_map from first state (sent once at game start)
+    hm = result.get("height_map")
+    if hm is not None:
+        _height_map_cache = hm
     return web.json_response(_godot_state(result))
 
 

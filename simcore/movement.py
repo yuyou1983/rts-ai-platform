@@ -87,6 +87,16 @@ def move_entities(
 
         speed = e.get("speed", 2.0)
 
+        # Elevation speed modifier (Phase D)
+        if tile_map is not None and tile_map.height_map:
+            cur_tile = tile_map.world_to_tile(cx, cy)
+            tgt_tile = (target_tx, target_ty)
+            if tile_map.is_cliff(cur_tile[0], cur_tile[1], tgt_tile[0], tgt_tile[1]):
+                # Cliff — should not happen (pathfinder avoids), but safety: skip
+                continue
+            mult = tile_map.elevation_speed_mult(cur_tile[0], cur_tile[1], tgt_tile[0], tgt_tile[1])
+            speed *= mult
+
         if dist <= speed * dt:
             # Reached this waypoint — snap to tile center and advance
             e = {**e, "pos_x": target_wx, "pos_y": target_wy}

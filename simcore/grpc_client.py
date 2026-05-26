@@ -39,12 +39,14 @@ class SimCoreClient:
         self._stub = None
 
     async def start_game(
-        self, seed: int = 42, max_ticks: int = 10000, tick_rate: float = 20.0
+        self, seed: int = 42, max_ticks: int = 10000, tick_rate: float = 20.0,
+        enable_elevation: bool = True,
     ) -> dict:
         """Start a new game, return state dict."""
         assert self._stub
         config = state_pb2.GameConfig(
-            map_seed=seed, map_width=64, max_ticks=max_ticks, tick_rate=tick_rate
+            map_seed=seed, map_width=64, max_ticks=max_ticks, tick_rate=tick_rate,
+            enable_elevation=enable_elevation,
         )
         request = service_pb2.StartGameRequest(config=config)
         snapshot = await self._stub.StartGame(request)
@@ -144,5 +146,9 @@ class SimCoreClient:
                     "width": snapshot.fog_p2.width,
                     "height": snapshot.fog_p2.height,
                 },
-            },
-        }
+},
+			# Phase D: height_map
+			"height_map": [list(row.values) for row in snapshot.height_map],
+			"map_width": snapshot.config.map_width,
+			"map_height": snapshot.config.map_height,
+		}

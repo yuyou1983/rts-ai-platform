@@ -114,6 +114,8 @@ class TRLGRPOConfig:
     enable_order_queue: bool = False
     enable_event_log: bool = False
     enable_replay_v2: bool = False
+    # Phase D: terrain elevation
+    enable_elevation: bool = False
 
     def __post_init__(self) -> None:
         if HAS_TRL:

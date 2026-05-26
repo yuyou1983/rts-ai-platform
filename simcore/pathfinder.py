@@ -38,6 +38,7 @@ def find_path(
     tile_map: TileMap,
     is_flying: bool = False,
     occupied: set[tuple[int, int]] | None = None,
+    enable_elevation: bool = False,
 ) -> list[tuple[int, int]]:
     """Find the shortest path from start to end using A*.
 
@@ -57,7 +58,8 @@ def find_path(
         occupied = tile_map.occupied
 
     # Quick check: if end is impassable, no path
-    if not _is_tile_passable(end[0], end[1], tile_map, is_flying, occupied):
+    if not _is_tile_passable(end[0], end[1], tile_map, is_flying, occupied,
+                              enable_elevation=enable_elevation, from_x=start[0], from_y=start[1]):
         # For ground units, the end might be occupied by a building we want to
         # reach — allow pathing to adjacent tile instead
         if not is_flying and (end[0], end[1]) in occupied:
@@ -113,17 +115,28 @@ def find_path(
             nx, ny = x + dx, y + dy
             if (nx, ny) in closed:
                 continue
-            if not _is_tile_passable(nx, ny, tile_map, is_flying, occupied):
+            if not _is_tile_passable(nx, ny, tile_map, is_flying, occupied,
+                                     enable_elevation=enable_elevation, from_x=x, from_y=y):
                 continue
             # For diagonal moves, ensure both cardinal neighbors are passable
             # to avoid cutting through walls
             if dx != 0 and dy != 0:
-                if not _is_tile_passable(x + dx, y, tile_map, is_flying, occupied):
+                if not _is_tile_passable(x + dx, y, tile_map, is_flying, occupied,
+                                         enable_elevation=enable_elevation, from_x=x, from_y=y):
                     continue
-                if not _is_tile_passable(x, y + dy, tile_map, is_flying, occupied):
+                if not _is_tile_passable(x, y + dy, tile_map, is_flying, occupied,
+                                         enable_elevation=enable_elevation, from_x=x, from_y=y):
                     continue
 
-            new_g = g + cost
+            # Elevation cost modifier: ramps are more expensive to traverse
+            move_cost = cost
+            if enable_elevation and not is_flying and tile_map.height_map:
+                if tile_map.is_ramp(x, y, nx, ny):
+                    move_cost *= 1.5  # ramps cost 50% more to traverse
+                elif tile_map.is_cliff(x, y, nx, ny):
+                    continue  # cliffs blocked (should already be caught by passable check)
+
+            new_g = g + move_cost
             if new_g < g_score.get((nx, ny), float("inf")):
                 g_score[(nx, ny)] = new_g
                 came_from[(nx, ny)] = (x, y)
@@ -139,6 +152,9 @@ def _is_tile_passable(
     tile_map: TileMap,
     is_flying: bool,
     occupied: set[tuple[int, int]],
+    enable_elevation: bool = False,
+    from_x: int | None = None,
+    from_y: int | None = None,
 ) -> bool:
     """Check if a single tile is passable for the given movement type."""
     if x < 0 or x >= tile_map.width or y < 0 or y >= tile_map.height:
@@ -152,6 +168,10 @@ def _is_tile_passable(
         return False
     if (x, y) in occupied:
         return False
+    # Elevation cliff check
+    if enable_elevation and from_x is not None and from_y is not None:
+        if tile_map.is_cliff(from_x, from_y, x, y):
+            return False
     return True
 
 

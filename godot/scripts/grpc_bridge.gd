@@ -35,6 +35,9 @@ enum PollMode { STEP, GET_STATE }
 ## AI difficulty: "easy", "medium", "hard". Affects APM throttle, production caps, micro.
 @export var ai_difficulty: String = "medium"
 
+## Phase D: enable terrain elevation system (height_map + speed/vision modifiers)
+@export var enable_elevation: bool = true
+
 var current_state: State = State.IDLE
 var _tick: int = 0
 var _winner: int = 0
@@ -67,6 +70,7 @@ func start_game(seed: int = 42, max_ticks: int = 10000) -> void:
 		"max_ticks": max_ticks,
 		"ai_player": ai_player,
 		"ai_difficulty": ai_difficulty,
+		"enable_elevation": enable_elevation,
 	})
 	var url := http_address + "/api/start_game"
 	var err := _http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)

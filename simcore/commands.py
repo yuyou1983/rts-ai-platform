@@ -125,6 +125,7 @@ def apply_command(
     cmd: dict,
     entity: dict,
     tile_map: TileMap | None = None,
+    enable_elevation: bool = False,
 ) -> dict:
     """Apply a validated command to an entity, returning a new entity dict.
 
@@ -146,7 +147,8 @@ def apply_command(
             start = tile_map.world_to_tile(entity["pos_x"], entity["pos_y"])
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
-            path = find_path(start, end, tile_map, is_flying=is_flying)
+            path = find_path(start, end, tile_map, is_flying=is_flying,
+                              enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,
@@ -187,7 +189,8 @@ def apply_command(
             start = tile_map.world_to_tile(entity["pos_x"], entity["pos_y"])
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
-            path = find_path(start, end, tile_map, is_flying=is_flying)
+            path = find_path(start, end, tile_map, is_flying=is_flying,
+                              enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,
@@ -235,7 +238,8 @@ def apply_command(
             start = tile_map.world_to_tile(entity["pos_x"], entity["pos_y"])
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
-            path = find_path(start, end, tile_map, is_flying=is_flying)
+            path = find_path(start, end, tile_map, is_flying=is_flying,
+                              enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,

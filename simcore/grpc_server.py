@@ -54,9 +54,15 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             tick_rate = config.tick_rate or self._tick_rate
 
             self.engine = SimCore(max_ticks=max_ticks, tick_rate=tick_rate)
+            # Phase D: pass enable_elevation from config
+            enable_elev = config.enable_elevation
             self.engine.initialize(
                 map_seed=map_seed,
-                config={"map_size": config.map_width or 64, "max_ticks": max_ticks},
+                config={
+                    "map_size": config.map_width or 64,
+                    "max_ticks": max_ticks,
+                    "enable_elevation": enable_elev,
+                },
             )
 
             # Create AI agents if a factory was injected
@@ -249,6 +255,11 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             h = pf.get("height", 0)
             grid = state_pb2.FogGrid(tiles=tiles, width=w, height=h)
             snap.fog_p1.CopyFrom(grid) if field_name == "fog_p1" else snap.fog_p2.CopyFrom(grid)
+        # Phase D: height_map
+        if hasattr(state, "height_map") and state.height_map is not None:
+            for row_vals in state.height_map:
+                row = state_pb2.HeightRow(values=row_vals)
+                snap.height_map.append(row)
         return snap
 
     @staticmethod
@@ -283,6 +294,12 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                 for t in pt:
                     ent.production_timers.append(int(t))
             proto.entities.append(ent)
+        # Phase D: height_map from replay dict
+        hm = snap.get("height_map")
+        if hm and isinstance(hm, list):
+            for row_vals in hm:
+                row = state_pb2.HeightRow(values=row_vals)
+                proto.height_map.append(row)
         return proto
 
 

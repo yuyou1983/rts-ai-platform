@@ -22,6 +22,9 @@ class GameState:
     resources: dict[str, int] = field(default_factory=dict)
     is_terminal: bool = False
     winner: int = 0  # 0=none/draw, 1=P1, 2=P2
+    height_map: list | None = None  # Phase D: elevation grid
+    map_width: int = 64
+    map_height: int = 64
 
     def state_hash(self) -> int:
         """Compute a deterministic FNV-1a 64-bit hash of this state.
@@ -45,6 +48,9 @@ class GameState:
             "resources": self.resources,
             "is_terminal": self.is_terminal,
             "winner": self.winner,
+            "height_map": self.height_map,
+            "map_width": self.map_width,
+            "map_height": self.map_height,
         }
 
     def get_observations(self) -> list[dict]:

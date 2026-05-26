@@ -92,7 +92,8 @@ class SimCore:
         """
         from simcore.mapgen import generate_map
 
-        self._state = generate_map(seed=map_seed, config=config or {})
+        self._config = config or {}  # Phase D: store config for enable_elevation
+        self._state = generate_map(seed=map_seed, config=self._config)
         self._tick = 0
 
         # When order queue is enabled, inject empty order_queue into units
@@ -108,6 +109,9 @@ class SimCore:
                 resources=self._state.resources,
                 is_terminal=self._state.is_terminal,
                 winner=self._state.winner,
+                height_map=self._state.height_map,
+                map_width=self._state.map_width,
+                map_height=self._state.map_height,
             )
 
         init_snapshot = self._state.to_snapshot()
@@ -121,10 +125,10 @@ class SimCore:
 
         # Player race configuration (default: P1=zerg, P2=protoss if not specified)
         cfg = config or {}
-        self._player_races = cfg.get("player_races", {1: "terran", 2: "terran"})
+        self._player_races = self._config.get("player_races", {1: "terran", 2: "terran"})
 
         # Generate tile map for pathfinding
-        self._tile_map = generate_tile_map(seed=map_seed, config=config or {})
+        self._tile_map = generate_tile_map(seed=map_seed, config=self._config)
 
         # Sync building positions to tile map occupied set
         if self._tile_map and self._state:
@@ -262,8 +266,10 @@ class SimCore:
             entity = entities[entity_id]
             if validate_command(cmd, entity, self._state):
                 if self._tile_map is not None:
+                    enable_elev = self._config.get("enable_elevation", False)
                     entities[entity_id] = apply_command(
-                        cmd, entity, self._tile_map
+                        cmd, entity, self._tile_map,
+                        enable_elevation=enable_elev
                     )
                 else:
                     # Fallback: just set target without path
@@ -308,6 +314,9 @@ class SimCore:
             resources=self._state.resources,
             is_terminal=self._state.is_terminal,
             winner=self._state.winner,
+            height_map=self._state.height_map,
+            map_width=self._state.map_width,
+            map_height=self._state.map_height,
         )
 
 # 4. Movement
@@ -485,7 +494,10 @@ class SimCore:
                     self._tile_map.occupy([(tx, ty)])
 
         # 16. Fog-of-war
-        fog = update_fog_of_war(entities, temp_state.fog_of_war, self._tick)
+        enable_elev = self._config.get("enable_elevation", False)
+        fog = update_fog_of_war(entities, temp_state.fog_of_war, self._tick,
+                                enable_elevation=enable_elev,
+                                tile_map=self._tile_map)
 
         # 17. Terminal check
         is_terminal, winner, reason = check_terminal(entities, self._tick, self.max_ticks)
@@ -497,6 +509,9 @@ class SimCore:
             resources=resources,
             is_terminal=is_terminal,
             winner=winner,
+            height_map=self._tile_map.height_map if self._tile_map else None,
+            map_width=self._tile_map.width if self._tile_map else 64,
+            map_height=self._tile_map.height if self._tile_map else 64,
         )
         step_snapshot = self._state.to_snapshot()
         if self.enable_state_hash:

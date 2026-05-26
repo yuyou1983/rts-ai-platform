@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 from simcore.state import GameState
+from simcore.map import TileMap, generate_tile_map
 
 
 def _seeded_random(seed: int) -> float:
@@ -40,8 +41,12 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
     map_size = cfg.get("map_size", 64)
     starting_workers = cfg.get("starting_workers", 6)
     resource_density = cfg.get("resource_density", 1.0)
+    enable_elevation = cfg.get("enable_elevation", False)
 
     rng = _seeded_random(seed)
+
+    # Phase D: generate tile map with elevation
+    tile_map = generate_tile_map(seed=seed, config=cfg)
 
     entities: dict = {}
     resources: dict = {
@@ -184,4 +189,7 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
         fog_of_war=fog_of_war,
         resources=resources,
         is_terminal=False,
+        height_map=tile_map.height_map if tile_map else None,
+        map_width=map_size,
+        map_height=map_size,
     )

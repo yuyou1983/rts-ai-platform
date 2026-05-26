@@ -16,6 +16,14 @@ message GameStateSnapshot {
   FogGrid             fog_p2     = 8;
 
   GameConfig          config     = 9;
+
+  // Phase D: elevation grid — rows of heights [0..8], packed row-major
+  repeated HeightRow  height_map = 10;
+}
+
+// One row of height values for the elevation grid
+message HeightRow {
+  repeated int32 values = 1 [packed=true];
 }
 
 // ─── 实体状态 ───
@@ -74,4 +82,5 @@ message GameConfig {
   int32  max_ticks    = 4;
   float  tick_rate    = 5;
   string game_mode    = 6;  // "1v1_skirmish", "2v2_team", etc.
+  bool   enable_elevation = 7;  // Phase D: terrain height system
 }

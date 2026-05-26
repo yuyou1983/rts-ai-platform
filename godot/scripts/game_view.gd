@@ -77,6 +77,12 @@ const ANIM_FPS := 8.0  # frames per second for walk cycle
 # Unit animation layout: row, cols, frame_width, frame_height per unit per owner
 var _unit_anim_info: Dictionary = {}
 
+# Phase D: Elevation
+var _height_map: Array = []        # 2D array [y][x] → int 0..8
+var _height_map_w: int = 64
+var _height_map_h: int = 64
+var _elevation_dirty: bool = false  # redraw flag
+
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
 var _build_type: String = ""   # Which building the player selected in HUD
@@ -169,6 +175,8 @@ func _ready() -> void:
 	if Engine.has_meta("ai_difficulty"):
 		_ai_diff = Engine.get_meta("ai_difficulty")
 	_bridge.ai_difficulty = _ai_diff
+	# Phase D: elevation flag (default true)
+	_bridge.enable_elevation = true
 	add_child(_bridge)
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)
@@ -950,6 +958,13 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 func _on_start(state: Dictionary) -> void:
 	_map_w = _to_f(state.get("map_width"), 64.0)
 	_map_h = _to_f(state.get("map_height"), 64.0)
+	# Phase D: parse height_map (sent once at game start)
+	var hm = state.get("height_map", [])
+	if hm.size() > 0:
+		_height_map = hm
+		_height_map_w = _map_w
+		_height_map_h = _map_h
+		_elevation_dirty = true
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
@@ -1220,6 +1235,7 @@ func _draw() -> void:
 	# _draw() local coordinates ARE world coordinates.
 	var co := Vector2.ZERO
 	_draw_map_background(co)
+	_draw_elevation(co)
 	_draw_grid(co)
 	_draw_entities(co)
 	_draw_fog_of_war(co)
@@ -1243,6 +1259,58 @@ func _draw_map_background(_co: Vector2) -> void:
 		draw_texture_rect(_map_texture, map_rect, false)
 	else:
 		draw_rect(map_rect, Color(0.15, 0.18, 0.12, 1.0))
+
+func _draw_elevation(_co: Vector2) -> void:
+	"""Phase D: Render height_map as terrain coloring + contour lines + cliff markers."""
+	if _height_map.is_empty():
+		return
+	var rows := _height_map.size()
+	if rows == 0:
+		return
+	var cols := _height_map[0].size()
+	# ── Height-based terrain tint (draw small rects per tile) ──
+	for y in range(rows):
+		var row = _height_map[y]
+		for x in range(cols):
+			var h: int = row[x] if x < row.size() else 0
+			if h == 0:
+				continue  # base level keeps default color
+			# Gradient: low → dark green, high → bright yellow-green
+			var t := float(h) / 8.0
+			var col := Color(0.05 + t * 0.25, 0.15 + t * 0.35, 0.05 + t * 0.05, 0.55)
+			draw_rect(Rect2(x, y, 1.0, 1.0), col)
+	# ── Contour lines (draw edge where height changes) ──
+	var contour_color := Color(0.6, 0.45, 0.2, 0.5)  # brownish
+	for y in range(rows):
+		var row = _height_map[y]
+		for x in range(cols):
+			var h: int = row[x] if x < row.size() else 0
+			# Right neighbor
+			if x + 1 < cols:
+				var hr: int = _height_map[y][x + 1] if (x + 1) < _height_map[y].size() else h
+				if hr != h:
+					draw_line(Vector2(x + 1, y), Vector2(x + 1, y + 1), contour_color, 0.08)
+			# Bottom neighbor
+			if y + 1 < rows:
+				var hb: int = _height_map[y + 1][x] if x < _height_map[y + 1].size() else h
+				if hb != h:
+					draw_line(Vector2(x, y + 1), Vector2(x + 1, y + 1), contour_color, 0.08)
+	# ── Cliff markers (Δh ≥ 3 = red thick line) ──
+	var cliff_color := Color(0.9, 0.15, 0.1, 0.7)
+	for y in range(rows):
+		var row = _height_map[y]
+		for x in range(cols):
+			var h: int = row[x] if x < row.size() else 0
+			# Right cliff
+			if x + 1 < cols:
+				var hr: int = _height_map[y][x + 1] if (x + 1) < _height_map[y].size() else h
+				if abs(hr - h) >= 3:
+					draw_line(Vector2(x + 1, y), Vector2(x + 1, y + 1), cliff_color, 0.25)
+			# Bottom cliff
+			if y + 1 < rows:
+				var hb: int = _height_map[y + 1][x] if x < _height_map[y + 1].size() else h
+				if abs(hb - h) >= 3:
+					draw_line(Vector2(x, y + 1), Vector2(x + 1, y + 1), cliff_color, 0.25)
 
 func _draw_grid(co: Vector2) -> void:
 	var grid_color := Color(0.25, 0.28, 0.22, 0.3)

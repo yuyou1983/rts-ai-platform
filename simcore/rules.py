@@ -823,12 +823,17 @@ def _unit_stats(utype: str, owner: int, px: float, py: float) -> dict:
 
 # ─── Fog of War ─────────────────────────────────────────────
 
-def update_fog_of_war(entities: dict[str, Any], fog: dict[str, Any], tick: int) -> dict[str, Any]:
+def update_fog_of_war(entities: dict[str, Any], fog: dict[str, Any], tick: int,
+                      enable_elevation: bool = False,
+                      tile_map: Any | None = None) -> dict[str, Any]:
     """Update per-player fog-of-war grids based on unit/building visibility.
 
     Fog states: 0=unexplored, 1=explored (last-known), 2=currently visible.
     Each tick: all '2' → '1' (expire visibility), then re-illuminate around
     each friendly unit/building.
+
+    Phase D enhancement: units/buildings on higher ground get bonus vision range.
+    +1 vision per 2 height levels (tile_map.vision_bonus).
     """
     fog_data = dict(fog)
     # Ensure per-player structure
@@ -860,6 +865,11 @@ def update_fog_of_war(entities: dict[str, Any], fog: dict[str, Any], tick: int) 
             vr = vision_radius_base + (1 if etype == "scout" else 0)
             if etype == "building":
                 vr = vision_radius_base - 1  # buildings have slightly less vision
+            # Phase D: elevation vision bonus
+            if enable_elevation and tile_map is not None and tile_map.height_map:
+                tile_x = int(e.get("pos_x", 0))
+                tile_y = int(e.get("pos_y", 0))
+                vr += tile_map.vision_bonus(tile_x, tile_y)
             fx = int(e["pos_x"] / 64 * w)
             fy = int(e["pos_y"] / 64 * h)
             for dy in range(-vr, vr + 1):
