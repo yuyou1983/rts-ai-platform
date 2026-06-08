@@ -28,3 +28,21 @@ def test_godot_vfx_fixture_forbids_runtime_business_layers():
     assert "simcore/" in fixture["forbidden_paths"]
     assert "agents/" in fixture["forbidden_paths"]
     assert "godot/scripts/" in fixture["forbidden_paths"]
+
+
+def test_strategy_runner_writes_packet_per_strategy(tmp_path, monkeypatch):
+    from harness.evolve.strategy_runner import generate_strategy_packets
+
+    fixture_path = ROOT / "harness/skills/tasks/godot-vfx/sc1-resource-alignment.json"
+    out_dir = tmp_path / "runs"
+    manifest = generate_strategy_packets(fixture_path, out_dir=out_dir, run_id="run-test")
+
+    assert manifest["run_id"] == "run-test"
+    assert manifest["skill_name"] == "godot-specialist"
+    assert len(manifest["packets"]) == 4
+    for packet in manifest["packets"]:
+        packet_path = out_dir / packet["packet_path"]
+        assert packet_path.exists()
+        text = packet_path.read_text()
+        assert "Read `.agents/skills/godot-specialist/SKILL.md` first" in text
+        assert "Record a SkillTrial v2" in text
