@@ -192,6 +192,58 @@ def contrast_trials(skill_name: str) -> list[SkillPatch]:
             evidence_fail=[t.task_id for t in no_action_fails[:5]],
         ))
 
+    # ── Validation-delta 分析 ────────────────────────────────────
+    pass_commands = {
+        cmd
+        for trial in pass_trials
+        for cmd in trial.validation_commands_run
+    }
+    fail_commands = {
+        cmd
+        for trial in fail_trials
+        for cmd in trial.validation_commands_run
+    }
+    missing_commands = sorted(pass_commands - fail_commands)
+    if missing_commands:
+        patches.append(SkillPatch(
+            skill_name=skill_name, timestamp=ts,
+            patch_content=(
+                "## Validation Delta 修复\n\n"
+                "成功轨迹运行了失败轨迹缺失的验证命令。"
+                "将这些命令加入该 skill 的 validation workflow：\n"
+                + "\n".join(f"- `{cmd}`" for cmd in missing_commands[:5])
+            ),
+            rationale="contrastive validation delta: pass traces include commands absent from fail traces",
+            evidence_pass=[t.task_id for t in pass_trials[:5]],
+            evidence_fail=[t.task_id for t in fail_trials[:5]],
+        ))
+
+    # ── Runtime-path 风险分析 ────────────────────────────────────
+    risky_prefixes = ("simcore/", "agents/", "godot/scripts/")
+    risky_fail_files = sorted({
+        path
+        for trial in fail_trials
+        for path in trial.touched_files
+        if path.startswith(risky_prefixes)
+    })
+    if risky_fail_files and "godot" in skill_name:
+        patches.append(SkillPatch(
+            skill_name=skill_name, timestamp=ts,
+            patch_content=(
+                "## Runtime Boundary 修复\n\n"
+                "Godot skill 的失败轨迹触碰了 runtime business paths。"
+                "后续 Godot VFX/resource alignment 任务必须先尝试 manifest、asset、test/harness 层修复；"
+                "业务代码变更必须拆成单独 harness-executor 任务。\n"
+                + "\n".join(
+                    f"- observed: runtime file ({path.rsplit('/', 1)[-1]})"
+                    for path in risky_fail_files[:5]
+)
+            ),
+            rationale="contrastive boundary risk: failed traces touched forbidden runtime paths",
+            evidence_pass=[t.task_id for t in pass_trials[:5]],
+            evidence_fail=[t.task_id for t in fail_trials[:5]],
+        ))
+
     return patches
 
 

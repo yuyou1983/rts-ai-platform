@@ -357,6 +357,41 @@ def test_godot_held_out_uses_real_validation_commands():
     assert all("|| true" not in cmd for cmd in commands)
 
 
+def test_contrast_detects_missing_validation_command(monkeypatch):
+    from harness.evolve import skill_evolver as mod
+    from harness.trace.schema import SkillTrial
+
+    pass_trial = SkillTrial(
+        task_id="pass-1",
+        task_description="godot vfx",
+        skill_name="godot-specialist",
+        outcome="pass",
+        skill_md_read=True,
+        primary_action_invoked=True,
+        validation_commands_run=["python3 scripts/verify_presentation_scene.py"],
+        validation_results=["pass"],
+        touched_files=["godot/resources/presentation_manifest.json"],
+    )
+    fail_trial = SkillTrial(
+        task_id="fail-1",
+        task_description="godot vfx",
+        skill_name="godot-specialist",
+        outcome="fail",
+        skill_md_read=True,
+        primary_action_invoked=True,
+        validation_commands_run=[],
+        validation_results=[],
+        touched_files=["godot/scripts/game_view.gd"],
+    )
+
+    def fake_load_trials(skill_name=None, outcome=None):
+        return {"pass": [pass_trial], "fail": [fail_trial]}[outcome]
+
+    monkeypatch.setattr(mod, "load_trials", fake_load_trials)
+    patches = mod.contrast_trials("godot-specialist")
+    assert any("verify_presentation_scene.py" in p.patch_content for p in patches)
+
+
 class TestDryRun:
     def test_dry_run_does_not_modify_skill_md(self, tmp_path, monkeypatch):
         """evolve_skill_dry generates candidates but never writes SKILL.md."""
