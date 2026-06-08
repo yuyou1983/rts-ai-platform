@@ -343,6 +343,20 @@ class TestPromotion:
         assert promote_patch(patch, audit, held_out_pass=False) is False
 
 
+def test_godot_held_out_uses_real_validation_commands():
+    HELD_OUT_DIR = Path(__file__).resolve().parents[2] / "harness" / "skills" / "held_out"
+    suite = json.loads((HELD_OUT_DIR / "godot-specialist" / "suite.json").read_text())
+    commands = [
+        cmd
+        for scenario in suite["scenarios"]
+        for cmd in scenario["validation_commands"]
+    ]
+    assert any("verify_presentation_scene.py" in cmd for cmd in commands)
+    assert any("verify_godot_fog_smoothing.py" in cmd for cmd in commands)
+    assert any("--check-only" in cmd for cmd in commands)
+    assert all("|| true" not in cmd for cmd in commands)
+
+
 class TestDryRun:
     def test_dry_run_does_not_modify_skill_md(self, tmp_path, monkeypatch):
         """evolve_skill_dry generates candidates but never writes SKILL.md."""
