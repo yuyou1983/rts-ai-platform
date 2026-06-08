@@ -73,7 +73,7 @@ SkillEvolver has been upgraded from a P0 scaffold to a Godot VFX dry-run evoluti
   ```
   ❌ simcore/http_gateway.py:76 from agents.script_ai (L2) in L1 — forbidden
   ```
-- **Known issue:** `simcore/http_gateway.py` has a fallback import of `agents.script_ai` (L2) from L1 code, violating the AGENTS.md layer constraint (SimCore must not import Agents). This import exists as a runtime safety-net for when no `agent_factory` is configured. It is documented in the project's architecture decisions but not yet resolved. See `simcore/http_gateway.py:74-78`.
+- **Known issue:** `simcore/http_gateway.py` has a fallback import of `agents.script_ai` (L2) from L1 code, violating the AGENTS.md layer constraint (SimCore must not import Agents). This appears to be an unresolved fallback/regression, not an accepted architecture exception — `docs/milestones/m2-production.md` (line 40) prescribes replacing direct imports with an `agent_factory` callback boundary. The fallback should be removed or moved behind the runtime `agent_factory` boundary. See `simcore/http_gateway.py:74-78`.
 
 ### 5. `python3 scripts/verify_presentation_scene.py`
 
