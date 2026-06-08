@@ -1,0 +1,174 @@
+[
+  {
+    "name": "godot-specialist",
+    "description": "Godot Engine 4 专家，处理 GDScript、场景、shader、VFX 对齐问题",
+    "primary_action": "write_file",
+    "primary_script": null,
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash"
+    ],
+    "validation_commands": [
+      "python3 -m pytest tests/godot/ -q -x",
+      "python3 scripts/verify_godot_manifest.py"
+    ],
+    "owner_domain": "godot-specialist",
+    "layer_constraints": [
+      "frontend-godot",
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "直接修改 SimCore 规则来修复 Godot 显示",
+        "mitigation": "Godot 只改 L2，SimCore 问题走 team-simcore"
+      },
+      {
+        "pattern": "硬编码 entity ID 或 map seed",
+        "mitigation": "Auditor regex 检查 hardcoded 常量"
+      },
+      {
+        "pattern": "VFX atlas 与 manifest 尺寸不一致",
+        "mitigation": "对比 manifest 列出的资源与实际文件像素尺寸"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md 被加载但 primary_action (write_file) 从未被调用",
+      "规则说 '先检查 manifest' 但 trace 中无 Read manifest 调用"
+    ],
+    "version": "0.1.3",
+    "last_evolved": "2026-05-30T02:15:07.570376+00:00",
+    "held_out_suite": "harness/skills/held_out/godot-specialist"
+  },
+  {
+    "name": "harness-run",
+    "description": "自主执行开发任务：setup → plan → execute → validate → verify → record",
+    "primary_action": "run_script",
+    "primary_script": null,
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Glob",
+      "Grep"
+    ],
+    "validation_commands": [
+      "python3 -m pytest tests/ -q -x"
+    ],
+    "owner_domain": "harness-executor",
+    "layer_constraints": [
+      "proto",
+      "simcore",
+      "agents",
+      "frontend-godot",
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "executor 绕过 verify 步骤直接 report success",
+        "mitigation": "Trace 记录 verify tool call"
+      },
+      {
+        "pattern": "修改业务代码但未跑测试",
+        "mitigation": "validation_commands 必须在 trace 中出现"
+      },
+      {
+        "pattern": "写文件后未验证文件存在",
+        "mitigation": "functional_verification 包含 stat 检查"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md 说 '必须跑测试' 但 trace 中无 pytest 调用",
+      "executor 跳过 verify 步骤"
+    ],
+    "version": "0.1.0",
+    "last_evolved": null,
+    "held_out_suite": "harness/skills/held_out/harness-run"
+  },
+  {
+    "name": "team-simcore",
+    "description": "SimCore 引擎团队，处理游戏逻辑、规则、状态、determinism",
+    "primary_action": "write_file",
+    "primary_script": null,
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash"
+    ],
+    "validation_commands": [
+      "python3 -m pytest tests/simcore/ -q -x",
+      "python3 -c 'from simcore.engine import SimCore; print(\"OK\")'"
+    ],
+    "owner_domain": "team-simcore",
+    "layer_constraints": [
+      "proto",
+      "simcore",
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "改规则未同步更新 proto 文件",
+        "mitigation": "检查 proto 与 state.py 字段一致性"
+      },
+      {
+        "pattern": "引入 nondeterministic 随机数",
+        "mitigation": "Auditor 检查 random/random.randint 非 seed 调用"
+      },
+      {
+        "pattern": "grpc_server 不填 GameConfig",
+        "mitigation": "验证 _state_to_snapshot 输出包含 map_width>0"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md 说 '必须跑 determinism test' 但 trace 中无"
+    ],
+    "version": "0.1.0",
+    "last_evolved": null,
+    "held_out_suite": "harness/skills/held_out/team-simcore"
+  },
+  {
+    "name": "team-ai",
+    "description": "AI Agent 团队，处理策略、build order、combat micro、scouting",
+    "primary_action": "write_file",
+    "primary_script": null,
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash"
+    ],
+    "validation_commands": [
+      "python3 -m pytest tests/agents/ -q -x"
+    ],
+    "owner_domain": "team-ai",
+    "layer_constraints": [
+      "proto",
+      "simcore",
+      "agents",
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "AI logic 引入 per-tick LLM 调用",
+        "mitigation": "Auditor 检查 loop 内 LLM client"
+      },
+      {
+        "pattern": "hardcoded seed 在训练路径",
+        "mitigation": "检查 held-out seed 分离"
+      },
+      {
+        "pattern": "build order 不适配不同 map",
+        "mitigation": "至少测试 2 个不同 seed"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md 说 '必须验证 replay hash' 但 trace 中无"
+    ],
+    "version": "0.1.0",
+    "last_evolved": null,
+    "held_out_suite": "harness/skills/held_out/team-ai"
+  }
+]
