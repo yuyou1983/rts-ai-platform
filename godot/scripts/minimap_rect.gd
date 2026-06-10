@@ -34,6 +34,7 @@ func _draw() -> void:
 	var cam_center: Vector2 = state.get("cam_center", Vector2.ZERO)
 	var vp_size: Vector2 = state.get("vp_size", Vector2(1280, 720))
 	var fog_tiles: PackedInt32Array = state.get("fog_tiles", PackedInt32Array())
+	var fog_alpha: PackedFloat32Array = state.get("fog_alpha", PackedFloat32Array())
 	var fog_w: int = state.get("fog_width", 0)
 	var fog_h: int = state.get("fog_height", 0)
 
@@ -47,26 +48,23 @@ func _draw() -> void:
 	var sx := size.x / map_w
 	var sy := size.y / map_h
 
-	# ── Draw fog of war on minimap ──
-	if fog_w > 0 and fog_h > 0 and not fog_tiles.is_empty():
+	# ── Draw fog of war on minimap (smooth alpha) ──
+	if fog_w > 0 and fog_h > 0 and not fog_alpha.is_empty():
 		var fog_sx := size.x / float(fog_w)
 		var fog_sy := size.y / float(fog_h)
 		for fy in range(fog_h):
 			for fx in range(fog_w):
 				var fidx := fy * fog_w + fx
-				if fidx >= fog_tiles.size():
+				if fidx >= fog_alpha.size():
 					break
-				var fval: int = fog_tiles[fidx]
-				var f_alpha: float
-				match fval:
-					0: f_alpha = 0.8   # unexplored: dark
-					1: f_alpha = 0.35  # explored: dimmed
-					2: f_alpha = 0.0   # visible: clear
-					_: f_alpha = 0.8
+				var f_alpha: float = fog_alpha[fidx]
 				if f_alpha > 0.01:
+					# Apply tint based on raw state for color variation
+					var raw_state: int = fog_tiles[fidx] if fidx < fog_tiles.size() else 0
+					var tint: float = 0.55 if raw_state == 1 else 1.0
 					draw_rect(
 						Rect2(fx * fog_sx, fy * fog_sy, fog_sx + 1.0, fog_sy + 1.0),
-						Color(0.01, 0.01, 0.03, f_alpha)
+						Color(0.01, 0.01, 0.03, f_alpha * tint)
 					)
 
 	# ── Draw entity dots ──
@@ -77,17 +75,17 @@ func _draw() -> void:
 		var px: float = e.get("px", e.get("pos_x", 0.0)) * sx
 		var py: float = e.get("py", e.get("pos_y", 0.0)) * sy
 
-		# Only show entities in visible fog (state_val == 2) for non-own entities
+		# Only show entities in visible fog area for non-own entities
 		# Own entities are always visible on minimap
 		var show_on_minimap := true
-		if owner != 1 and fog_w > 0 and fog_h > 0 and not fog_tiles.is_empty():
-			# Check if entity is in visible fog area
+		if owner != 1 and fog_w > 0 and fog_h > 0 and not fog_alpha.is_empty():
+			# Check if entity is in visible fog area (using smooth alpha)
 			var fog_x := int(e.get("px", e.get("pos_x", 0.0)) * float(fog_w) / map_w)
 			var fog_y := int(e.get("py", e.get("pos_y", 0.0)) * float(fog_h) / map_h)
 			fog_x = clampi(fog_x, 0, fog_w - 1)
 			fog_y = clampi(fog_y, 0, fog_h - 1)
 			var fidx := fog_y * fog_w + fog_x
-			if fidx < fog_tiles.size() and fog_tiles[fidx] < 2:
+			if fidx < fog_alpha.size() and fog_alpha[fidx] > 0.15:
 				show_on_minimap = false
 
 		if not show_on_minimap:

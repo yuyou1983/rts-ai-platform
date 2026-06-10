@@ -40,7 +40,7 @@ class SimCoreClient:
 
     async def start_game(
         self, seed: int = 42, max_ticks: int = 10000, tick_rate: float = 20.0,
-        enable_elevation: bool = True,
+        enable_elevation: bool = True, player_races: dict | None = None,
     ) -> dict:
         """Start a new game, return state dict."""
         assert self._stub
@@ -48,6 +48,10 @@ class SimCoreClient:
             map_seed=seed, map_width=64, max_ticks=max_ticks, tick_rate=tick_rate,
             enable_elevation=enable_elevation,
         )
+        # Embed player_races into game_mode field as JSON (proto doesn't have race fields)
+        if player_races:
+            import json
+            config.game_mode = json.dumps({"player_races": {str(k): v for k, v in player_races.items()}})
         request = service_pb2.StartGameRequest(config=config)
         snapshot = await self._stub.StartGame(request)
         return self._snapshot_to_dict(snapshot)
@@ -148,7 +152,8 @@ class SimCoreClient:
                 },
 },
 			# Phase D: height_map
-			"height_map": [list(row.values) for row in snapshot.height_map],
-			"map_width": snapshot.config.map_width,
-			"map_height": snapshot.config.map_height,
-		}
+            "height_map": [list(row.values) for row in snapshot.height_map],
+            "map_width": snapshot.config.map_width,
+            "map_height": snapshot.config.map_height,
+            "player_races": dict(snapshot.config.player_races),
+        }

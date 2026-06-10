@@ -41,7 +41,12 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
     map_size = cfg.get("map_size", 64)
     starting_workers = cfg.get("starting_workers", 6)
     resource_density = cfg.get("resource_density", 1.0)
-    enable_elevation = cfg.get("enable_elevation", False)
+    enable_elevation = cfg.get("enable_elevation", True)
+    player_races: dict = cfg.get("player_races", {1: "terran", 2: "terran"})
+
+    # Race-specific initial building and worker stats
+    _RACE_BASE = {"terran": ("CommandCenter", 1500), "zerg": ("Hatchery", 1800), "protoss": ("Nexus", 1600)}
+    _RACE_WORKER = {"terran": "SCV", "zerg": "Drone", "protoss": "Probe"}
 
     rng = _seeded_random(seed)
 
@@ -58,30 +63,36 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
 
     # Player 1 base (bottom-left quadrant)
     p1_base_x, p1_base_y = map_size * 0.15, map_size * 0.15
+    p1_race = player_races.get(1, "terran")
+    p1_base_name, p1_base_hp = _RACE_BASE.get(p1_race, ("CommandCenter", 1500))
     entities["base_p1"] = {
         "id": "base_p1",
         "owner": 1,
         "entity_type": "building",
         "building_type": "base",
+        "unit_type": p1_base_name,
         "pos_x": p1_base_x,
         "pos_y": p1_base_y,
-        "health": 1500,
-        "max_health": 1500,
+        "health": p1_base_hp,
+        "max_health": p1_base_hp,
         "is_constructing": False,
         "production_queue": [],
     }
 
     # Player 2 base (top-right quadrant)
     p2_base_x, p2_base_y = map_size * 0.85, map_size * 0.85
+    p2_race = player_races.get(2, "terran")
+    p2_base_name, p2_base_hp = _RACE_BASE.get(p2_race, ("CommandCenter", 1500))
     entities["base_p2"] = {
         "id": "base_p2",
         "owner": 2,
         "entity_type": "building",
         "building_type": "base",
+        "unit_type": p2_base_name,
         "pos_x": p2_base_x,
         "pos_y": p2_base_y,
-        "health": 1500,
-        "max_health": 1500,
+        "health": p2_base_hp,
+        "max_health": p2_base_hp,
         "is_constructing": False,
         "production_queue": [],
     }
@@ -117,8 +128,10 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
                 "resource_amount": int(2000 * resource_density),
             }
 
-    # Starting workers
+    # Starting workers — race-aware
     for pid, bx, by in [(1, p1_base_x, p1_base_y), (2, p2_base_x, p2_base_y)]:
+        race = player_races.get(pid, "terran")
+        worker_name = _RACE_WORKER.get(race, "SCV")
         for i in range(starting_workers):
             uid = f"worker_p{pid}_{i}"
             angle = i * 2 * math.pi / starting_workers
@@ -127,6 +140,7 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
                 "id": uid,
                 "owner": pid,
                 "entity_type": "worker",
+                "unit_type": worker_name,
                 "pos_x": bx + math.cos(angle) * offset,
                 "pos_y": by + math.sin(angle) * offset,
                 "health": 50,
@@ -183,6 +197,11 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
             "height": fog_height,
         }
 
+    # Build simplified elevation grid for GameState (0=low, 1=high)
+    elevation_grid = None
+    if enable_elevation and tile_map and tile_map.height_map:
+        elevation_grid = tile_map.get_elevation_grid()
+
     return GameState(
         tick=0,
         entities=entities,
@@ -192,4 +211,6 @@ def generate_map(seed: int = 42, config: dict | None = None) -> GameState:
         height_map=tile_map.height_map if tile_map else None,
         map_width=map_size,
         map_height=map_size,
+        player_races={str(k): v for k, v in player_races.items()},
+        elevation_grid=elevation_grid,
     )

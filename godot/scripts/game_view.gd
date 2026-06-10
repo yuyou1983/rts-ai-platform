@@ -33,6 +33,7 @@ const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.g
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
 const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
 const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
+const HUD_FULL_HEIGHT := 480
 
 # ─── Config ────────────────────────────────────────────────
 @onready var _camera: Camera2D = $Camera2D
@@ -52,11 +53,26 @@ var _prev_hp: Dictionary = {}
 var _prev_entities: Dictionary = {}
 var _dmg_floats: Array = []
 
+# ─── Combat visual feedback ───────────────────────────────
+var _attack_flash_timers: Dictionary = {}  # entity_id → remaining flash seconds
+var _dead_effects: Array = []  # [{pos: Vector2, age: float, lifetime: float, color: Color, owner: int, entity_type: String}]
+var _hovered_entity_id: String = ""  # ID of entity currently under mouse cursor
+var _hover_check_timer: float = 0.0  # throttle hover detection
+var _game_time: float = 0.0  # accumulated time for sin-based animations
+var _prev_attack_targets: Dictionary = {}  # entity_id → previous attack_target_id
+const ATTACK_FLASH_DURATION: float = 0.1
+const DEATH_EFFECT_DURATION: float = 0.5
+const HOVER_CHECK_INTERVAL: float = 0.05  # check hover every 50ms
+const SELECTION_BREATHE_SPEED: float = 3.0  # radians/sec for selection ring pulse
+const SELECTION_BREATHE_MIN: float = 0.55  # min alpha for breathing
+const SELECTION_BREATHE_MAX: float = 1.0  # max alpha for breathing
+
 # ─── Drag-select ───────────────────────────────────────────
 var _dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 const SELECT_RADIUS := 1.5
+const PYLON_POWER_RADIUS: float = 8.0
 
 # Debug click marker
 var _debug_click_pos: Vector2 = Vector2.ZERO
@@ -64,6 +80,7 @@ var _debug_click_ttl: int = 0
 var _test_mode: bool = false
 var _test_ents: Array = []
 var _test_btn: Button = null
+var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
 var _zoom_out_btn: Button = null
 var _saved_ents: Array = []
@@ -82,6 +99,7 @@ var _height_map: Array = []        # 2D array [y][x] → int 0..8
 var _height_map_w: int = 64
 var _height_map_h: int = 64
 var _elevation_dirty: bool = false  # redraw flag
+var _show_elevation: bool = false   # default OFF — toggle via debug button
 
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
@@ -95,11 +113,23 @@ var _replay_player: ReplayPlayer
 var _replay_overlay: Control
 var _game_over_panel: Control
 var _game_over_label: Label
+var _victory_screen: CanvasLayer
+
+# ─── APM counter ───────────────────────────────────────────
+var _apm_action_times: Array = []  # timestamps of effective actions
+var _apm_value: int = 0  # computed APM, updated every second
+var _apm_label: Label
+var _apm_timer: float = 0.0
+var _total_actions: int = 0  # lifetime count for end-of-game stats
 
 # ─── Fog of war ────────────────────────────────────────────
 var _fog_tiles: PackedInt32Array = []
 var _fog_w: int = 0
 var _fog_h: int = 0
+# Smooth fog: per-tile rendered alpha, fades out over FOG_FADE_FRAMES frames
+var _fog_alpha: PackedFloat32Array = []
+var _fog_prev_tiles: PackedInt32Array = []  # previous tick's raw fog state
+const FOG_FADE_FRAMES := 15  # ~0.5s at 30fps before fully fading
 
 # ─── Jitter monitor ────────────────────────────────────────
 var _jitter_count: int = 0
@@ -122,6 +152,7 @@ var _ability_mgr: Node  # AbilityManager autoload
 	# ─── Sprite textures ───────────────────────────────────────
 var _unit_textures: Dictionary = {}
 var _building_textures: Dictionary = {}
+var _player_races: Dictionary = {}  # {"1": "1", "2": "2"} — maps player ID → race ID (1=Terran, 2=Zerg, 3=Protoss)
 var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
 var _sprite_container: Node2D = null  # parent for all entity sprites
 var _vfx_manager: VFXManager = null
@@ -246,15 +277,15 @@ func _ready() -> void:
 	_vfx_manager.name = "VFXManager"
 	add_child(_vfx_manager)
 
-	# ─── Preload sprite textures ───
+	# ─── Preload sprite textures (by race ID: 1=Terran, 2=Zerg, 3=Protoss) ───
 	# Terran units
 	_unit_textures["worker_1"] = load("res://assets/units/SCV.png")
 	_unit_textures["soldier_1"] = load("res://assets/units/Marine.png")
 	_unit_textures["scout_1"] = load("res://assets/units/Ghost.png")
-	# Terran units (P2)
-	_unit_textures["worker_2"] = load("res://assets/units/SCV.png")
-	_unit_textures["soldier_2"] = load("res://assets/units/Marine.png")
-	_unit_textures["scout_2"] = load("res://assets/units/Ghost.png")
+	# Zerg units
+	_unit_textures["worker_2"] = load("res://assets/units/Drone.png")
+	_unit_textures["soldier_2"] = load("res://assets/units/Zergling.png")
+	_unit_textures["scout_2"] = load("res://assets/units/Hydralisk.png")
 	# Protoss units
 	_unit_textures["worker_3"] = load("res://assets/units/Probe.png")
 	_unit_textures["soldier_3"] = load("res://assets/units/Zealot.png")
@@ -265,19 +296,19 @@ func _ready() -> void:
 	# ─── Unit animation metadata (row, total_cols, frame_w, frame_h, south_col) ───
 	# SCV: 8-dir, row0 walk, row1 carry, row2 attack, row3 gather
 	_unit_anim_info["worker_1"] = {"rows": 4, "cols": [8,8,8,4], "fw": [33,41,42,46], "fh": [41,40,40,48], "south": [4,4,4,2]}
-	# SCV (P2): same as worker_1
+	# Drone: same structure as SCV (will refine later with actual Drone sheet)
 	_unit_anim_info["worker_2"] = _unit_anim_info.get("worker_1", {})
 	# Probe: single strip
 	_unit_anim_info["worker_3"] = {"rows": 1, "cols": [1], "fw": [286], "fh": [62], "south": [0]}
 	# Marine: 17-dir, many rows
 	_unit_anim_info["soldier_1"] = {"rows": 14, "cols": [18,18,18,18,18,18,18,18,18,18,18,18,18,7], "fw": [20,18,16,16,21,22,22,23,23,24,23,23,23,41], "fh": [28,28,28,34,28,27,29,27,28,29,31,30,29,37], "south": [9,9,9,9,9,9,9,9,9,9,9,9,9,3]}
-	# Marine (P2): same as soldier_1
+	# Zergling: same structure as Marine (will refine later)
 	_unit_anim_info["soldier_2"] = _unit_anim_info.get("soldier_1", {})
 	# Zealot: 17-dir
 	_unit_anim_info["soldier_3"] = {"rows": 14, "cols": [18,18,18,18,18,18,18,18,18,18,16,18,14,6], "fw": [19,21,26,21,19,21,26,22,22,19,18,23,27,33], "fh": [33,33,32,33,36,35,35,34,34,37,39,38,40,36], "south": [9,9,9,9,9,9,9,9,9,9,8,9,7,3]}
 	# Ghost: 17-dir
 	_unit_anim_info["scout_1"] = {"rows": 13, "cols": [18,18,18,18,18,18,18,18,18,18,18,16,3], "fw": [22,21,20,21,23,23,24,24,24,14,11,17,107], "fh": [28,29,29,28,28,28,29,29,27,28,28,109,101], "south": [9,9,9,9,9,9,9,9,9,9,9,8,1]}
-	# Ghost (P2): same as scout_1
+	# Hydralisk: same structure as Ghost (will refine later)
 	_unit_anim_info["scout_2"] = _unit_anim_info.get("scout_1", {})
 	# Dragoon (reuse Zealot info for now — will need its own sprite)
 	_unit_anim_info["scout_3"] = _unit_anim_info.get("soldier_3", {})
@@ -324,6 +355,9 @@ func _ready() -> void:
 	_hud.ability_clicked.connect(_on_hud_ability_clicked)
 	_hud.build_clicked.connect(_on_hud_build_clicked)
 	_hud.train_clicked.connect(_on_hud_train_clicked)
+	_hud.merge_clicked.connect(_on_hud_merge_clicked)
+	_hud.upgrade_clicked.connect(_on_hud_upgrade_clicked)
+	_hud.research_clicked.connect(_on_hud_research_clicked)
 	_hud.build_panel_closed.connect(func(): _build_mode = false; _build_type = "")
 	_hud.anchor_left = 1.0
 	_hud.anchor_right = 1.0
@@ -332,7 +366,7 @@ func _ready() -> void:
 	_hud.offset_left = -420
 	_hud.offset_right = 0
 	_hud.offset_top = 0
-	_hud.offset_bottom = 36
+	_hud.offset_bottom = HUD_FULL_HEIGHT
 
 	# ─── Test Mode Button (bottom-left corner) ───
 	_test_btn = Button.new()
@@ -343,6 +377,15 @@ func _ready() -> void:
 	_test_btn.modulate = Color(0.8, 1.0, 0.8)
 	_ui_layer.add_child(_test_btn)
 	_test_btn.pressed.connect(_toggle_test_mode)
+	# Elevation toggle button (below test button)
+	_elev_btn = Button.new()
+	_elev_btn.text = "⛰ Elev"
+	_elev_btn.tooltip_text = "Toggle terrain elevation overlay"
+	_elev_btn.position = Vector2(8, 42)
+	_elev_btn.size = Vector2(120, 24)
+	_elev_btn.modulate = Color(0.7, 0.85, 0.7)
+	_ui_layer.add_child(_elev_btn)
+	_elev_btn.pressed.connect(_toggle_elevation)
 	# Zoom buttons
 	_zoom_in_btn = Button.new()
 	_zoom_in_btn.text = "🔍+"
@@ -382,10 +425,35 @@ func _ready() -> void:
 	go_vbox.add_child(_game_over_label)
 	var restart_label := Label.new()
 	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restart_label.text = "Press R to restart · Q to quit"
+	restart_label.text = "Press R to restart · Q to quit · W to watch replay"
 	restart_label.add_theme_color_override("font_color", Color.GRAY)
 	restart_label.add_theme_font_size_override("font_size", 18)
 	go_vbox.add_child(restart_label)
+	# Additional stats label under game over
+	var go_stats_label := Label.new()
+	go_stats_label.name = "GameOverStats"
+	go_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	go_stats_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
+	go_stats_label.add_theme_font_size_override("font_size", 16)
+	go_vbox.add_child(go_stats_label)
+
+	# ─── APM label (top-right HUD corner) ───
+	_apm_label = Label.new()
+	_apm_label.name = "APMLabel"
+	_apm_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_apm_label.add_theme_font_size_override("font_size", 14)
+	_apm_label.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+	_apm_label.anchor_left = 1.0
+	_apm_label.anchor_top = 0.0
+	_apm_label.anchor_right = 1.0
+	_apm_label.anchor_bottom = 0.0
+	_apm_label.offset_left = -100
+	_apm_label.offset_right = -4
+	_apm_label.offset_top = 38
+	_apm_label.offset_bottom = 56
+	_apm_label.text = "APM: 0"
+	_apm_label.visible = true
+	_ui_layer.add_child(_apm_label)
 
 	print("===== GameView ready (Human P1 vs AI P2) Sprint 4 path=", get_path())
 
@@ -405,6 +473,27 @@ func _on_selection_changed(selection: Dictionary) -> void:
 		_cam_ctrl.set_follow_entities(_selection.get_selected_ids() if _selection else [])
 	# Update rally point indicators visibility
 	_update_rally_indicator_visibility()
+	# Forward selection to HUD so it can show train/upgrade/research panels
+	if _hud and selection.size() > 0:
+		var primary_id: String = ""
+		if _selection and _selection.has_method("get_highest_selected_id"):
+			primary_id = _selection.highest_selected_id
+		elif not selection.is_empty():
+			primary_id = str(selection.keys()[0])
+		var data := _get_entity_data(primary_id)
+		if not data.is_empty():
+			_hud.selected_count = selection.size()
+			_hud.selected_type = str(data.get("type", data.get("entity_type", "")))
+			_hud.selected_building_type = str(data.get("building_type", ""))
+			_hud.selected_hp = float(data.get("health", 0.0))
+			_hud.selected_max_hp = float(data.get("max_health", 0.0))
+			_hud.selected_energy = float(data.get("energy", 0.0))
+			_hud.selected_max_energy = float(data.get("max_energy", 0.0))
+			_hud._selected_entity_id = primary_id
+	elif _hud:
+		_hud.selected_count = 0
+		_hud.selected_type = ""
+		_hud.selected_building_type = ""
 
 func _on_camera_focus_requested(center: Vector2) -> void:
 	if _cam_ctrl:
@@ -427,12 +516,57 @@ func _on_hud_build_clicked(building_type: String) -> void:
 func _on_hud_train_clicked(unit_type: String) -> void:
 	_handle_train(unit_type)
 
+func _on_hud_merge_clicked(unit_type: String) -> void:
+	_handle_merge(unit_type)
+
+func _on_hud_upgrade_clicked(upgrade_key: String, building_id: String) -> void:
+	# Zerg building morph: morph_base (Hatchery→Lair), morph_base2 (Lair→Hive)
+	# Other races: standard building upgrade
+	if upgrade_key == "morph_base" or upgrade_key == "morph_base2":
+		_bridge.submit_commands([{
+			"action": "morph_building",
+			"building_id": building_id,
+			"morph_target": upgrade_key,
+			"issuer": 1,
+		}])
+	else:
+		_bridge.submit_commands([{
+			"action": "upgrade",
+			"building_id": building_id,
+			"upgrade_name": upgrade_key,
+			"issuer": 1,
+		}])
+	print("[HUD] Upgrade clicked: %s on building %s" % [upgrade_key, building_id])
+	_record_apm_action()
+
+func _on_hud_research_clicked(tech_name: String, building_id: String) -> void:
+	_bridge.submit_commands([{
+		"action": "research",
+		"building_id": building_id,
+		"tech_name": tech_name,
+		"issuer": 1,
+	}])
+	print("[HUD] Research clicked: %s on building %s" % [tech_name, building_id])
+	_record_apm_action()
+
 # ───────────────────────────────────────────────────────────
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_frame += 1
+	_game_time += delta
+
+	# ── APM tracking: prune actions older than 60s, recompute every 1s ──
+	_apm_timer += delta
+	if _apm_timer >= 1.0:
+		_apm_timer -= 1.0
+		var cutoff: float = _game_time - 60.0
+		_apm_action_times = _apm_action_times.filter(func(t): return t > cutoff)
+		_apm_value = _apm_action_times.size()
+		if _apm_label:
+			_apm_label.text = "APM: %d" % _apm_value
+
 	# Advance animation frame for test mode
 	if _test_mode:
-		_anim_tick += _delta
+		_anim_tick += delta
 		if _anim_tick >= 1.0 / ANIM_FPS:
 			_anim_tick -= 1.0 / ANIM_FPS
 			_anim_frame = (_anim_frame + 1) % 17
@@ -444,6 +578,28 @@ func _process(_delta: float) -> void:
 		f.ttl -= 1
 		f.y -= 0.5
 	_dmg_floats = _dmg_floats.filter(func(f): return f.ttl > 0)
+
+	# Decay attack flash timers
+	var flash_ids: Array = _attack_flash_timers.keys()
+	for eid in flash_ids:
+		var remaining: float = float(_attack_flash_timers[eid]) - delta
+		if remaining <= 0.0:
+			_attack_flash_timers.erase(eid)
+		else:
+			_attack_flash_timers[eid] = remaining
+
+	# Age and prune death explosion effects
+	for effect in _dead_effects:
+		effect["age"] = float(effect.get("age", 0.0)) + delta
+	_dead_effects = _dead_effects.filter(func(eff): return float(eff.get("age", 0.0)) < float(eff.get("lifetime", DEATH_EFFECT_DURATION)))
+
+	# Hover detection (throttled)
+	_hover_check_timer -= delta
+	if _hover_check_timer <= 0.0:
+		_hover_check_timer = HOVER_CHECK_INTERVAL
+		var mouse_world: Vector2 = _screen_to_world(get_viewport().get_mouse_position())
+		var hovered_ent: Dictionary = _ent_at_world_pos(mouse_world, SELECT_RADIUS)
+		_hovered_entity_id = "" if hovered_ent.is_empty() else str(hovered_ent.get("id", ""))
 
 	# Tick minimap attack indicators and redraw minimap
 	if _mm_rect_node and _mm_rect_node.has_method("tick_attack_indicators"):
@@ -574,13 +730,16 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		if _ability_mgr:
 			var consumed: bool = _ability_mgr.process_ability_input(event, _selected, _screen_to_world(get_viewport().get_mouse_position()))
+			print("[GameView._input] KEY=%d ability_mgr consumed=%s selected=%d" % [event.keycode, str(consumed), _selected.size()])
 			if consumed:
 				return
 
 	# Legacy keyboard shortcuts
 	if event is InputEventKey and event.pressed:
+		print("[GameView._input] KEY=%d → legacy handler" % event.keycode)
 		if event.keycode == KEY_B:
 			if _hud:
+				print("[GameView] KEY_B pressed, build_panel_visible=%s" % str(_hud.is_build_panel_visible()))
 				if _hud.is_build_panel_visible():
 					_hud.hide_build_panel()
 					_build_mode = false
@@ -588,8 +747,10 @@ func _input(event: InputEvent) -> void:
 				else:
 					_hud.show_build_panel()
 					_build_mode = true
+			else:
+				push_warning("[GameView] KEY_B pressed but _hud is null!")
 		elif event.keycode == KEY_T:
-			# Determine unit_type based on selected building
+			# Determine unit_type based on selected building and player race
 			var train_type := "worker"  # default for base
 			var sel_ids: Array = []
 			if _selection:
@@ -601,11 +762,32 @@ func _input(event: InputEvent) -> void:
 				if e.is_empty(): continue
 				if e.type == "building" and e.owner == 1:
 					var btype = e.get("building_type", "base")
+					var race_id: String = _player_races.get("1", "1")
 					match btype:
-						"barracks": train_type = "Marine"
-						"factory":  train_type = "Vulture"
-						"starport": train_type = "Wraith"
-						_:          train_type = "worker"  # base → SCV
+						"barracks":
+							match race_id:
+								"1": train_type = "Marine"
+								"2": train_type = "Zergling"
+								"3": train_type = "Zealot"
+								_: train_type = "Marine"
+						"factory":
+							match race_id:
+								"1": train_type = "Vulture"
+								"2": train_type = "Hydralisk"
+								"3": train_type = "Dragoon"
+								_: train_type = "Vulture"
+						"starport":
+							match race_id:
+								"1": train_type = "Wraith"
+								"2": train_type = "Mutalisk"
+								"3": train_type = "Scout_ship"
+								_: train_type = "Wraith"
+						_:
+							match race_id:
+								"1": train_type = "SCV"
+								"2": train_type = "Drone"
+								"3": train_type = "Probe"
+								_: train_type = "worker"
 					break  # use first selected building
 			_handle_train(train_type)
 		elif event.keycode == KEY_ESCAPE:
@@ -625,9 +807,43 @@ func _unhandled_input(event: InputEvent) -> void:
 			_bridge.start_game(42)
 		elif event.keycode == KEY_Q:
 			get_tree().quit()
+		elif event.keycode == KEY_W:
+			# Watch replay: fetch the latest replay and enter replay mode
+			_request_latest_replay()
 	if _replay_mode and event is InputEventKey and event.pressed:
 		if event.keycode == KEY_Q:
 			get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+		elif event.keycode == KEY_SPACE:
+			if _replay_player._play_state == ReplayPlayer.PlayState.PLAYING:
+				_replay_player.pause()
+			else:
+				_replay_player.play()
+		elif event.keycode == KEY_LEFT:
+			_replay_player.step_backward()
+		elif event.keycode == KEY_RIGHT:
+			_replay_player.step_forward()
+		elif event.keycode == KEY_UP:
+			# Speed up
+			var speeds := [0.5, 1.0, 2.0, 4.0, 8.0]
+			var cur_idx := 0
+			for i in range(speeds.size()):
+				if absf(_replay_player._playback_speed - speeds[i]) < 0.01:
+					cur_idx = i
+					break
+			var new_idx := mini(cur_idx + 1, speeds.size() - 1)
+			_replay_player.set_speed(speeds[new_idx])
+			print("[Replay] Speed: %gx" % speeds[new_idx])
+		elif event.keycode == KEY_DOWN:
+			# Slow down
+			var speeds := [0.5, 1.0, 2.0, 4.0, 8.0]
+			var cur_idx := 0
+			for i in range(speeds.size()):
+				if absf(_replay_player._playback_speed - speeds[i]) < 0.01:
+					cur_idx = i
+					break
+			var new_idx := maxi(cur_idx - 1, 0)
+			_replay_player.set_speed(speeds[new_idx])
+			print("[Replay] Speed: %gx" % speeds[new_idx])
 
 func _handle_right_click() -> void:
 	var selected_ids: Array = []
@@ -780,6 +996,7 @@ func _handle_right_click() -> void:
 
 	if cmds.size() > 0:
 		_bridge.submit_commands(cmds)
+		_record_apm_action()
 
 	# Also emit via EventBus
 	if _event_bus and cmds.size() > 0:
@@ -811,6 +1028,7 @@ func _handle_single_click() -> void:
 				_selection.select_all_similar_on_screen(clicked_ent.id)
 			else:
 				_selection.add_to_selection_bulk([clicked_ent.id])
+		_record_apm_action()
 	else:
 		# Fallback without SelectionManager
 		if clicked_ent.is_empty():
@@ -820,6 +1038,7 @@ func _handle_single_click() -> void:
 		if not Input.is_key_pressed(KEY_SHIFT):
 			_selected.clear()
 		_selected[clicked_ent.id] = true
+		_record_apm_action()
 
 func _handle_drag_select() -> void:
 	var tl := _screen_to_world(Vector2(minf(_drag_start.x, _drag_end.x), minf(_drag_start.y, _drag_end.y)))
@@ -842,6 +1061,9 @@ func _handle_drag_select() -> void:
 		for e in selected_ents:
 			if e.owner == 1:
 				_selected[e.id] = true
+
+	if own_ids.size() > 0:
+		_record_apm_action()
 
 	# Update selectables_on_screen for SelectionManager
 	if _selection:
@@ -871,6 +1093,52 @@ func _handle_train(unit_type: String = "worker") -> void:
 			})
 	if cmds.size() > 0:
 		_bridge.submit_commands(cmds)
+		_record_apm_action()
+
+func _handle_merge(unit_type: String) -> void:
+	## Collect entity_ids for 2 same-type Templar from the current selection,
+	## then send a merge command to SimCore.
+	var selected_ids: Array = []
+	if _selection:
+		selected_ids = _selection.get_selected_ids()
+	else:
+		selected_ids = _selected.keys()
+
+	# Determine which source unit types can merge into the target
+	var source_types: Array = []
+	if unit_type == "Archon":
+		source_types = ["Templar", "HighTemplar"]
+	elif unit_type == "DarkArchon":
+		source_types = ["DarkTemplar"]
+	else:
+		return  # unknown merge target
+
+	# Find up to 2 matching entities in the selection
+	var merge_ids: Array = []
+	for uid in selected_ids:
+		var e = _get_ent_by_id(uid)
+		if e.is_empty():
+			continue
+		var utype: String = str(e.get("unit_type", e.get("entity_type", "")))
+		if utype in source_types:
+			merge_ids.append(uid)
+			if merge_ids.size() >= 2:
+				break
+
+	if merge_ids.size() < 2:
+		push_warning("[Merge] Need 2 same-type Templar, only found %d" % merge_ids.size())
+		return
+
+	var cmds: Array = [{
+		"action": "merge",
+		"entity_ids": merge_ids,
+		"unit_type": unit_type,
+		"issuer": 1,
+	}]
+	_bridge.submit_commands(cmds)
+	if _event_bus:
+		for cmd in cmds:
+			_event_bus.emit_command_issued(cmd)
 
 func _get_ent_by_id(eid: String) -> Dictionary:
 	for e in _ents:
@@ -956,8 +1224,40 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 
 # ─── Bridge callbacks ──────────────────────────────────────
 func _on_start(state: Dictionary) -> void:
+	_apply_start_state(state)
+
+
+func _on_state(state: Dictionary) -> void:
+	if _test_mode:
+		return
+	# Also apply start state on first tick if _on_start was missed
+	if _player_races.is_empty() and state.has("player_races"):
+		_apply_start_state(state)
+	_parse(state)
+
+
+func _apply_start_state(state: Dictionary) -> void:
 	_map_w = _to_f(state.get("map_width"), 64.0)
 	_map_h = _to_f(state.get("map_height"), 64.0)
+	if _map_w <= 0.0:
+		_map_w = 64.0
+	if _map_h <= 0.0:
+		_map_h = 64.0
+	# Store player races for race-aware visual lookup
+	# Convert race names → IDs (1=Terran, 2=Zerg, 3=Protoss) for manifest lookups
+	var _RACE_NAME_TO_ID: Dictionary = {"terran": "1", "zerg": "2", "protoss": "3"}
+	var pr = state.get("player_races", {})
+	if pr is Dictionary:
+		for pid in pr.keys():
+			var rname: String = str(pr[pid]).to_lower()
+			_player_races[str(pid)] = _RACE_NAME_TO_ID.get(rname, "1")
+	# Propagate P1 race to HUD so build/train menus filter correctly
+	var p1_race: String = "1"
+	if _player_races.has("1"):
+		p1_race = str(_player_races["1"])
+	if _hud and _hud.has_method("set_player_race"):
+		_hud.set_player_race(p1_race)
+	print("[GameView] _apply_start_state: map=%0.0fx%0.0f player_races=%s" % [_map_w, _map_h, str(_player_races)])
 	# Phase D: parse height_map (sent once at game start)
 	var hm = state.get("height_map", [])
 	if hm.size() > 0:
@@ -968,22 +1268,55 @@ func _on_start(state: Dictionary) -> void:
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
-	_camera.position = Vector2(_map_w / 2.0, _map_h / 2.0)  # Center on map
 
-func _on_state(state: Dictionary) -> void:
-	if _test_mode:
-		return
-	_parse(state)
 
 func _on_game_over(winner: int, tick: int) -> void:
 	_game_active = false
 	_game_over_shown = true
+
+	# Compute end-of-game stats
+	var duration_sec: float = tick / 20.0
+	var kills_val: int = 0
+	var losses_val: int = 0
+	var mineral_gathered: int = 0
+	var gas_gathered: int = 0
+	# Count kills/losses from entity changes
+	for e in _ents:
+		if e.owner != 1:
+			continue
+	for old_id in _prev_entities:
+		var old_e: Dictionary = _prev_entities[old_id]
+		if old_e.get("owner", 0) == 2 and float(old_e.get("health", 0)) > 0:
+			kills_val += 1  # enemy entity disappeared = we killed it
+		if old_e.get("owner", 0) == 1 and float(old_e.get("health", 0)) > 0:
+			losses_val += 1  # own entity disappeared = we lost it
+
+	var stats := {
+		"tick": tick,
+		"kills": kills_val,
+		"losses": losses_val,
+		"mineral_gathered": mineral_gathered,
+		"gas_gathered": gas_gathered,
+		"apm": _apm_value,
+		"total_actions": _total_actions,
+	}
+
 	if _game_over_panel:
 		_game_over_panel.visible = true
 	if _game_over_label:
 		_game_over_label.text = "YOU WIN!" if winner == 1 else "YOU LOSE!"
 		_game_over_label.add_theme_color_override("font_color", Color.GREEN if winner == 1 else Color.RED)
-	print("===== GAME OVER: P%d wins at tick %d" % [winner, tick])
+
+	# Update stats label
+	var stats_node := _game_over_panel.get_node_or_null("GameOverStats") as Label if _game_over_panel else null
+	if stats_node:
+		var minutes: int = int(duration_sec) / 60
+		var seconds: int = int(duration_sec) % 60
+		stats_node.text = "Time: %d:%02d | Kills: %d | Losses: %d | APM: %d" % [
+			minutes, seconds, kills_val, losses_val, _apm_value
+		]
+
+	print("===== GAME OVER: P%d wins at tick %d (APM=%d)" % [winner, tick, _apm_value])
 
 func _restart_game() -> void:
 	_game_over_shown = false
@@ -999,6 +1332,9 @@ func _restart_game() -> void:
 	_entity_cache_by_id.clear()
 	_prev_hp.clear()
 	_prev_entities.clear()
+	_prev_attack_targets.clear()
+	_attack_flash_timers.clear()
+	_dead_effects.clear()
 	if _vfx_manager:
 		_vfx_manager.clear()
 	# Clear rally indicators
@@ -1012,6 +1348,13 @@ func _to_f(value, fallback: float = 0.0) -> float:
 	if value == null:
 		return fallback
 	return value + 0.0
+
+## Record an effective player action for APM tracking (selection + commands).
+func _record_apm_action() -> void:
+	if not _game_active or _game_over_shown:
+		return
+	_apm_action_times.append(_game_time)
+	_total_actions += 1
 
 func _load_presentation_manifest() -> void:
 	if not FileAccess.file_exists(PRESENTATION_MANIFEST_PATH):
@@ -1028,13 +1371,15 @@ func _load_presentation_manifest() -> void:
 func _resolve_visual_id(e: Dictionary) -> String:
 	var etype := str(e.get("type", e.get("entity_type", "")))
 	var owner_key := str(int(e.get("owner", 0)))
+	# Map player ID → race ID for manifest lookup
+	var race_key: String = str(_player_races.get(owner_key, "1"))  # default "1"=Terran
 	if etype == "building":
 		var btype := str(e.get("building_type", ""))
 		if _is_known_building_visual(btype):
 			return btype
 		var abstract_buildings: Dictionary = _presentation_manifest.get("abstract_buildings", {})
-		var owner_buildings: Dictionary = abstract_buildings.get(owner_key, {})
-		return str(owner_buildings.get(btype, btype))
+		var race_buildings: Dictionary = abstract_buildings.get(race_key, {})
+		return str(race_buildings.get(btype, btype))
 
 	var unit_type := str(e.get("unit_type", ""))
 	if unit_type != "" and unit_type != "unit" and _is_known_unit_visual(unit_type):
@@ -1043,8 +1388,8 @@ func _resolve_visual_id(e: Dictionary) -> String:
 		return unit_type
 
 	var abstract_units: Dictionary = _presentation_manifest.get("abstract_units", {})
-	var owner_units: Dictionary = abstract_units.get(owner_key, {})
-	return str(owner_units.get(etype, etype))
+	var race_units: Dictionary = abstract_units.get(race_key, {})
+	return str(race_units.get(etype, etype))
 
 func _is_known_unit_visual(visual_id: String) -> bool:
 	if visual_id == "":
@@ -1101,6 +1446,10 @@ func _parse(state: Dictionary) -> void:
 	_ents.clear()
 	_entity_cache_by_id.clear()
 	var entities: Dictionary = state.get("entities", {})
+	if entities.is_empty():
+		print("[GameView] _parse: entities dict is EMPTY")
+	else:
+		print("[GameView] _parse: entities dict size=%d" % entities.size())
 	for eid in entities:
 		var e: Dictionary = entities[eid]
 		var etype: String = str(e.get("entity_type", ""))
@@ -1135,6 +1484,9 @@ func _parse(state: Dictionary) -> void:
 			"max_energy": _to_f(e.get("max_energy"), 0.0),
 			"production_queue": e.get("production_queue", []),
 			"production_timers": e.get("production_timers", []),
+			"attack_cooldown": _to_f(e.get("attack_cooldown"), 0.0),
+			"is_constructing": bool(e.get("is_constructing", false) if e.get("is_constructing") != null else false),
+			"build_progress": _to_f(e.get("build_progress"), 0.0),
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
@@ -1145,9 +1497,43 @@ func _parse(state: Dictionary) -> void:
 	_fog_w = int(p1_fog.get("width", 0))
 	_fog_h = int(p1_fog.get("height", 0))
 	var raw_tiles: Array = p1_fog.get("tiles", [])
+	_fog_prev_tiles = _fog_tiles.duplicate()
 	_fog_tiles.clear()
 	for t in raw_tiles:
 		_fog_tiles.append(int(t))
+	# Update smooth fog alpha: state=2 → alpha=0 instantly, state=0→alpha target=0.88,
+	# state=1 → target=0.50, but only fade toward target (never snap).
+	# Tiles that were 2 last tick and are now 1: keep alpha near 0 for FOG_FADE_FRAMES.
+	var tile_count := _fog_w * _fog_h
+	if _fog_alpha.size() != tile_count:
+		_fog_alpha.resize(tile_count)
+		for i in range(tile_count):
+			var initial: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
+			match initial:
+				2: _fog_alpha[i] = 0.0
+				1: _fog_alpha[i] = 0.50
+				_: _fog_alpha[i] = 0.88
+	for i in range(tile_count):
+		var cur: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
+		var prev: int = _fog_prev_tiles[i] if i < _fog_prev_tiles.size() else 0
+		var target: float
+		match cur:
+			0: target = 0.88
+			1: target = 0.50
+			2: target = 0.0
+			_: target = 0.88
+		# Current vision should be clear immediately; fade only when leaving vision.
+		if cur == 2:
+			_fog_alpha[i] = 0.0
+		elif prev == 2:
+			_fog_alpha[i] = 0.0  # keep fully clear
+		else:
+			# Smoothly approach target
+			var speed := 1.0 / float(FOG_FADE_FRAMES)
+			if _fog_alpha[i] < target:
+				_fog_alpha[i] = minf(_fog_alpha[i] + (target - _fog_alpha[i]) * speed * 3.0, target)
+			elif _fog_alpha[i] > target:
+				_fog_alpha[i] = maxf(_fog_alpha[i] - (_fog_alpha[i] - target) * speed * 2.0, target)
 
 	# Parse resources for P1
 	var resources: Dictionary = state.get("resources", {})
@@ -1190,29 +1576,58 @@ func _parse(state: Dictionary) -> void:
 					"y": e.py - 1.2,
 					"amount": dmg,
 					"ttl": 30,
-				})
+			})
 				if _vfx_manager:
 					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg)
-				_emit_attack_indicator(Vector2(e.px, e.py))
+					_emit_attack_indicator(Vector2(e.px, e.py))
+
+	# ─── Attack flash detection: detect when a unit starts attacking or switches target ───
+	for e in _ents:
+		var eid_str: String = e.id
+		var cur_target: String = str(e.get("attack_target_id", ""))
+		var prev_target: String = str(_prev_attack_targets.get(eid_str, ""))
+		# Flash when unit begins attacking (empty → non-empty) or switches targets
+		if cur_target != "" and cur_target != prev_target:
+			_attack_flash_timers[eid_str] = ATTACK_FLASH_DURATION
+		# Also flash if attack_cooldown just started (shot just fired)
+		var cooldown: float = _to_f(e.get("attack_cooldown"), 0.0)
+		var prev_cooldown: float = _to_f(_prev_hp.get(eid_str + "_cd", 0.0), 0.0)
+		if cooldown > 0.0 and prev_cooldown <= 0.0 and cur_target != "":
+			_attack_flash_timers[eid_str] = ATTACK_FLASH_DURATION
 
 	for old_id in old_entities:
 		if not _entity_cache_by_id.has(old_id):
 			var old_e: Dictionary = old_entities[old_id]
 			if float(old_e.get("health", 0.0)) > 0.0:
 				var death_pos := Vector2(float(old_e.get("px", 0.0)), float(old_e.get("py", 0.0)))
+				var death_owner: int = int(old_e.get("owner", 0))
+				var death_type: String = str(old_e.get("type", old_e.get("entity_type", "")))
+				# Spawn VFXManager death effect
 				if _vfx_manager:
 					_vfx_manager.spawn_death(
 						_visual_unit_name(old_e),
-						str(old_e.get("type", old_e.get("entity_type", ""))),
-						int(old_e.get("owner", 0)),
+						death_type,
+						death_owner,
 						death_pos
 					)
+				# Also add to local death explosion effects for canvas drawing
+				var death_color: Color = _team_color(death_owner)
+				_dead_effects.append({
+					"pos": death_pos,
+					"age": 0.0,
+					"lifetime": DEATH_EFFECT_DURATION,
+					"color": death_color,
+					"owner": death_owner,
+					"entity_type": death_type,
+				})
 
 	_prev_hp.clear()
 	_prev_entities.clear()
+	_prev_attack_targets.clear()
 	for e in _ents:
 		_prev_hp[e.id] = e.health
 		_prev_entities[e.id] = e.duplicate(true)
+		_prev_attack_targets[e.id] = str(e.get("attack_target_id", ""))
 
 	var valid_ids: Array = []
 	for e in _ents:
@@ -1235,12 +1650,17 @@ func _draw() -> void:
 	# _draw() local coordinates ARE world coordinates.
 	var co := Vector2.ZERO
 	_draw_map_background(co)
-	_draw_elevation(co)
+	if _show_elevation:
+		_draw_elevation(co)
 	_draw_grid(co)
 	_draw_entities(co)
+	_draw_pylon_power_range(co)
 	_draw_fog_of_war(co)
-	_draw_combat_effects(co)
+	_draw_attack_flashes(co)
+	_draw_death_explosions(co)
+	_draw_hover_highlight(co)
 	_draw_health_bars(co)
+	_draw_build_progress_bars(co)
 	_draw_production_bars(co)
 	_draw_status_icons(co)
 	_draw_selection_rings(co)
@@ -1275,9 +1695,9 @@ func _draw_elevation(_co: Vector2) -> void:
 			var h: int = row[x] if x < row.size() else 0
 			if h == 0:
 				continue  # base level keeps default color
-			# Gradient: low → dark green, high → bright yellow-green
+			# Gradient: low → dark green, high → bright yellow-green (subtle tint)
 			var t := float(h) / 8.0
-			var col := Color(0.05 + t * 0.25, 0.15 + t * 0.35, 0.05 + t * 0.05, 0.55)
+			var col := Color(0.05 + t * 0.15, 0.15 + t * 0.25, 0.05 + t * 0.03, 0.25)
 			draw_rect(Rect2(x, y, 1.0, 1.0), col)
 	# ── Contour lines (draw edge where height changes) ──
 	var contour_color := Color(0.6, 0.45, 0.2, 0.5)  # brownish
@@ -1327,42 +1747,35 @@ func _draw_grid(co: Vector2) -> void:
 		y += step
 
 func _draw_fog_of_war(co: Vector2) -> void:
-	# Sprint 4: Uses FogRenderer's gradient approach directly inline for performance.
-	# The separate FogRenderer node is also updated.
+	# Smooth fog: uses _fog_alpha array (updated in _parse) for flicker-free rendering.
+	# Boundary gradient smoothing uses alpha values directly for seamless transitions.
 	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
 		return
 	var map_px := _map_w  # TILE_SIZE=1
 	var map_py := _map_h
 	var tile_w := map_px / float(_fog_w)
 	var tile_h := map_py / float(_fog_h)
+	var tile_count := _fog_w * _fog_h
 
-	# Pre-build grid for neighbor lookup
-	var fog_grid: Array = []
-	fog_grid.resize(_fog_h)
+	# Pre-build alpha grid for neighbor smoothing
+	var alpha_grid: Array = []
+	alpha_grid.resize(_fog_h)
 	for gy in range(_fog_h):
-		fog_grid[gy] = []
-		fog_grid[gy].resize(_fog_w)
+		alpha_grid[gy] = []
+		alpha_grid[gy].resize(_fog_w)
 		for gx in range(_fog_w):
 			var idx := gy * _fog_w + gx
-			if idx < _fog_tiles.size():
-				fog_grid[gy][gx] = _fog_tiles[idx]
-			else:
-				fog_grid[gy][gx] = 0
+			alpha_grid[gy][gx] = _fog_alpha[idx] if idx < _fog_alpha.size() else 0.88
 
 	for gy in range(_fog_h):
 		for gx in range(_fog_w):
-			var state_val: int = fog_grid[gy][gx]
-			var base_alpha: float
-			match state_val:
-				0: base_alpha = 0.88
-				1: base_alpha = 0.50
-				2: base_alpha = 0.0
-				_: base_alpha = 0.88
+			var idx := gy * _fog_w + gx
+			var base_alpha: float = _fog_alpha[idx] if idx < _fog_alpha.size() else 0.88
 
 			if base_alpha < 0.01:
 				continue
 
-			# Gradient smoothing at boundaries
+			# Gradient smoothing at boundaries using neighbor alphas
 			var is_boundary := false
 			var neighbor_sum: float = 0.0
 			var neighbor_count: int = 0
@@ -1372,22 +1785,18 @@ func _draw_fog_of_war(co: Vector2) -> void:
 						continue
 					var nx: int = gx + dx
 					var ny: int = gy + dy
+					var n_alpha: float
 					if nx < 0 or nx >= _fog_w or ny < 0 or ny >= _fog_h:
-						neighbor_sum += 0.88
+						n_alpha = 0.88
+						neighbor_sum += n_alpha
 						neighbor_count += 1
-						if state_val != 0:
+						if base_alpha < 0.87:
 							is_boundary = true
 						continue
-					var n_val: int = fog_grid[ny][nx]
-					var n_alpha: float
-					match n_val:
-						0: n_alpha = 0.88
-						1: n_alpha = 0.50
-						2: n_alpha = 0.0
-						_: n_alpha = 0.88
+					n_alpha = alpha_grid[ny][nx]
 					neighbor_sum += n_alpha
 					neighbor_count += 1
-					if n_val != state_val:
+					if absf(n_alpha - base_alpha) > 0.1:
 						is_boundary = true
 
 			var alpha: float
@@ -1404,6 +1813,8 @@ func _draw_fog_of_war(co: Vector2) -> void:
 			var px: float = gx * tile_w
 			var py: float = gy * tile_h
 
+			# Color tint: unexplored=full dark, explored=medium, visible=clear
+			var state_val: int = _fog_tiles[idx] if idx < _fog_tiles.size() else 0
 			var color: Color
 			match state_val:
 				0: color = Color(0.02, 0.02, 0.05, alpha)
@@ -1415,7 +1826,8 @@ func _draw_fog_of_war(co: Vector2) -> void:
 
 ## Calculate unit sprite region from animation metadata.
 func _calc_unit_region(utype: String, owner: int, row: int, frame: int) -> Rect2:
-	var key := "%s_%d" % [utype, owner]
+	var race_key: String = _player_races.get(str(owner), "1")
+	var key := "%s_%s" % [utype, race_key]
 	var info: Dictionary = _unit_anim_info.get(key, {})
 	if info.is_empty():
 		return Rect2(0, 0, 96, 96)
@@ -1453,51 +1865,40 @@ func _calc_unit_region(utype: String, owner: int, row: int, frame: int) -> Rect2
 
 ## Get the correct sprite region and scale for a building type.
 ## Use only the COMPLETE (fully built) form — single building, no tiling.
+## Race-aware: maps owner (player ID) → race → sprite region.
 func _get_building_region(btype: String, owner: int) -> Dictionary:
 	var region := Rect2(1, 1, 128, 109)
 	var scale_sz := Vector2(0.015, 0.015)
+	var race_key: String = _player_races.get(str(owner), "1")  # "1"=Terran, "2"=Zerg, "3"=Protoss
 
-	if owner == 1:  # Terran
+	if race_key == "1":  # Terran
 		match btype:
 			"base":
-				# Command Center complete form, tightly cropped to the building body.
-				# The surrounding sprite sheet contains adjacent build frames/addons.
 				region = Rect2(205, 190, 145, 95)
 				scale_sz = Vector2(0.040, 0.040)
 			"barracks":
-				# Barracks complete form: bottom block of the 3-phase column.
-				# Full column width (building body fills the slot).
 				region = Rect2(573, 197, 191, 69)
 				scale_sz = Vector2(0.0319, 0.0319)
 			"factory":
-				# Factory complete form: last block of the 4-phase column.
-				# Left-cropped to exclude the empty gap before the building body.
 				region = Rect2(409, 466, 164, 47)
 				scale_sz = Vector2(0.0426, 0.0426)
 			"refinery":
-				# Refinery complete form: bottom block of the 3-phase column.
-				# Full column width (pipe structure extends across the slot).
 				region = Rect2(382, 189, 191, 77)
 				scale_sz = Vector2(0.026, 0.026)
 			"starport":
-				# Starport complete form: last block of the 4-phase column.
-				# Full column width (building body fills the slot).
 				region = Rect2(573, 446, 191, 86)
 				scale_sz = Vector2(0.0256, 0.0256)
 			_:
 				region = Rect2(1, 1, 128, 109)
 				scale_sz = Vector2(0.015, 0.015)
-	elif owner == 2:  # Zerg
+	elif race_key == "2":  # Zerg
 		match btype:
 			"base":
-				# Hatchery: Row0 frame0, COMPLETE form (bottom section only)
 				region = Rect2(30, 301, 121, 128)
-				scale_sz = Vector2(0.033, 0.033)  # ~4 world units
+				scale_sz = Vector2(0.033, 0.033)
 			"barracks":
-				# Spawning Pool: Row1 small frames, complete form only
-				# Tight crop below the gap: (1478, 688, 83, 85)
 				region = Rect2(1478, 688, 83, 85)
-				scale_sz = Vector2(0.048, 0.048)  # ~4 world units
+				scale_sz = Vector2(0.048, 0.048)
 			"lair":
 				region = Rect2(10, 627, 210, 132)
 				scale_sz = Vector2(0.019, 0.019)
@@ -1505,17 +1906,25 @@ func _get_building_region(btype: String, owner: int) -> Dictionary:
 				region = Rect2(11, 1184, 141, 124)
 				scale_sz = Vector2(0.028, 0.028)
 			_:
-				# Generic fallback: small Spawning Pool form
 				region = Rect2(1475, 670, 89, 100)
 				scale_sz = Vector2(0.045, 0.045)
+	elif race_key == "3":  # Protoss
+		match btype:
+			"base":
+				region = Rect2(14, 2, 128, 115)
+				scale_sz = Vector2(0.035, 0.035)
+			"barracks":
+				region = Rect2(206, 198, 191, 69)
+				scale_sz = Vector2(0.032, 0.032)
+			_:
+				region = Rect2(1, 1, 128, 109)
+				scale_sz = Vector2(0.015, 0.015)
 
 	return {"region": region, "scale": scale_sz}
 
-func _has_building_region_override(btype: String, owner: int) -> bool:
-	if owner == 1:
-		return btype in ["base", "barracks", "factory", "refinery", "starport"]
-	if owner == 2:
-		return btype in ["base", "barracks", "lair", "hive"]
+func _has_building_region_override(_btype: String, _owner: int) -> bool:
+	# All buildings now use manifest-based atlas via SpriteLoader.
+	# Hardcoded overrides removed — they drifted out of sync with atlas images.
 	return false
 
 func _has_unit_region_override(e: Dictionary) -> bool:
@@ -1524,7 +1933,8 @@ func _has_unit_region_override(e: Dictionary) -> bool:
 func _get_unit_region_override(e: Dictionary) -> Dictionary:
 	var etype := str(e.get("type", e.get("entity_type", "")))
 	var owner := int(e.get("owner", 0))
-	var texture_key := "%s_%d" % [etype, owner]
+	var race_key: String = _player_races.get(str(owner), "1")  # race ID: 1/2/3
+	var texture_key := "%s_%s" % [etype, race_key]
 	var row := 0
 	var scale_sz := Vector2(0.022, 0.022)
 	match etype:
@@ -1545,6 +1955,7 @@ func _update_entity_sprites() -> void:
 	if not _sprite_container:
 		return
 	var active_ids: Dictionary = {}
+	var visible_count := 0
 
 	for e in _ents:
 		var eid: String = str(e.id)
@@ -1573,7 +1984,8 @@ func _update_entity_sprites() -> void:
 		if is_building:
 			var sprite := node as Sprite2D
 			var btype := str(e.get("building_type", ""))
-			var override_texture: Texture2D = _building_textures.get(int(e.owner), null)
+			var race_key: int = int(_player_races.get(str(int(e.get("owner", 0))), "1"))
+			var override_texture: Texture2D = _building_textures.get(race_key, null)
 			if _has_building_region_override(btype, int(e.owner)) and override_texture:
 				var binfo: Dictionary = _get_building_region(btype, int(e.owner))
 				sprite.texture = override_texture
@@ -1610,6 +2022,8 @@ func _update_entity_sprites() -> void:
 			else:
 				sprite.texture = null
 				sprite.visible = false
+				if _bridge and _bridge._tick % 120 == 0:
+					push_warning("[GameView] Building '%s' visual_id='%s': no override and no atlas" % [eid, visual_id])
 		else:
 			var anim_sprite := node as AnimatedSprite2D
 			var frames := _sprite_loader.get_frames(visual_id) if _sprite_loader else null
@@ -1636,6 +2050,13 @@ func _update_entity_sprites() -> void:
 	for eid in _sprite_pool:
 		if not active_ids.has(eid):
 			_sprite_pool[eid].visible = false
+
+	if _bridge and _bridge._tick % 60 == 0:
+		var vc := 0
+		for eid in _sprite_pool:
+			if _sprite_pool[eid].visible:
+				vc += 1
+		print("[GameView] tick=%d ents=%d sprites=%d visible=%d" % [_bridge._tick, _ents.size(), _sprite_pool.size(), vc])
 
 func _draw_entities(co: Vector2) -> void:
 	# Sprint 4: Entities in unexplored (state 0) or explored (state 1) fog are hidden
@@ -1674,22 +2095,86 @@ func _draw_entities(co: Vector2) -> void:
 				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 0.06, true)
 
 func _is_in_fog(e: Dictionary) -> bool:
-	"""Check if an entity is in non-visible fog (unexplored or explored but not currently visible)."""
-	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
+	"""Check if an entity is in non-visible fog (unexplored or explored but not currently visible).
+	Uses smooth alpha: if fog is still fading out (alpha < 0.15), entity is considered visible."""
+	if _fog_w <= 0 or _fog_h <= 0 or _fog_alpha.is_empty():
 		return false
 	var fog_x := int(e.px * float(_fog_w) / _map_w)
 	var fog_y := int(e.py * float(_fog_h) / _map_h)
 	fog_x = clampi(fog_x, 0, _fog_w - 1)
 	fog_y = clampi(fog_y, 0, _fog_h - 1)
 	var idx := fog_y * _fog_w + fog_x
-	if idx < _fog_tiles.size():
-		return _fog_tiles[idx] < 2
+	if idx < _fog_alpha.size():
+		# If fog alpha is very low (still fading from visible), entity is visible
+		return _fog_alpha[idx] > 0.15
 	return true
 
-func _draw_combat_effects(co: Vector2) -> void:
-	# Combat impact visuals are handled by VFXManager. Keep this hook for
-	# older draw ordering without reintroducing debug-style red rings.
-	pass
+func _draw_attack_flashes(_co: Vector2) -> void:
+	## Draw white overlay on entities that just attacked (attack flash).
+	## game_view z_index=5 renders ABOVE sprite_container z_index=1,
+	## so this overlay appears on top of entity sprites.
+	for eid in _attack_flash_timers:
+		var remaining: float = float(_attack_flash_timers[eid])
+		var flash_alpha: float = clampf(remaining / ATTACK_FLASH_DURATION, 0.0, 1.0)
+		var e: Dictionary = _get_entity_data(str(eid))
+		if e.is_empty():
+			continue
+		if e.owner != 1 and _is_in_fog(e):
+			continue
+		var pos := Vector2(float(e.get("px", 0.0)), float(e.get("py", 0.0)))
+		var radius := _visual_radius(e)
+		# White overlay circle that fades out
+		var flash_color: Color = Color(1.0, 1.0, 1.0, flash_alpha * 0.75)
+		draw_circle(pos, radius * 1.1, flash_color)
+		# Bright white outline ring
+		var ring_color: Color = Color(1.0, 1.0, 1.0, flash_alpha * 0.9)
+		draw_arc(pos, radius * 1.15, 0.0, TAU, 20, ring_color, 0.06, true)
+
+func _draw_death_explosions(_co: Vector2) -> void:
+	## Draw expanding + fading circle explosion at entity death positions.
+	## Duration: ~0.5 seconds (DEATH_EFFECT_DURATION).
+	for effect in _dead_effects:
+		var lifetime: float = maxf(float(effect.get("lifetime", DEATH_EFFECT_DURATION)), 0.01)
+		var age: float = float(effect.get("age", 0.0))
+		var t := clampf(age / lifetime, 0.0, 1.0)
+		var alpha: float = 1.0 - t
+		var pos: Vector2 = effect.get("pos", Vector2.ZERO)
+		var base_color: Color = effect.get("color", Color.WHITE)
+		var entity_type: String = str(effect.get("entity_type", ""))
+		# Buildings have larger explosions
+		var is_building: bool = entity_type == "building"
+		var base_radius: float = 1.2 if is_building else 0.6
+		var max_radius: float = 3.0 if is_building else 1.5
+		var radius := lerpf(base_radius, max_radius, t)
+		# Outer expanding ring (team color, fading)
+		var ring_color: Color = base_color
+		ring_color.a = alpha * 0.8
+		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.08 if not is_building else 0.14, true)
+		# Inner glow fill (fading faster)
+		var fill_color: Color = Color(1.0, 0.85, 0.6, alpha * 0.35)
+		draw_circle(pos, radius * 0.6, fill_color)
+		# Secondary ring for buildings
+		if is_building:
+			var ring2_color: Color = Color(1.0, 0.4, 0.1, alpha * 0.5)
+			draw_arc(pos, radius * 0.75, 0.0, TAU, 18, ring2_color, 0.10, true)
+
+func _draw_hover_highlight(_co: Vector2) -> void:
+	## Draw a bright outline on the entity currently under the mouse cursor.
+	if _hovered_entity_id == "":
+		return
+	var e: Dictionary = _get_entity_data(_hovered_entity_id)
+	if e.is_empty():
+		return
+	if e.owner != 1 and _is_in_fog(e):
+		return
+	var pos := Vector2(float(e.get("px", 0.0)), float(e.get("py", 0.0)))
+	var radius := _visual_radius(e)
+	# Bright white ring for hover feedback
+	var hover_color: Color = Color(1.0, 1.0, 1.0, 0.65)
+	draw_arc(pos, radius * 1.08, 0.0, TAU, 24, hover_color, 0.055, true)
+	# Subtle glow fill
+	var glow_color: Color = Color(1.0, 1.0, 1.0, 0.08)
+	draw_circle(pos, radius * 1.05, glow_color)
 
 func _draw_damage_floats(co: Vector2) -> void:
 	for f in _dmg_floats:
@@ -1715,6 +2200,43 @@ func _draw_health_bars(co: Vector2) -> void:
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
 		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
 		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * frac, bar_h), hp_color, true)
+
+# ─── Build Progress Bar ──────────────────────────────────
+func _draw_build_progress_bars(_co: Vector2) -> void:
+	## Draw yellow/orange progress bar above buildings that are under construction.
+	## Positioned above the health bar for constructing buildings.
+	for e in _ents:
+		if e.type != "building":
+			continue
+		var is_constructing: bool = bool(e.get("is_constructing", false))
+		if not is_constructing:
+			continue
+		if e.owner != 1 and _is_in_fog(e):
+			continue
+		var pos := Vector2(e.px, e.py)
+		var radius := _visual_radius(e)
+		var bar_w := clampf(radius * 1.45, 0.55, 2.8)
+		var bar_h := 0.12
+		# Position above the health bar (which is at radius + 0.28 above center)
+		var bar_y := pos.y - radius - 0.28 - bar_h - 0.08
+		# Build progress: 0.0 to 1.0 (if unavailable, show 0)
+		var build_progress: float = clampf(_to_f(e.get("build_progress"), 0.0), 0.0, 1.0)
+		# Background bar (dark)
+		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.25, 0.2, 0.1, 0.8), true)
+		# Progress fill — yellow to orange gradient based on progress
+		var fill_color: Color = Color(1.0, 0.85, 0.15, 0.9).lerp(Color(1.0, 0.55, 0.1, 0.9), build_progress)
+		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * build_progress, bar_h), fill_color, true)
+		# Border outline
+		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.6, 0.5, 0.3, 0.5), false, 0.03)
+
+# ─── Team Color Helper ────────────────────────────────────
+func _team_color(owner: int) -> Color:
+	## Return a team color for the given owner ID.
+	match owner:
+		1: return Color(0.2, 0.8, 0.3)   # green (player)
+		2: return Color(0.9, 0.2, 0.2)   # red (enemy AI)
+		3: return Color(0.9, 0.8, 0.2)   # yellow (Protoss)
+		_: return Color(0.6, 0.6, 0.6)   # gray (neutral)
 
 # ─── Phase B1: Production Queue Visualization ────────────────
 func _unit_letter(unit_type: String) -> String:
@@ -1819,14 +2341,60 @@ func _draw_status_icons(_co: Vector2) -> void:
 			# Idle: small white dot
 			draw_circle(Vector2(icon_x, icon_y), 0.08, Color(1.0, 1.0, 1.0, 0.6))
 
-func _draw_selection_rings(co: Vector2) -> void:
+func _draw_selection_rings(_co: Vector2) -> void:
+	## Selected units: green ring with breathing (sinusoidal) glow pulse.
+	var breathe_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED)
+	var breathe_alpha: float = lerpf(SELECTION_BREATHE_MIN, SELECTION_BREATHE_MAX, 0.5 + 0.5 * breathe_phase)
 	for uid in _selected:
 		var e := _get_ent_by_id(uid)
 		if e.is_empty():
 			continue
-		var pos := Vector2(e.px, e.py) 
+		var pos := Vector2(e.px, e.py)
 		var radius := _visual_radius(e)
-		draw_arc(pos, radius, 0.0, TAU, 24, Color(0.2, 1.0, 0.2, 0.88), 0.055, true)
+		# Main selection ring with breathing alpha
+		var ring_color: Color = Color(0.2, 1.0, 0.2, breathe_alpha)
+		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.055, true)
+		# Outer glow ring (subtler, also breathing but offset phase)
+		var glow_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED + PI * 0.5)
+		var glow_alpha: float = lerpf(0.0, 0.25, 0.5 + 0.5 * glow_phase)
+		var glow_color: Color = Color(0.4, 1.0, 0.4, glow_alpha)
+		draw_arc(pos, radius * 1.12, 0.0, TAU, 24, glow_color, 0.04, true)
+
+# ─── Pylon Power Range Visualization ───────────────────────
+func _draw_pylon_power_range(_co: Vector2) -> void:
+	"""Render semi-transparent blue circles for Pylon power range.
+	Only drawn for player 1's Pylons when player 1's race is Protoss (race ID '3').
+	Power radius: PYLON_POWER_RADIUS (8 game-coordinate cells)."""
+	# Only render if player 1's race is Protoss
+	var p1_race: String = str(_player_races.get("1", "1"))
+	if p1_race != "3":
+		return
+
+	# Semi-transparent blue fill (SC1-style Pylon aura)
+	var fill_color: Color = Color(0.2, 0.4, 1.0, 0.10)
+	# Slightly more opaque blue border ring
+	var ring_color: Color = Color(0.3, 0.5, 1.0, 0.35)
+	var ring_width: float = 0.08
+
+	for e in _ents:
+		if e.owner != 1:
+			continue
+		if e.type != "building":
+			continue
+		# Pylon is building_type "supply_depot" with unit_type "Pylon" for Protoss
+		var btype: String = str(e.get("building_type", ""))
+		var utype: String = str(e.get("unit_type", ""))
+		if btype != "supply_depot" and utype != "Pylon":
+			continue
+		# If unit_type is present but not "Pylon", it's a Terran/Zerg supply depot — skip
+		if utype != "" and utype != "Pylon":
+			continue
+
+		var pos := Vector2(e.px, e.py)
+		# Filled semi-transparent blue circle
+		draw_circle(pos, PYLON_POWER_RADIUS, fill_color)
+		# Blue ring outline
+		draw_arc(pos, PYLON_POWER_RADIUS, 0.0, TAU, 64, ring_color, ring_width, true)
 
 # ─── Sprint 4: Draw Rally Point Lines ──────────────────────
 func _draw_rally_lines(co: Vector2) -> void:
@@ -1941,6 +2509,7 @@ func _get_state_for_minimap() -> Dictionary:
 		"vp_size": get_viewport().get_visible_rect().size / _camera.zoom,
 		"cell_size": int(_cell),
 		"fog_tiles": _fog_tiles,
+		"fog_alpha": _fog_alpha,
 		"fog_width": _fog_w,
 		"fog_height": _fog_h,
 	}
@@ -2036,6 +2605,13 @@ func _toggle_test_mode() -> void:
 			_test_btn.text = "🧪 Test Mode"
 			_test_btn.modulate = Color(0.8, 1.0, 0.8)
 		print("[TEST MODE] OFF — back to normal game")
+	queue_redraw()
+
+func _toggle_elevation() -> void:
+	_show_elevation = not _show_elevation
+	if _elev_btn:
+		_elev_btn.text = "⛰ Elev ON" if _show_elevation else "⛰ Elev"
+		_elev_btn.modulate = Color(0.5, 1.0, 0.5) if _show_elevation else Color(0.7, 0.85, 0.7)
 	queue_redraw()
 
 func _build_test_entities() -> void:
@@ -2202,3 +2778,23 @@ func _on_replay_loaded(replay_data: Dictionary) -> void:
 func _on_replay_finished() -> void:
 	print("[Replay] Playback finished")
 	_replay_mode = false
+
+## Fetch the latest replay from the server and switch to replay mode.
+func _request_latest_replay() -> void:
+	if _bridge:
+		_bridge.fetch_replay_list()
+
+## Handle the replay list response from the server.
+func _on_replay_list_loaded(data: Dictionary) -> void:
+	var replays: Array = data.get("replays", [])
+	if replays.is_empty():
+		print("[Replay] No replays available")
+		return
+	# Pick the most recent (last in sorted list)
+	var latest: Dictionary = replays[-1]
+	var filename: String = latest.get("filename", "")
+	if filename.is_empty():
+		return
+	print("[Replay] Loading latest: %s" % filename)
+	if _bridge:
+		_bridge.fetch_replay_download(filename)

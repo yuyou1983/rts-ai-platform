@@ -7,17 +7,71 @@
     "1": {
       "worker": "SCV",
       "soldier": "Marine",
-      "scout": "Ghost"
+      "scout": "Ghost",
+      "heavy_infantry": "Firebat",
+      "sniper": "Ghost",
+      "support": "Medic",
+      "light_vehicle": "Vulture",
+      "heavy_vehicle": "Tank",
+      "mech": "Goliath",
+      "transport": "Dropship",
+      "caster": "Vessel",
+      "capital": "BattleCruiser",
+      "air_light": "Valkyrie",
+      "air_scout": "Wraith"
     },
     "2": {
       "worker": "Drone",
       "soldier": "Zergling",
-      "scout": "Hydralisk"
+      "scout": "Hydralisk",
+      "heavy_infantry": "Hydralisk",
+      "heavy_melee": "Ultralisk",
+      "caster": "Defiler",
+      "support": "Queen",
+      "swarm": "Scourge",
+      "transport": "Overlord",
+      "air_light": "Mutalisk",
+      "morph_guardian": {
+        "unit": "Guardian",
+        "morph": true,
+        "morph_from": "Mutalisk"
+      },
+      "morph_devourer": {
+        "unit": "Devourer",
+        "morph": true,
+        "morph_from": "Mutalisk"
+      },
+      "morph_lurker": {
+        "unit": "Lurker",
+        "morph": true,
+        "morph_from": "Hydralisk"
+      }
     },
     "3": {
       "worker": "Probe",
       "soldier": "Zealot",
-      "scout": "Dragoon"
+      "scout": "Dragoon",
+      "heavy_infantry": "Dragoon",
+      "caster": "Templar",
+      "assassin": "DarkTemplar",
+      "siege": "Reaver",
+      "transport": "Shuttle",
+      "scout_air": "Scout",
+      "capital": "Carrier",
+      "tactical": "Arbiter",
+      "air_light": "Corsair",
+      "observer": "Observer",
+      "morph_archon": {
+        "unit": "Archon",
+        "morph": true,
+        "morph_from": "Templar"
+      },
+      "morph_dark_archon": {
+        "unit": "DarkArchon",
+        "morph": true,
+        "morph_from": "DarkTemplar"
+      },
+      "Scout_ship": "Scout"
     }
   },
   "abstract_buildings": {
@@ -26,20 +80,57 @@
       "barracks": "Barracks",
       "factory": "Factory",
       "refinery": "Refinery",
-      "starport": "Starport"
+      "starport": "Starport",
+      "supply_depot": "SupplyDepot",
+      "defense_turret": "MissileTurret",
+      "bunker": "Bunker",
+      "tech_infantry": "Academy",
+      "tech_armor": "EngineeringBay",
+      "tech_vehicle": "MachineShop",
+      "tech_air": "ControlTower",
+      "science": "ScienceFacility",
+      "armory": "Armory",
+      "comstat": "ComstatStation"
     },
     "2": {
       "base": "Hatchery",
       "barracks": "SpawningPool",
+      "factory": "HydraliskDen",
+      "starport": "Spire",
       "refinery": "Extractor",
       "lair": "Lair",
-      "hive": "Hive"
+      "hive": "Hive",
+      "defense": "CreepColony",
+      "defense_air": "SporeColony",
+      "defense_ground": "SunkenColony",
+      "tech_basic": "EvolutionChamber",
+      "queen": "QueenNest",
+      "defiler": "DefilerMound",
+      "nydus": "NydusCanal",
+      "ultra": "UltraliskCavern",
+      "morph_base": "Lair",
+      "morph_base2": "Hive",
+      "queen_nest": "QueenNest",
+      "defiler_mound": "DefilerMound",
+      "ultra_cavern": "UltraliskCavern"
     },
     "3": {
       "base": "Nexus",
       "barracks": "Gateway",
+      "factory": "RoboticsFacility",
+      "starport": "StarGate",
       "refinery": "Assimilator",
-      "pylon": "Pylon"
+      "supply_depot": "Pylon",
+      "defense": "PhotonCannon",
+      "shield_station": "ShieldBattery",
+      "tech_basic": "Forge",
+      "tech_cyber": "CyberneticsCore",
+      "tech_infantry": "CitadelOfAdun",
+      "tech_templar": "TemplarArchives",
+      "tech_robotics": "RoboticsSupportBay",
+      "tech_fleet": "FleetBeacon",
+      "tech_observatory": "Observatory",
+      "tech_arbiter": "ArbiterTribunal"
     }
   },
   "unit_visuals": {
@@ -51,7 +142,23 @@
       "vfx_profile": "terran_small_arms",
       "audio_prefix": "SCV",
       "render_scale": 0.0208,
-      "selection_radius": 0.688
+      "selection_radius": 0.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Marine": {
       "race": "terran",
@@ -61,7 +168,23 @@
       "vfx_profile": "terran_small_arms",
       "audio_prefix": "Marine",
       "render_scale": 0.0072,
-      "selection_radius": 0.688
+      "selection_radius": 0.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Firebat": {
       "race": "terran",
@@ -71,7 +194,23 @@
       "vfx_profile": "terran_flame",
       "audio_prefix": "Firebat",
       "render_scale": 0.0234,
-      "selection_radius": 0.5
+      "selection_radius": 0.5,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Ghost": {
       "race": "terran",
@@ -81,7 +220,23 @@
       "vfx_profile": "terran_small_arms",
       "audio_prefix": "Ghost",
       "render_scale": 0.0208,
-      "selection_radius": 0.672
+      "selection_radius": 0.672,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Medic": {
       "race": "terran",
@@ -91,7 +246,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Medic",
       "render_scale": 0.0234,
-      "selection_radius": 0.5
+      "selection_radius": 0.5,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Vulture": {
       "race": "terran",
@@ -101,7 +272,23 @@
       "vfx_profile": "terran_ordnance",
       "audio_prefix": "Vulture",
       "render_scale": 0.0208,
-      "selection_radius": 1.25
+      "selection_radius": 1.25,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Tank": {
       "race": "terran",
@@ -111,7 +298,23 @@
       "vfx_profile": "terran_ordnance",
       "audio_prefix": "Tank",
       "render_scale": 0.0208,
-      "selection_radius": 1.25
+      "selection_radius": 1.25,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Goliath": {
       "race": "terran",
@@ -121,7 +324,23 @@
       "vfx_profile": "terran_ordnance",
       "audio_prefix": "Goliath",
       "render_scale": 0.0208,
-      "selection_radius": 1.188
+      "selection_radius": 1.188,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Wraith": {
       "race": "terran",
@@ -131,7 +350,23 @@
       "vfx_profile": "terran_ship",
       "audio_prefix": "Wraith",
       "render_scale": 0.0208,
-      "selection_radius": 0.781
+      "selection_radius": 0.781,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Dropship": {
       "race": "terran",
@@ -141,7 +376,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Dropship",
       "render_scale": 0.0208,
-      "selection_radius": 0.938
+      "selection_radius": 0.938,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Vessel": {
       "race": "terran",
@@ -151,7 +402,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Vessel",
       "render_scale": 0.0208,
-      "selection_radius": 1.094
+      "selection_radius": 1.094,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Valkyrie": {
       "race": "terran",
@@ -161,7 +428,23 @@
       "vfx_profile": "terran_ship",
       "audio_prefix": "Valkyrie",
       "render_scale": 0.0208,
-      "selection_radius": 0.906
+      "selection_radius": 0.906,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "BattleCruiser": {
       "race": "terran",
@@ -171,7 +454,23 @@
       "vfx_profile": "terran_ship",
       "audio_prefix": "BattleCruiser",
       "render_scale": 0.0208,
-      "selection_radius": 1.469
+      "selection_radius": 1.469,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Civilian": {
       "race": "terran",
@@ -181,7 +480,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Civilian",
       "render_scale": 0.0242,
-      "selection_radius": 0.484
+      "selection_radius": 0.484,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Marine.png",
+        "render_scale": 0.0072
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Drone": {
       "race": "zerg",
@@ -191,7 +506,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Drone",
       "render_scale": 0.0107,
-      "selection_radius": 0.688
+      "selection_radius": 0.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Zergling": {
       "race": "zerg",
@@ -201,7 +532,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Zergling",
       "render_scale": 0.0087,
-      "selection_radius": 0.531
+      "selection_radius": 0.531,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Hydralisk": {
       "race": "zerg",
@@ -211,7 +558,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Hydralisk",
       "render_scale": 0.0121,
-      "selection_radius": 0.781
+      "selection_radius": 0.781,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Lurker": {
       "race": "zerg",
@@ -221,7 +584,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Lurker",
       "render_scale": 0.0208,
-      "selection_radius": 0.938
+      "selection_radius": 0.938,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Ultralisk": {
       "race": "zerg",
@@ -231,7 +610,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Ultralisk",
       "render_scale": 0.0208,
-      "selection_radius": 1.688
+      "selection_radius": 1.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Broodling": {
       "race": "zerg",
@@ -241,7 +636,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Broodling",
       "render_scale": 0.0208,
-      "selection_radius": 0.594
+      "selection_radius": 0.594,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "InfestedTerran": {
       "race": "zerg",
@@ -251,7 +662,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "InfestedTerran",
       "render_scale": 0.0208,
-      "selection_radius": 0.688
+      "selection_radius": 0.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Overlord": {
       "race": "zerg",
@@ -261,7 +688,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Overlord",
       "render_scale": 0.0208,
-      "selection_radius": 1.125
+      "selection_radius": 1.125,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Queen": {
       "race": "zerg",
@@ -271,7 +714,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Queen",
       "render_scale": 0.0208,
-      "selection_radius": 1.219
+      "selection_radius": 1.219,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Defiler": {
       "race": "zerg",
@@ -281,7 +740,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Defiler",
       "render_scale": 0.0208,
-      "selection_radius": 1.125
+      "selection_radius": 1.125,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Mutalisk": {
       "race": "zerg",
@@ -291,7 +766,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Mutalisk",
       "render_scale": 0.0208,
-      "selection_radius": 1.172
+      "selection_radius": 1.172,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Guardian": {
       "race": "zerg",
@@ -301,7 +792,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Guardian",
       "render_scale": 0.0208,
-      "selection_radius": 1.266
+      "selection_radius": 1.266,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Devourer": {
       "race": "zerg",
@@ -311,7 +818,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Devourer",
       "render_scale": 0.0208,
-      "selection_radius": 1.344
+      "selection_radius": 1.344,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Scourge": {
       "race": "zerg",
@@ -321,7 +844,23 @@
       "vfx_profile": "zerg_acid",
       "audio_prefix": "Scourge",
       "render_scale": 0.0221,
-      "selection_radius": 0.531
+      "selection_radius": 0.531,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Larva": {
       "race": "zerg",
@@ -331,7 +870,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Larva",
       "render_scale": 0.0234,
-      "selection_radius": 0.5
+      "selection_radius": 0.5,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zergling.png",
+        "render_scale": 0.0087
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Probe": {
       "race": "protoss",
@@ -341,7 +896,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Probe",
       "render_scale": 0.0234,
-      "selection_radius": 0.5
+      "selection_radius": 0.5,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Zealot": {
       "race": "protoss",
@@ -351,7 +922,23 @@
       "vfx_profile": "protoss_psi_melee",
       "audio_prefix": "Zealot",
       "render_scale": 0.0109,
-      "selection_radius": 0.688
+      "selection_radius": 0.688,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Dragoon": {
       "race": "protoss",
@@ -361,7 +948,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Dragoon",
       "render_scale": 0.0208,
-      "selection_radius": 0.875
+      "selection_radius": 0.875,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Templar": {
       "race": "protoss",
@@ -371,7 +974,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Templar",
       "render_scale": 0.0208,
-      "selection_radius": 1.062
+      "selection_radius": 1.062,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "DarkTemplar": {
       "race": "protoss",
@@ -381,7 +1000,23 @@
       "vfx_profile": "protoss_psi_melee",
       "audio_prefix": "DarkTemplar",
       "render_scale": 0.0208,
-      "selection_radius": 0.969
+      "selection_radius": 0.969,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Archon": {
       "race": "protoss",
@@ -391,7 +1026,23 @@
       "vfx_profile": "protoss_psi_melee",
       "audio_prefix": "Archon",
       "render_scale": 0.0208,
-      "selection_radius": 1.25
+      "selection_radius": 1.25,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "DarkArchon": {
       "race": "protoss",
@@ -401,7 +1052,23 @@
       "vfx_profile": "none",
       "audio_prefix": "DarkArchon",
       "render_scale": 0.0208,
-      "selection_radius": 1.25
+      "selection_radius": 1.25,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Reaver": {
       "race": "protoss",
@@ -411,7 +1078,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Reaver",
       "render_scale": 0.0208,
-      "selection_radius": 1.312
+      "selection_radius": 1.312,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Shuttle": {
       "race": "protoss",
@@ -421,7 +1104,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Shuttle",
       "render_scale": 0.0208,
-      "selection_radius": 0.938
+      "selection_radius": 0.938,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Observer": {
       "race": "protoss",
@@ -431,7 +1130,23 @@
       "vfx_profile": "none",
       "audio_prefix": "Observer",
       "render_scale": 0.0208,
-      "selection_radius": 0.625
+      "selection_radius": 0.625,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Arbiter": {
       "race": "protoss",
@@ -441,7 +1156,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Arbiter",
       "render_scale": 0.0208,
-      "selection_radius": 1.188
+      "selection_radius": 1.188,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Scout": {
       "race": "protoss",
@@ -451,7 +1182,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Scout",
       "render_scale": 0.0208,
-      "selection_radius": 0.875
+      "selection_radius": 0.875,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Carrier": {
       "race": "protoss",
@@ -461,7 +1208,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Carrier",
       "render_scale": 0.0176,
-      "selection_radius": 2.0
+      "selection_radius": 2.0,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     },
     "Corsair": {
       "race": "protoss",
@@ -471,7 +1234,23 @@
       "vfx_profile": "protoss_energy",
       "audio_prefix": "Corsair",
       "render_scale": 0.0208,
-      "selection_radius": 0.938
+      "selection_radius": 0.938,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "asset": "res://assets/sprites/units/Zealot.png",
+        "render_scale": 0.0109
+      },
+      "selection_ring_offset": [
+        0,
+        0.05
+      ]
     }
   },
   "building_visuals": {
@@ -481,8 +1260,35 @@
       "asset": "res://assets/sprites/buildings/TerranBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "CommandCenter",
-      "render_scale": 0.0156,
-      "selection_radius": 4.1
+      "render_scale": 0.04,
+      "selection_radius": 4.1,
+      "atlas_rect": [
+        205,
+        190,
+        145,
+        95
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "SupplyDepot": {
       "race": "terran",
@@ -491,7 +1297,34 @@
       "vfx_profile": "building",
       "audio_prefix": "SupplyDepot",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        191,
+        0,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Refinery": {
       "race": "terran",
@@ -499,8 +1332,35 @@
       "asset": "res://assets/sprites/buildings/TerranBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Refinery",
-      "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "render_scale": 0.026,
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        382,
+        189,
+        191,
+        77
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Barracks": {
       "race": "terran",
@@ -508,8 +1368,35 @@
       "asset": "res://assets/sprites/buildings/TerranBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Barracks",
-      "render_scale": 0.0156,
-      "selection_radius": 3.2
+      "render_scale": 0.0319,
+      "selection_radius": 3.2,
+      "atlas_rect": [
+        573,
+        197,
+        191,
+        69
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "EngineeringBay": {
       "race": "terran",
@@ -518,7 +1405,34 @@
       "vfx_profile": "building",
       "audio_prefix": "EngineeringBay",
       "render_scale": 0.0156,
-      "selection_radius": 3.2
+      "selection_radius": 3.2,
+      "atlas_rect": [
+        764,
+        0,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "MissileTurret": {
       "race": "terran",
@@ -527,7 +1441,34 @@
       "vfx_profile": "building",
       "audio_prefix": "MissileTurret",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        955,
+        0,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Academy": {
       "race": "terran",
@@ -536,7 +1477,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Academy",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        0,
+        266,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Bunker": {
       "race": "terran",
@@ -545,7 +1513,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Bunker",
       "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        191,
+        266,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Factory": {
       "race": "terran",
@@ -553,8 +1548,35 @@
       "asset": "res://assets/sprites/buildings/TerranBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Factory",
-      "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "render_scale": 0.0426,
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        409,
+        466,
+        164,
+        47
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Starport": {
       "race": "terran",
@@ -562,8 +1584,35 @@
       "asset": "res://assets/sprites/buildings/TerranBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Starport",
-      "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "render_scale": 0.0256,
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        573,
+        446,
+        191,
+        86
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ScienceFacility": {
       "race": "terran",
@@ -572,7 +1621,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ScienceFacility",
       "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        764,
+        266,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Armory": {
       "race": "terran",
@@ -581,7 +1657,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Armory",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        955,
+        266,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ComstatStation": {
       "race": "terran",
@@ -590,7 +1693,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ComstatStation",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        0,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "NuclearSilo": {
       "race": "terran",
@@ -599,7 +1729,34 @@
       "vfx_profile": "building",
       "audio_prefix": "NuclearSilo",
       "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        191,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "MachineShop": {
       "race": "terran",
@@ -608,7 +1765,34 @@
       "vfx_profile": "building",
       "audio_prefix": "MachineShop",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        382,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ControlTower": {
       "race": "terran",
@@ -617,7 +1801,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ControlTower",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        573,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "PhysicsLab": {
       "race": "terran",
@@ -626,7 +1837,34 @@
       "vfx_profile": "building",
       "audio_prefix": "PhysicsLab",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        764,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ConvertOps": {
       "race": "terran",
@@ -635,7 +1873,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ConvertOps",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        955,
+        532,
+        191,
+        266
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          109
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Hatchery": {
       "race": "zerg",
@@ -643,8 +1908,35 @@
       "asset": "res://assets/sprites/buildings/ZergBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Hatchery",
-      "render_scale": 0.0107,
-      "selection_radius": 4.1
+      "render_scale": 0.033,
+      "selection_radius": 4.1,
+      "atlas_rect": [
+        30,
+        301,
+        121,
+        128
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Lair": {
       "race": "zerg",
@@ -652,8 +1944,35 @@
       "asset": "res://assets/sprites/buildings/ZergBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Lair",
-      "render_scale": 0.0107,
-      "selection_radius": 4.1
+      "render_scale": 0.019,
+      "selection_radius": 4.1,
+      "atlas_rect": [
+        10,
+        627,
+        210,
+        132
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Hive": {
       "race": "zerg",
@@ -661,8 +1980,35 @@
       "asset": "res://assets/sprites/buildings/ZergBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "Hive",
-      "render_scale": 0.0107,
-      "selection_radius": 4.1
+      "render_scale": 0.028,
+      "selection_radius": 4.1,
+      "atlas_rect": [
+        11,
+        1184,
+        141,
+        124
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "CreepColony": {
       "race": "zerg",
@@ -671,7 +2017,34 @@
       "vfx_profile": "building",
       "audio_prefix": "CreepColony",
       "render_scale": 0.0107,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        1458,
+        0,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "SunkenColony": {
       "race": "zerg",
@@ -680,7 +2053,34 @@
       "vfx_profile": "building",
       "audio_prefix": "SunkenColony",
       "render_scale": 0.0107,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        0,
+        362,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "SporeColony": {
       "race": "zerg",
@@ -689,7 +2089,34 @@
       "vfx_profile": "building",
       "audio_prefix": "SporeColony",
       "render_scale": 0.0107,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        486,
+        362,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Extractor": {
       "race": "zerg",
@@ -698,7 +2125,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Extractor",
       "render_scale": 0.0107,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        972,
+        362,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "SpawningPool": {
       "race": "zerg",
@@ -706,8 +2160,35 @@
       "asset": "res://assets/sprites/buildings/ZergBuilding.png",
       "vfx_profile": "building",
       "audio_prefix": "SpawningPool",
-      "render_scale": 0.0107,
-      "selection_radius": 2.8
+      "render_scale": 0.048,
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        1478,
+        688,
+        83,
+        85
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "EvolutionChamber": {
       "race": "zerg",
@@ -716,7 +2197,34 @@
       "vfx_profile": "building",
       "audio_prefix": "EvolutionChamber",
       "render_scale": 0.0107,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        0,
+        724,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "HydraliskDen": {
       "race": "zerg",
@@ -725,7 +2233,34 @@
       "vfx_profile": "building",
       "audio_prefix": "HydraliskDen",
       "render_scale": 0.0107,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        486,
+        724,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Spire": {
       "race": "zerg",
@@ -734,7 +2269,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Spire",
       "render_scale": 0.0107,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        972,
+        724,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "GreaterSpire": {
       "race": "zerg",
@@ -743,7 +2305,34 @@
       "vfx_profile": "building",
       "audio_prefix": "GreaterSpire",
       "render_scale": 0.0107,
-      "selection_radius": 3.5
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        1458,
+        724,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "QueenNest": {
       "race": "zerg",
@@ -752,7 +2341,34 @@
       "vfx_profile": "building",
       "audio_prefix": "QueenNest",
       "render_scale": 0.0107,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        0,
+        1086,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "NydusCanal": {
       "race": "zerg",
@@ -761,7 +2377,34 @@
       "vfx_profile": "building",
       "audio_prefix": "NydusCanal",
       "render_scale": 0.0107,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        486,
+        1086,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "UltraliskCavern": {
       "race": "zerg",
@@ -770,7 +2413,34 @@
       "vfx_profile": "building",
       "audio_prefix": "UltraliskCavern",
       "render_scale": 0.0107,
-      "selection_radius": 3.2
+      "selection_radius": 3.2,
+      "atlas_rect": [
+        972,
+        1086,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "DefilerMound": {
       "race": "zerg",
@@ -779,7 +2449,34 @@
       "vfx_profile": "building",
       "audio_prefix": "DefilerMound",
       "render_scale": 0.0107,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        1458,
+        1086,
+        486,
+        362
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1475,
+          670,
+          89,
+          100
+        ],
+        "render_scale": 0.045
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Nexus": {
       "race": "protoss",
@@ -788,7 +2485,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Nexus",
       "render_scale": 0.0156,
-      "selection_radius": 4.1
+      "selection_radius": 4.1,
+      "atlas_rect": [
+        0,
+        0,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Pylon": {
       "race": "protoss",
@@ -797,7 +2521,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Pylon",
       "render_scale": 0.0156,
-      "selection_radius": 2.0
+      "selection_radius": 2.0,
+      "atlas_rect": [
+        209,
+        0,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Assimilator": {
       "race": "protoss",
@@ -806,7 +2557,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Assimilator",
       "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        418,
+        0,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Gateway": {
       "race": "protoss",
@@ -815,7 +2593,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Gateway",
       "render_scale": 0.0156,
-      "selection_radius": 3.2
+      "selection_radius": 3.2,
+      "atlas_rect": [
+        627,
+        0,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Forge": {
       "race": "protoss",
@@ -824,7 +2629,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Forge",
       "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        0,
+        200,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "PhotonCannon": {
       "race": "protoss",
@@ -833,7 +2665,34 @@
       "vfx_profile": "building",
       "audio_prefix": "PhotonCannon",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        209,
+        200,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "CyberneticsCore": {
       "race": "protoss",
@@ -842,7 +2701,34 @@
       "vfx_profile": "building",
       "audio_prefix": "CyberneticsCore",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        418,
+        200,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ShieldBattery": {
       "race": "protoss",
@@ -851,7 +2737,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ShieldBattery",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        627,
+        200,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "RoboticsFacility": {
       "race": "protoss",
@@ -860,7 +2773,34 @@
       "vfx_profile": "building",
       "audio_prefix": "RoboticsFacility",
       "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        0,
+        400,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "StarGate": {
       "race": "protoss",
@@ -869,7 +2809,34 @@
       "vfx_profile": "building",
       "audio_prefix": "StarGate",
       "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        209,
+        400,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "CitadelOfAdun": {
       "race": "protoss",
@@ -878,7 +2845,34 @@
       "vfx_profile": "building",
       "audio_prefix": "CitadelOfAdun",
       "render_scale": 0.0156,
-      "selection_radius": 3.2
+      "selection_radius": 3.2,
+      "atlas_rect": [
+        418,
+        400,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "RoboticsSupportBay": {
       "race": "protoss",
@@ -887,7 +2881,34 @@
       "vfx_profile": "building",
       "audio_prefix": "RoboticsSupportBay",
       "render_scale": 0.0156,
-      "selection_radius": 2.8
+      "selection_radius": 2.8,
+      "atlas_rect": [
+        627,
+        400,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "FleetBeacon": {
       "race": "protoss",
@@ -896,7 +2917,34 @@
       "vfx_profile": "building",
       "audio_prefix": "FleetBeacon",
       "render_scale": 0.0156,
-      "selection_radius": 3.5
+      "selection_radius": 3.5,
+      "atlas_rect": [
+        0,
+        600,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "TemplarArchives": {
       "race": "protoss",
@@ -905,7 +2953,34 @@
       "vfx_profile": "building",
       "audio_prefix": "TemplarArchives",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        209,
+        600,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "Observatory": {
       "race": "protoss",
@@ -914,7 +2989,34 @@
       "vfx_profile": "building",
       "audio_prefix": "Observatory",
       "render_scale": 0.0156,
-      "selection_radius": 2.5
+      "selection_radius": 2.5,
+      "atlas_rect": [
+        418,
+        600,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     },
     "ArbiterTribunal": {
       "race": "protoss",
@@ -923,7 +3025,34 @@
       "vfx_profile": "building",
       "audio_prefix": "ArbiterTribunal",
       "render_scale": 0.0156,
-      "selection_radius": 3.0
+      "selection_radius": 3.0,
+      "atlas_rect": [
+        627,
+        600,
+        209,
+        200
+      ],
+      "pivot": [
+        0.5,
+        0.72
+      ],
+      "health_bar_offset": [
+        0,
+        -0.28
+      ],
+      "fallback": {
+        "atlas_rect": [
+          1,
+          1,
+          128,
+          128
+        ],
+        "render_scale": 0.015
+      },
+      "selection_ring_offset": [
+        0,
+        0.1
+      ]
     }
   },
   "spell_visuals": {
@@ -1130,6 +3259,45 @@
       "target": "self",
       "effect": "psi_flash",
       "sfx": "BuildScarab"
+    }
+  },
+  "_rendering": {
+    "selection_ring": {
+      "line_width": 0.055,
+      "segments": 24,
+      "color": [
+        0.2,
+        1.0,
+        0.2,
+        0.88
+      ]
+    },
+    "health_bar": {
+      "offset_y": -0.28,
+      "width_factor": 1.45,
+      "width_min": 0.55,
+      "width_max": 2.8,
+      "height": 0.15
+    },
+    "building_scale_transform": {
+      "multiplier": 0.34,
+      "min": 0.95,
+      "max": 1.65
+    },
+    "unit_scale_transform": {
+      "multiplier": 0.78,
+      "min": 0.38,
+      "max": 0.72
+    },
+    "building_selection_transform": {
+      "multiplier": 0.34,
+      "min": 0.95,
+      "max": 1.65
+    },
+    "unit_selection_transform": {
+      "multiplier": 0.78,
+      "min": 0.38,
+      "max": 0.72
     }
   }
 }

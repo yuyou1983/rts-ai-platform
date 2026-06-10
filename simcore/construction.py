@@ -905,6 +905,76 @@ def process_construction(
         else:
             built[eid] = {**e, "upgrade_timers": upgrade_timers}
 
+
+    # ─── 7b. Process Zerg building morph (Hatchery→Lair→Hive) ─────────
+    # Morph command: {"action": "morph_building", "building_id": "xxx", "morph_target": "morph_base"}
+    # Supported: morph_base (Hatchery→Lair), morph_base2 (Lair→Hive)
+    _ZERG_MORPH_MAP = {
+        "morph_base": {"from": "base", "to": "morph_base", "json": "Lair",
+                       "hp": 1800, "cost_mine": 150, "cost_gas": 100, "ticks": 600},
+        "morph_base2": {"from": "morph_base", "to": "morph_base2", "json": "Hive",
+                        "hp": 2500, "cost_mine": 200, "cost_gas": 150, "ticks": 600},
+    }
+    for cmd in commands:
+        if cmd.get("action") != "morph_building":
+            continue
+        building_id = cmd.get("building_id", "") or cmd.get("entity_id", "")
+        morph_key = cmd.get("morph_target", "")
+        if building_id not in built or morph_key not in _ZERG_MORPH_MAP:
+            continue
+        building = built[building_id]
+        if building.get("entity_type") != "building":
+            continue
+        if building.get("is_constructing"):
+            continue
+        owner = building.get("owner", 1)
+        race = get_race(owner)
+        if race != "zerg":
+            continue
+        minfo = _ZERG_MORPH_MAP[morph_key]
+        current_bt = building.get("building_type", "")
+        # Verify the building is the correct source type
+        if current_bt != minfo["from"]:
+            continue
+        pkey_mine = f"p{owner}_mineral"
+        pkey_gas = f"p{owner}_gas"
+        if res.get(pkey_mine, 0) < minfo["cost_mine"]:
+            continue
+        if res.get(pkey_gas, 0) < minfo["cost_gas"]:
+            continue
+        # Deduct cost and start morph
+        res[pkey_mine] = res.get(pkey_mine, 0) - minfo["cost_mine"]
+        res[pkey_gas] = res.get(pkey_gas, 0) - minfo["cost_gas"]
+        built[building_id] = {
+            **building,
+            "morph_target": morph_key,
+            "morph_json": minfo["json"],
+            "morph_timer": minfo["ticks"] // 10,  # convert SC ticks
+            "morph_hp_target": minfo["hp"],
+        }
+
+    # Advance morph timers
+    for eid, e in list(built.items()):
+        if not e.get("morph_target"):
+            continue
+        timer = e.get("morph_timer", 0) - 1
+        if timer <= 0:
+            # Morph complete — transform the building
+            mkey = e["morph_target"]
+            minfo = _ZERG_MORPH_MAP.get(mkey, {})
+            built[eid] = {
+                **e,
+                "building_type": minfo.get("to", e.get("building_type", "")),
+                "unit_type": minfo.get("json", e.get("unit_type", "")),
+                "max_health": minfo.get("hp", e.get("max_health", 100)),
+                "morph_target": "",
+                "morph_json": "",
+                "morph_timer": 0,
+                "morph_hp_target": 0,
+            }
+        else:
+            built[eid] = {**e, "morph_timer": timer}
+
     # ─── 8. Terran: SCV repair ───────────────────────────────
     for cmd in commands:
         if cmd.get("action") != "repair":

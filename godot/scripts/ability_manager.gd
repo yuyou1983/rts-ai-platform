@@ -141,12 +141,20 @@ func process_ability_input(
 			var keycode: Key = input_event.keycode
 			if _hotkey_map.has(keycode):
 				var ability_id: StringName = _hotkey_map[keycode]
+				# ── Skip "build" and "train" — they need sub-selection ──
+				# (which building / which unit) that the legacy keyboard
+				# handler + HUD panel provides.  Let them fall through.
+				if ability_id == &"build" or ability_id == &"train":
+					return false
 				if selected_abilities.has(ability_id):
 					_initiate_ability(ability_id)
 					return true
 			# Also check AbilityResource hotkeys from registry
 			for aid in _ability_registry:
 				var res: AbilityResource = _ability_registry[aid]
+				# Same skip for build/train from AbilityResource
+				if aid == &"build" or aid == &"train":
+					continue
 				if res.hotkey == keycode and selected_abilities.has(aid):
 					_initiate_ability(aid)
 					return true

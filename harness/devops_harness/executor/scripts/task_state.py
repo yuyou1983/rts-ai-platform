@@ -139,6 +139,53 @@ def _record_episode(
     return episode_file
 
 
+def _record_skill_trial(
+    project_root: Path,
+    task_id: str,
+    task_description: str,
+    outcome: str,
+    skill_name: str | None = None,
+    strategy_label: str = "",
+    files_changed: list[str] | None = None,
+    validation_commands_run: list[str] | None = None,
+    validation_results: list[str] | None = None,
+    skill_md_read: bool = False,
+    primary_action_invoked: bool = False,
+    token_count: int = 0,
+    turn_count: int = 0,
+    duration_seconds: float = 0.0,
+) -> Path | None:
+    """Record a SkillTrial to harness/trace/trials/ for skill evolution.
+
+    This is a lightweight wrapper — the coordinator fills in the fields it
+    knows at complete_task time.  Fields that require tool-call introspection
+    (tool_calls list, silent_bypass detection) can be enriched later by a
+    trace-analysis pass.
+    """
+    try:
+        from harness.trace.schema import SkillTrial, record_trial
+    except ImportError:
+        logger.warning("harness.trace.schema not available — skipping skill trial recording")
+        return None
+
+    trial = SkillTrial(
+        task_id=task_id,
+        task_description=task_description[:200],
+        skill_name=skill_name or "unknown",
+        outcome=outcome,
+        strategy_label=strategy_label,
+        skill_md_read=skill_md_read,
+        primary_action_invoked=primary_action_invoked,
+        validation_commands_run=validation_commands_run or [],
+        validation_results=validation_results or [],
+        token_count=token_count,
+        turn_count=turn_count,
+        duration_seconds=duration_seconds,
+        touched_files=files_changed or [],
+    )
+    return record_trial(trial)
+
+
 def get_task_id(name: str) -> str:
     """Generate a unique task ID from name + timestamp."""
     slug = slugify(name)
@@ -404,6 +451,29 @@ def complete_task(args) -> int:
         )
         print(f"   Lessons recorded to: {episode_file}")
 
+    # Record skill trial for skill evolution
+    skill_name = getattr(args, 'skill_name', None) or task_data.get("skill_name", "unknown")
+    strategy_label = getattr(args, 'strategy_label', '') or task_data.get("strategy_label", "")
+    files_changed = getattr(args, 'files_changed', None) or task_data.get("files_changed", [])
+    trial_path = _record_skill_trial(
+        project_root,
+        task_id=task_id,
+        task_description=task_data.get("task", "Unknown task"),
+        outcome="pass",
+        skill_name=skill_name,
+        strategy_label=strategy_label,
+        files_changed=files_changed,
+        validation_commands_run=getattr(args, 'validation_commands_run', None),
+        validation_results=getattr(args, 'validation_results', None),
+        skill_md_read=getattr(args, 'skill_md_read', False),
+        primary_action_invoked=getattr(args, 'primary_action_invoked', False),
+        token_count=getattr(args, 'token_count', 0),
+        turn_count=getattr(args, 'turn_count', 0),
+        duration_seconds=getattr(args, 'duration_seconds', 0.0),
+    )
+    if trial_path:
+        print(f"   Skill trial recorded to: {trial_path}")
+
     # Remove current symlink
     current_link = get_tasks_dir(project_root) / "current"
     if current_link.is_symlink():
@@ -554,6 +624,17 @@ def main():
     complete_parser.add_argument("--lessons", help="Lessons learned (JSON array or string)")
     complete_parser.add_argument("--skip-gate", action="store_true", help="Skip verification gate check (not recommended)")
     complete_parser.add_argument("--project-root", help="Override project root (for worktree mode)")
+
+    # SkillEvolver trace parameters
+    complete_parser.add_argument("--skill-name", help="Skill name for trace recording (e.g. godot-specialist)")
+    complete_parser.add_argument("--strategy-label", default="", help="Strategy label (A/B/C/D) for multi-strategy exploration")
+    complete_parser.add_argument("--skill-md-read", action="store_true", help="Mark that SKILL.md was read during execution")
+    complete_parser.add_argument("--primary-action-invoked", action="store_true", help="Mark that primary_action was invoked")
+    complete_parser.add_argument("--validation-commands-run", nargs="+", help="Validation commands that were run")
+    complete_parser.add_argument("--validation-results", nargs="+", help="Results of validation commands")
+    complete_parser.add_argument("--token-count", type=int, default=0, help="Total token count for this task")
+    complete_parser.add_argument("--turn-count", type=int, default=0, help="Total turn count for this task")
+    complete_parser.add_argument("--duration-seconds", type=float, default=0.0, help="Wall-clock duration of this task")
 
     # show command
     show_parser = subparsers.add_parser("show", help="Show task details")

@@ -29,6 +29,11 @@ CLIFF_DELTA = 3       # height difference ≥ 3 → impassable cliff
 RAMP_DELTA = 2         # height difference ≤ 2 → walkable ramp
 HEIGHT_VISION_BONUS = 2  # +1 vision per 2 height levels
 
+# High ground advantage constants (SC1 core mechanic)
+HIGH_GROUND_THRESHOLD = 4  # height ≥ this is considered "high ground"
+HIGH_GROUND_HIT_RATE = 0.70   # attacker on high ground → 70% hit
+LOW_GROUND_HIT_RATE = 0.30    # attacker on low ground → 30% hit
+
 
 @dataclass
 class TileMap:
@@ -89,6 +94,45 @@ class TileMap:
         """Extra vision range from elevation. +1 per 2 height levels."""
         h = self.get_height(x, y)
         return h // HEIGHT_VISION_BONUS
+
+    def is_high_ground(self, x: int, y: int) -> bool:
+        """Check if tile is considered high ground for combat purposes."""
+        return self.get_height(x, y) >= HIGH_GROUND_THRESHOLD
+
+    def high_ground_hit_chance(self, attacker_x: int, attacker_y: int,
+                                target_x: int, target_y: int) -> float:
+        """Calculate hit chance based on elevation difference.
+
+        SC1 high ground advantage:
+          - Attacker on high ground, target on low ground → 70% hit (30% miss)
+          - Attacker on low ground, target on high ground → 30% hit (70% miss)
+          - Same elevation → 100% hit
+
+        Args:
+            attacker_x, attacker_y: attacker tile position
+            target_x, target_y: target tile position
+
+        Returns:
+            Hit probability (0.0 to 1.0).
+        """
+        a_high = self.is_high_ground(attacker_x, attacker_y)
+        t_high = self.is_high_ground(target_x, target_y)
+        if a_high and not t_high:
+            return HIGH_GROUND_HIT_RATE
+        elif not a_high and t_high:
+            return LOW_GROUND_HIT_RATE
+        return 1.0  # same elevation
+
+    def get_elevation_grid(self) -> list[list[int]]:
+        """Return a simplified 2-tier elevation grid (0=low, 1=high) for GameState.
+
+        This is useful for storing in GameState when the full height_map is not needed.
+        """
+        return [
+            [1 if self.height_map[y][x] >= HIGH_GROUND_THRESHOLD else 0
+             for x in range(self.width)]
+            for y in range(self.height)
+        ]
 
     # ── Terrain API ──────────────────────────────────────────────────
 

@@ -13,6 +13,17 @@ __pycache__/
 *.pyc
 .venv/
 
+# Node / frontend
+node_modules/
+platform/dashboard/node_modules/
+platform/dashboard/dist/
+
+# Local proprietary asset extraction workspace
+local_assets/
+extracted_assets/
+tools/mpq/
+StarCraft/**/*.mpq.extracted/
+
 # Large assets (available on demand)
 # docs/RTS_Agent_Architecture_Deck.pdf
 # Godot editor cache

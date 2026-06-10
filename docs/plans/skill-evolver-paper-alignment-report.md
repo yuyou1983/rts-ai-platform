@@ -6,13 +6,13 @@
 
 Core SkillEvolver harness work is implemented and unit-tested, but final acceptance is blocked by:
 1. architecture lint violation in `simcore/http_gateway.py`
-2. presentation verifier crash on nested abstract unit mappings
+2. Godot fog smoothing held-out requires a running local gameplay service
 3. Godot check-only timeout / unavailable verification
-4. dry-run candidate was rejected by auditor, so no skill patch is promotable yet
+4. dry-run candidate passed auditor but failed held-out, so no skill patch is promotable yet
 
 ## Summary
 
-SkillEvolver has been upgraded from a P0 scaffold to a Godot VFX dry-run evolution loop with complete registry coverage, strict trace validation, task fixtures, strategy packet generation, structured auditing, and stronger held-out validation. However, final gate did not pass — current status is **completed with blockers**.
+SkillEvolver has been upgraded from a P0 scaffold to a Godot VFX dry-run evolution loop with complete registry coverage, strict trace validation, task fixtures, strategy packet generation, structured auditing, and stronger held-out validation. The nested manifest verifier blocker has been fixed. However, final gate still did not pass — current status is **completed with blockers**.
 
 ## Implemented
 
@@ -22,22 +22,24 @@ SkillEvolver has been upgraded from a P0 scaffold to a Godot VFX dry-run evoluti
 - Strict trace validation infers silent-bypass.
 - Godot VFX task fixture added.
 - Fresh-agent strategy packets generated for four Godot VFX strategies.
-- Structured auditor added — verified it can reject candidate patches (dry-run candidate was `dry_run_rejected` due to missing `--check-only` / manifest validation evidence).
+- Structured auditor added — verified it can reject unsafe candidate patches and accept one silent-bypass patch candidate.
 - Contrastive validation delta analysis added.
-- Godot held-out suite now uses real validation commands (but `verify_presentation_scene.py` currently crashes, so held-out is not yet usable in practice).
+- Godot held-out suite now uses real validation commands.
+- `verify_presentation_scene.py` now supports nested abstract unit mappings such as morph entries (`{"unit": "Guardian", "morph": true, ...}`).
+- SkillEvolver candidate saving now preserves multiple same-timestamp candidates instead of overwriting `patch.md` / `rationale.json`.
 
 ## Remaining Risks
 
 - Strategy packets produced are synthetic/local traces (`agent_run_id` empty, `tool_calls` empty); not yet from real Hermes fresh-agent execution. An external Hermes/Codex runner is still required for true fresh-agent trials.
 - Screenshot-based visual regression is not yet automated.
 - Candidate promotion remains manual and should stay manual until held-out suites cover at least Godot, SimCore replay, and Team-AI playbooks.
-- No candidate patch has been accepted by the auditor yet; the evolution loop is structurally complete but has not yet produced a promotable skill improvement.
+- One candidate patch was accepted by the auditor in dry-run, but held-out failed; the loop has not yet produced a promotable skill improvement.
 
 ## Next Steps (Blocker Fixes)
 
-1. **Fix `verify_presentation_scene.py`** — support nested dict values in manifest `unit_visuals` mapping (currently crashes on `unhashable type: 'dict'`).
-2. **Fix `simcore/http_gateway.py`** — remove or guard the L2→L1 fallback import of `agents.script_ai`.
-3. **Resolve Godot `--check-only` hang** — either upgrade engine, use GDScript lint alternative, or mark as optional gate.
+1. **Fix `simcore/http_gateway.py`** — remove or guard the L2→L1 fallback import of `agents.script_ai`.
+2. **Make `verify_godot_fog_smoothing.py` self-contained or start the required local service before held-out** — current held-out fails when no gameplay service is running.
+3. **Resolve Godot `--check-only` hang/crash** — either adjust Godot user log path permissions, use a GDScript lint alternative, or mark as optional gate.
 4. Re-run final gate; if all pass, update this report status to PASS.
 
 ## Final Commands
@@ -77,13 +79,13 @@ SkillEvolver has been upgraded from a P0 scaffold to a Godot VFX dry-run evoluti
 
 ### 5. `python3 scripts/verify_presentation_scene.py`
 
-- **Exit code:** 1
-- **Error:** `TypeError: unhashable type: 'dict'` at `check_manifest()` line 110
+- **Exit code:** 0
+- **Output (last lines):**
   ```
-  if sc_name not in uvs:
-  TypeError: unhashable type: 'dict'
+  OK — manifest structure valid, atlas in bounds, abstract→visual consistent
+       (hardcode drift checks passed — no divergent overrides)
   ```
-- **Known issue:** The presentation manifest maps abstract unit types to nested dicts (scene + material overrides) instead of plain strings. The `verify_presentation_scene.py` script builds a set of keys from `unit_visuals` but then compares a dict value (`sc_name`) against that set. The script needs to be updated to handle nested mapping values. See `scripts/verify_presentation_scene.py:103-110`.
+- **Resolved:** The verifier now resolves nested mapping values before checking them against `unit_visuals`.
 
 ### 6. `python3 scripts/verify_godot_fog_smoothing.py`
 

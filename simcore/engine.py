@@ -337,6 +337,7 @@ class SimCore:
         entities, resources = resolve_combat(
             entities, temp_state.resources, other_cmds, self._tick,
             kill_feed=self.rule_engine.kill_feed,
+            tile_map=self._tile_map,
         )
         # Detect combat events by comparing HP / entity presence
         if self.enable_event_log:

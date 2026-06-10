@@ -22,9 +22,11 @@ class GameState:
     resources: dict[str, int] = field(default_factory=dict)
     is_terminal: bool = False
     winner: int = 0  # 0=none/draw, 1=P1, 2=P2
-    height_map: list | None = None  # Phase D: elevation grid
+    height_map: list | None = None  # Phase D: elevation grid (full 0-8 range)
     map_width: int = 64
     map_height: int = 64
+    player_races: dict = field(default_factory=dict)  # {"1": "terran", "2": "zerg"}
+    elevation_grid: list | None = None  # SC1: simplified 2-tier grid (0=low, 1=high)
 
     def state_hash(self) -> int:
         """Compute a deterministic FNV-1a 64-bit hash of this state.
@@ -51,17 +53,19 @@ class GameState:
             "height_map": self.height_map,
             "map_width": self.map_width,
             "map_height": self.map_height,
+            "elevation_grid": self.elevation_grid,
         }
 
     def get_observations(self) -> list[dict]:
-        """Generate per-player observations (respecting fog-of-war).
+        """Generate per-player observations (respecting fog-of-war and cloak/detection).
 
         Returns:
             List of observation dicts, one per player.
             Each observation contains only entities visible to that player:
             - Own entities: always visible
             - Neutral resources: visible only in 'visible' (2) or 'explored' (1) tiles
-            - Enemy entities: visible only in 'visible' (2) tiles
+            - Enemy entities: visible only in 'visible' (2) tiles,
+              AND only if not cloaked or within detection range of a friendly detector
         """
         obs = []
         for pid in (1, 2):
@@ -70,6 +74,16 @@ class GameState:
             fog_tiles = pf.get("tiles", [])
             fw = pf.get("width", 16)
             fh = pf.get("height", 16)
+
+            # Collect friendly detector positions for cloak filtering
+            detector_positions: list[tuple[float, float, float]] = []
+            for eid, e in self.entities.items():
+                if e.get("owner") == pid:
+                    det_range = e.get("detection_range", 0)
+                    if det_range > 0:
+                        detector_positions.append(
+                            (e.get("pos_x", 0.0), e.get("pos_y", 0.0), det_range)
+                        )
 
             visible_entities: dict[str, Any] = {}
             for eid, e in self.entities.items():
@@ -96,6 +110,16 @@ class GameState:
                 else:
                     # Enemy entities: only visible if currently visible (2)
                     if fog_state == 2:
+                        # Cloak filter: cloaked enemies hidden unless in detector range
+                        if e.get("is_cloaked", False):
+                            in_detection = False
+                            for dx, dy, dr in detector_positions:
+                                dist = math.sqrt((ex - dx) ** 2 + (ey - dy) ** 2)
+                                if dist <= dr:
+                                    in_detection = True
+                                    break
+                            if not in_detection:
+                                continue  # cloaked enemy not detected → hidden
                         visible_entities[eid] = e
 
             # Own resources always visible

@@ -1,4 +1,3 @@
-class_name SelectionManager
 extends Node
 
 ## Centralized selection manager for the RTS game.

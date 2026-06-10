@@ -83,4 +83,5 @@ message GameConfig {
   float  tick_rate    = 5;
   string game_mode    = 6;  // "1v1_skirmish", "2v2_team", etc.
   bool   enable_elevation = 7;  // Phase D: terrain height system
+  map<string, string> player_races = 8;  // {"1": "terran", "2": "zerg"}
 }

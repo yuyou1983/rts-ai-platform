@@ -1,0 +1,5 @@
+# SkillEvolver runtime artifacts — generated per run, not infrastructure
+harness/skills/backups/
+harness/skills/candidates/
+harness/trace/trials/
+harness/trace/skill_usage.jsonl

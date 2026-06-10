@@ -249,7 +249,12 @@ def contrast_trials(skill_name: str) -> list[SkillPatch]:
 
 def save_patch_candidate(patch: SkillPatch) -> Path:
     """保存 patch 候选到文件系统。"""
-    dir_path = CANDIDATES_DIR / patch.skill_name / patch.timestamp
+    base_dir = CANDIDATES_DIR / patch.skill_name / patch.timestamp
+    dir_path = base_dir
+    suffix = 2
+    while dir_path.exists() and any(dir_path.iterdir()):
+        dir_path = Path(f"{base_dir}-{suffix:02d}")
+        suffix += 1
     dir_path.mkdir(parents=True, exist_ok=True)
 
     (dir_path / "patch.md").write_text(patch.patch_content)

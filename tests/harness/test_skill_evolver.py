@@ -392,6 +392,31 @@ def test_contrast_detects_missing_validation_command(monkeypatch):
     assert any("verify_presentation_scene.py" in p.patch_content for p in patches)
 
 
+def test_save_patch_candidate_preserves_same_timestamp_candidates(tmp_path, monkeypatch):
+    from harness.evolve import skill_evolver as mod
+
+    monkeypatch.setattr(mod, "CANDIDATES_DIR", tmp_path / "candidates")
+    patch_one = SkillPatch(
+        skill_name="godot-specialist",
+        timestamp="20260608-000000",
+        patch_content="first patch",
+        rationale="first",
+    )
+    patch_two = SkillPatch(
+        skill_name="godot-specialist",
+        timestamp="20260608-000000",
+        patch_content="second patch",
+        rationale="second",
+    )
+
+    path_one = save_patch_candidate(patch_one)
+    path_two = save_patch_candidate(patch_two)
+
+    assert path_one != path_two
+    assert (path_one / "patch.md").read_text() == "first patch"
+    assert (path_two / "patch.md").read_text() == "second patch"
+
+
 class TestDryRun:
     def test_dry_run_does_not_modify_skill_md(self, tmp_path, monkeypatch):
         """evolve_skill_dry generates candidates but never writes SKILL.md."""

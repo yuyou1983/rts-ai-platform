@@ -1,0 +1,21 @@
+services:
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "6001:6001"
+    volumes:
+      - ./dashboard/src:/app/src
+    depends_on:
+      - server
+
+  server:
+    build: ./server
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

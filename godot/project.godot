@@ -22,6 +22,7 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 [autoload]
 
 AudioManager="*res://scripts/audio_manager.gd"
+SelectionManager="*res://scripts/selection_manager.gd"
 
 [display]
 

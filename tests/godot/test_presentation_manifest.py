@@ -36,6 +36,17 @@ def _png_size(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", header[16:24])
 
 
+def _visual_id(value) -> str | None:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("unit", "building", "visual", "sprite", "name"):
+            mapped = value.get(key)
+            if isinstance(mapped, str):
+                return mapped
+    return None
+
+
 def test_presentation_manifest_covers_units_buildings_and_spells() -> None:
     manifest = _load_json(MANIFEST_PATH)
     units = _race_values(_load_json(ROOT / "data/units/units.json"))
@@ -98,3 +109,112 @@ def test_default_unit_sprite_frame_is_inside_texture() -> None:
 
         assert frame_width <= width, unit_name
         assert frame_height <= height, unit_name
+
+
+# ─── P1 Manifest extension tests ──────────────────────────────
+
+REQUIRED_BUILDING_KEYS = [
+    "atlas_rect", "pivot", "health_bar_offset", "fallback",
+    "selection_ring_offset", "render_scale", "selection_radius",
+]
+
+REQUIRED_UNIT_KEYS = [
+    "pivot", "health_bar_offset", "fallback",
+    "selection_ring_offset", "render_scale", "selection_radius",
+]
+
+
+def test_building_visuals_have_required_keys() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for bname, bdata in manifest["building_visuals"].items():
+        for k in REQUIRED_BUILDING_KEYS:
+            assert k in bdata, f"building {bname} missing {k}"
+
+
+def test_unit_visuals_have_required_keys() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for uname, udata in manifest["unit_visuals"].items():
+        for k in REQUIRED_UNIT_KEYS:
+            assert k in udata, f"unit {uname} missing {k}"
+
+
+def test_atlas_rect_is_valid_format() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for bname, bdata in manifest["building_visuals"].items():
+        ar = bdata.get("atlas_rect", [])
+        assert isinstance(ar, list), f"{bname} atlas_rect not list"
+        assert len(ar) == 4, f"{bname} atlas_rect length {len(ar)} != 4"
+        assert all(isinstance(v, (int, float)) for v in ar), f"{bname} atlas_rect non-numeric"
+
+
+def test_pivot_is_valid_format() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for bname, bdata in manifest["building_visuals"].items():
+        p = bdata.get("pivot", [])
+        assert isinstance(p, list), f"{bname} pivot not list"
+        assert len(p) == 2, f"{bname} pivot length {len(p)} != 2"
+    for uname, udata in manifest["unit_visuals"].items():
+        p = udata.get("pivot", [])
+        assert isinstance(p, list), f"{uname} pivot not list"
+        assert len(p) == 2, f"{uname} pivot length {len(p)} != 2"
+
+
+def test_health_bar_offset_is_valid() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for section in ("building_visuals", "unit_visuals"):
+        for name, data in manifest[section].items():
+            hbo = data.get("health_bar_offset", [])
+            assert isinstance(hbo, list), f"{name} health_bar_offset not list"
+            assert len(hbo) == 2, f"{name} health_bar_offset length != 2"
+
+
+def test_fallback_has_required_keys() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    for bname, bdata in manifest["building_visuals"].items():
+        fb = bdata.get("fallback", {})
+        assert "atlas_rect" in fb, f"{bname} fallback missing atlas_rect"
+        assert "render_scale" in fb, f"{bname} fallback missing render_scale"
+    for uname, udata in manifest["unit_visuals"].items():
+        fb = udata.get("fallback", {})
+        assert "asset" in fb, f"{uname} fallback missing asset"
+        assert "render_scale" in fb, f"{uname} fallback missing render_scale"
+
+
+def test_rendering_global_params_present() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    r = manifest.get("_rendering", {})
+    assert "selection_ring" in r, "_rendering missing selection_ring"
+    assert "health_bar" in r, "_rendering missing health_bar"
+    assert "building_selection_transform" in r, "_rendering missing building_selection_transform"
+    assert "unit_selection_transform" in r, "_rendering missing unit_selection_transform"
+
+
+def test_selection_ring_params_valid() -> None:
+    manifest = _load_json(MANIFEST_PATH)
+    sr = manifest["_rendering"]["selection_ring"]
+    assert sr["line_width"] > 0
+    assert sr["segments"] >= 8
+    assert len(sr["color"]) == 4
+
+
+def test_abstract_buildings_match_visual_ids() -> None:
+    """Every abstract building mapping should resolve to a known building_visual."""
+    manifest = _load_json(MANIFEST_PATH)
+    building_visuals = set(manifest["building_visuals"])
+    for owner, mappings in manifest.get("abstract_buildings", {}).items():
+        for abstract_type, sc_name in mappings.items():
+            assert sc_name in building_visuals, (
+                f"abstract_buildings owner={owner} type={abstract_type} -> {sc_name} not in building_visuals"
+            )
+
+
+def test_abstract_units_match_visual_ids() -> None:
+    """Every abstract unit mapping should resolve to a known unit_visual."""
+    manifest = _load_json(MANIFEST_PATH)
+    unit_visuals = set(manifest["unit_visuals"])
+    for owner, mappings in manifest.get("abstract_units", {}).items():
+        for abstract_type, mapping_value in mappings.items():
+            visual_id = _visual_id(mapping_value)
+            assert visual_id in unit_visuals, (
+                f"abstract_units owner={owner} type={abstract_type} -> {mapping_value} not in unit_visuals"
+            )

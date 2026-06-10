@@ -16,6 +16,7 @@ signal connection_lost()
 signal game_over(winner: int, tick: int)
 
 signal replay_loaded(replay_data: Dictionary)
+signal replay_list_loaded(replay_data: Dictionary)
 signal league_ranking_loaded(ranking: Dictionary)
 signal league_match_completed(result: Dictionary)
 signal league_result_submitted(response: Dictionary)
@@ -65,12 +66,20 @@ func _ready() -> void:
 func start_game(seed: int = 42, max_ticks: int = 10000) -> void:
 	current_state = State.CONNECTING
 	_request_id = "start_game"
+	var p1_race: String = "terran"
+	var p2_race: String = "terran"
+	# Pick up race selections from Engine metadata (set by main_menu)
+	if Engine.has_meta("p1_race"):
+		p1_race = Engine.get_meta("p1_race")
+	if Engine.has_meta("p2_race"):
+		p2_race = Engine.get_meta("p2_race")
 	var body := JSON.stringify({
 		"seed": seed,
 		"max_ticks": max_ticks,
 		"ai_player": ai_player,
 		"ai_difficulty": ai_difficulty,
 		"enable_elevation": enable_elevation,
+		"player_races": {"1": p1_race, "2": p2_race},
 	})
 	var url := http_address + "/api/start_game"
 	var err := _http.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
@@ -159,6 +168,14 @@ func fetch_replay(match_id: String) -> void:
 	_extra_request_id = "replay"
 	_http_extra.request(http_address + "/api/replay/" + match_id, ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
 
+func fetch_replay_list() -> void:
+	_extra_request_id = "replay_list"
+	_http_extra.request(http_address + "/api/replay/list", ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
+
+func fetch_replay_download(filename: String) -> void:
+	_extra_request_id = "replay_download"
+	_http_extra.request(http_address + "/api/replay/download/" + filename, ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
+
 func fetch_league_ranking() -> void:
 	_extra_request_id = "league_ranking"
 	_http_extra.request(http_address + "/api/league/ranking", ["Content-Type: application/json"], HTTPClient.METHOD_GET, "")
@@ -189,6 +206,29 @@ func _on_extra_request_completed(_result: int, code: int, _headers: PackedString
 	match _extra_request_id:
 		"replay":
 			replay_loaded.emit(data)
+		"replay_list":
+			replay_list_loaded.emit(data)
+		"replay_download":
+			# Parse JSONL into ticks format for replay player
+			var raw_text: String = body.get_string_from_utf8()
+			var ticks: Array = []
+			for line in raw_text.split("\n"):
+				line = line.strip_edges()
+				if line.is_empty():
+					continue
+				var line_json := JSON.new()
+				if line_json.parse(line) == OK and line_json.data is Dictionary:
+					var d: Dictionary = line_json.data
+					if d.get("type") == "header":
+						continue  # skip header line
+					ticks.append(d)
+			# Convert to format expected by ReplayPlayer
+			var replay_data := {
+				"match_id": data.get("match_id", ""),
+				"tick_count": ticks.size(),
+				"ticks": ticks,
+			}
+			replay_loaded.emit(replay_data)
 		"league_ranking":
 			league_ranking_loaded.emit(data)
 		"league_match":

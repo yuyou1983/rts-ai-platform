@@ -402,12 +402,18 @@ def resolve_combat(
     commands: list[dict],
     tick: int,
     kill_feed: KillFeed | None = None,
+    tile_map: Any | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Resolve all combat: explicit attack commands + auto-attack with priority.
 
     Priority scoring for auto-attack:
       score = health_frac * W_HEALTH + dist_frac * W_DIST + threat * W_THREAT
     Lower score = higher priority.
+
+    High ground advantage (SC1 core mechanic):
+      - Attacker on high ground, target on low ground → 70% hit (30% miss)
+      - Attacker on low ground, target on high ground → 30% hit (70% miss)
+      - Same elevation → 100% hit
 
     Returns (updated_entities, updated_resources).
     """
@@ -430,7 +436,7 @@ def resolve_combat(
             continue
         fought[attacker_id] = {**attacker, "attack_target_id": target_id, "is_idle": False}
 
-    # 2. For each unit with attack_target_id, if in range → deal damage
+    # 2. For each unit with attack_target_id, if in range → deal damage (with high ground hit chance)
     for uid, e in list(fought.items()):
         tid = e.get("attack_target_id", "")
         if not tid or tid not in fought:
@@ -448,16 +454,41 @@ def resolve_combat(
             target_armor = target.get("armor", 0)
             target_armor_type = get_armor_type(target)
             dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
-            new_health = target["health"] - dmg
-            fought[tid] = {**target, "health": new_health}
-            kill_feed.record_damage(e.get("owner", 0), dmg)
-            if new_health <= 0:
-                to_remove.add(tid)
-                kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
-                # Clear any units targeting the dead entity
-                for uid2, e2 in list(fought.items()):
-                    if e2.get("attack_target_id") == tid:
-                        fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
+
+            # High ground hit/miss check
+            hit = True
+            if tile_map is not None:
+                ax, ay = int(e.get("pos_x", 0)), int(e.get("pos_y", 0))
+                tx, ty = int(target.get("pos_x", 0)), int(target.get("pos_y", 0))
+                hit_chance = tile_map.high_ground_hit_chance(ax, ay, tx, ty)
+                # Deterministic hit/miss based on tick + uid hash (no randomness)
+                # Use a hash-based approach: hit if hash(tick, uid) % 100 < hit_chance * 100
+                roll = (hash((tick, uid)) & 0x7FFFFFFF) % 100
+                hit = roll < int(hit_chance * 100)
+
+            if hit:
+                # Damage shield first, then health (Protoss shield mechanic)
+                shield = target.get("shield", 0)
+                max_shield = target.get("max_shield", 0)
+                if shield > 0:
+                    shield_dmg = min(shield, dmg)
+                    health_dmg = dmg - shield_dmg
+                    new_shield = shield - shield_dmg
+                    new_health = target["health"] - health_dmg
+                    fought[tid] = {**target, "health": new_health, "shield": new_shield}
+                    # Record last_hit_tick on shield damage for shield regen delay
+                    fought[tid] = {**fought[tid], "last_hit_tick": tick}
+                else:
+                    new_health = target["health"] - dmg
+                    fought[tid] = {**target, "health": new_health}
+                kill_feed.record_damage(e.get("owner", 0), dmg)
+                if new_health <= 0:
+                    to_remove.add(tid)
+                    kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+                    # Clear any units targeting the dead entity
+                    for uid2, e2 in list(fought.items()):
+                        if e2.get("attack_target_id") == tid:
+                            fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
 
     # 3. Auto-attack: idle units in range of enemy → pick best target by priority
     entity_list = list(fought.items())
@@ -517,12 +548,33 @@ def resolve_combat(
                 target_armor = target.get("armor", 0)
                 target_armor_type = get_armor_type(target)
                 dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
-                new_health = target["health"] - dmg
-                fought[best_target] = {**target, "health": new_health}
-                kill_feed.record_damage(e.get("owner", 0), dmg)
-                if new_health <= 0:
-                    to_remove.add(best_target)
-                    kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+
+                # High ground hit/miss check
+                hit = True
+                if tile_map is not None:
+                    ax, ay = int(e.get("pos_x", 0)), int(e.get("pos_y", 0))
+                    tx, ty = int(target.get("pos_x", 0)), int(target.get("pos_y", 0))
+                    hit_chance = tile_map.high_ground_hit_chance(ax, ay, tx, ty)
+                    roll = (hash((tick, eid, best_target)) & 0x7FFFFFFF) % 100
+                    hit = roll < int(hit_chance * 100)
+
+                if hit:
+                    # Damage shield first, then health (Protoss shield mechanic)
+                    shield = target.get("shield", 0)
+                    if shield > 0:
+                        shield_dmg = min(shield, dmg)
+                        health_dmg = dmg - shield_dmg
+                        new_shield = shield - shield_dmg
+                        new_health = target["health"] - health_dmg
+                        fought[best_target] = {**target, "health": new_health, "shield": new_shield,
+                                               "last_hit_tick": tick}
+                    else:
+                        new_health = target["health"] - dmg
+                        fought[best_target] = {**target, "health": new_health}
+                    kill_feed.record_damage(e.get("owner", 0), dmg)
+                    if new_health <= 0:
+                        to_remove.add(best_target)
+                        kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
 
     # 4. Deposit carried resources for dead workers
     for eid in to_remove:
@@ -920,7 +972,8 @@ class RuleEngine:
     def __init__(self) -> None:
         self.kill_feed = KillFeed()
 
-    def apply(self, state: GameState, commands: list[dict], tick: int) -> GameState:
+    def apply(self, state: GameState, commands: list[dict], tick: int,
+              tile_map: Any | None = None) -> GameState:
         """Full rule resolution pipeline for one tick."""
         # 1. Validate commands
         valid = validate_commands(state, commands)
@@ -928,9 +981,10 @@ class RuleEngine:
         # 2. Movement
         entities = apply_movement(state.entities, valid, tick)
 
-        # 3. Combat (with kill tracking)
+        # 3. Combat (with kill tracking + high ground advantage)
         entities, resources = resolve_combat(
             entities, state.resources, valid, tick, kill_feed=self.kill_feed,
+            tile_map=tile_map,
         )
 
         # 4. Gathering

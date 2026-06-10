@@ -23,7 +23,9 @@ BASE_DEPOSIT_RANGE = 2.0    # proximity to base to deposit
 LARVA_SPAWN_INTERVAL = 30   # ticks between larva spawns
 LARVA_MAX = 3               # max larva per Hatchery/Lair/Hive
 PYLON_POWER_RANGE = 6.0     # range of pylon power field (in world units)
-SHIELD_REGEN_RATE = 0.5     # shields regenerate per tick when not recently hit
+SHIELD_REGEN_DELAY_TICKS = 40  # 2 seconds at 20tps before regen starts
+SHIELD_REGEN_RATE = 1         # +1 shield every 2 ticks
+SHIELD_REGEN_INTERVAL = 2     # regen every 2 ticks
 
 # ─── Data Loading ────────────────────────────────────────────
 
@@ -132,7 +134,7 @@ def _is_pylon_powered(entities: dict[str, Any], owner: int, px: float, py: float
     """Check if position is within a friendly Pylon's power range."""
     for eid, e in entities.items():
         if (e.get("owner") == owner and e.get("entity_type") == "building"
-                and e.get("building_type") == "Pylon"
+                and (e.get("building_type") in ("Pylon", "supply_depot") or e.get("unit_type") == "Pylon")
                 and e.get("health", 0) > 0
                 and not e.get("is_constructing", False)):
             d = _dist(px, py, e["pos_x"], e["pos_y"])
@@ -173,15 +175,30 @@ def process_gathering(
                 carry_type = e.get("carry_type", "mineral")
                 pkey = f"p{e['owner']}_{carry_type}"
                 res[pkey] = res.get(pkey, 0) + int(carried)
+            # SC1 loop: after depositing, worker returns to the same
+            # resource node it was previously gathering from.
+            gather_target = e.get("gather_target_id", "")
             updates = {
                 "carry_amount": 0,
                 "carry_type": "mineral",
                 "deposit_pending": False,
                 "is_idle": True,
-                "target_x": None,
-                "target_y": None,
                 "returning_to_base": False,
             }
+            if gather_target and gather_target in gathered:
+                node = gathered[gather_target]
+                if (node.get("entity_type") == "resource"
+                        and node.get("resource_amount", 0) > 0):
+                    # Re-assign worker back to the same resource node
+                    updates["is_idle"] = False
+                    updates["gather_target_id"] = gather_target
+                    updates["target_x"] = node["pos_x"]
+                    updates["target_y"] = node["pos_y"]
+            else:
+                # Resource exhausted or gone → truly idle, clear target
+                updates["target_x"] = None
+                updates["target_y"] = None
+                updates["gather_target_id"] = ""
             gathered[uid] = {**e, **updates}
             continue
 
@@ -197,7 +214,7 @@ def process_gathering(
             continue
         d = _dist(e["pos_x"], e["pos_y"], base["pos_x"], base["pos_y"])
         if d <= BASE_DEPOSIT_RANGE:
-            # Arrived at base → deposit
+            # Arrived at base → deposit (preserve gather_target_id for loop)
             gathered[uid] = {**e, "deposit_pending": True, "returning_to_base": False}
         # else: still moving (handled by apply_movement)
 
@@ -521,31 +538,46 @@ def process_larva_spawn(
 def process_shield_regen(
     entities: dict[str, Any],
     tick: int,
+    player_races: dict[int, str] | None = None,
 ) -> dict[str, Any]:
     """Protoss: Shields regenerate over time when not recently hit.
+
+    SC1 mechanic: After N ticks without taking damage, shields regenerate
+    at +1 shield per 2 ticks, up to shield_max.
+
+    Args:
+        entities: current entity dict
+        tick: current tick
+        player_races: optional mapping of owner→race for race detection
 
     Returns updated entities dict.
     """
     result = dict(entities)
 
     for eid, e in list(result.items()):
-        if e.get("owner", 0) == 0:
-            continue
-        # Check race — Protoss units/buildings have shields
-        if "shield" not in e and "sp" not in e:
+        owner = e.get("owner", 0)
+        if owner == 0:
             continue
 
+        # Determine if this is a Protoss entity — must have shield data
         max_shield = e.get("max_shield", e.get("sp", 0))
         if max_shield <= 0:
             continue
 
         current_shield = e.get("shield", e.get("sp_current", max_shield))
-        if current_shield < max_shield:
-            last_hit_tick = e.get("last_hit_tick", 0)
-            # Shields start regenerating 2 seconds (40 ticks at 20tps) after last hit
-            if tick - last_hit_tick >= 40:
-                new_shield = min(current_shield + SHIELD_REGEN_RATE, max_shield)
-                result[eid] = {**e, "shield": new_shield}
+        if current_shield >= max_shield:
+            continue
+
+        last_hit_tick = e.get("last_hit_tick", 0)
+        # Shields start regenerating after delay since last hit
+        if tick - last_hit_tick < SHIELD_REGEN_DELAY_TICKS:
+            continue
+
+        # Regen every SHIELD_REGEN_INTERVAL ticks
+        # Use tick offset to stagger regen across entities
+        if (tick - last_hit_tick - SHIELD_REGEN_DELAY_TICKS) % SHIELD_REGEN_INTERVAL == 0:
+            new_shield = min(current_shield + SHIELD_REGEN_RATE, max_shield)
+            result[eid] = {**e, "shield": new_shield}
 
     return result
 
@@ -566,9 +598,15 @@ def check_pylon_power(
     if building is None:
         return False
 
-    # Nexus and Pylons are always powered
+    # Nexus, Pylons, Assimilator, and Gateway are always powered
+    # (check both JSON name and simplified key)
+    # In the simplified economy, requiring Pylon before Gateway is too restrictive,
+    # so Gateway (barracks) is also self-powered.
     bt = building.get("building_type", "")
-    if bt in ("Nexus", "Pylon", "Assimilator"):
+    ut = building.get("unit_type", "")
+    always_powered = {"Nexus", "Pylon", "Assimilator", "Gateway"}
+    always_powered_simplified = {"base", "supply_depot", "refinery", "barracks"}
+    if bt in always_powered or bt in always_powered_simplified or ut in always_powered:
         return True
 
     owner = building.get("owner", 0)

@@ -53,6 +53,18 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             max_ticks = config.max_ticks or 10000
             tick_rate = config.tick_rate or self._tick_rate
 
+            # Parse player_races from game_mode JSON field
+            player_races = {1: "terran", 2: "terran"}
+            if config.game_mode:
+                import json
+                try:
+                    mode_data = json.loads(config.game_mode)
+                    raw_races = mode_data.get("player_races", {})
+                    for pid_str, race in raw_races.items():
+                        player_races[int(pid_str)] = race
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
             self.engine = SimCore(max_ticks=max_ticks, tick_rate=tick_rate)
             # Phase D: pass enable_elevation from config
             enable_elev = config.enable_elevation
@@ -62,6 +74,7 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
                     "map_size": config.map_width or 64,
                     "max_ticks": max_ticks,
                     "enable_elevation": enable_elev,
+                    "player_races": player_races,
                 },
             )
 
@@ -260,6 +273,16 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             for row_vals in state.height_map:
                 row = state_pb2.HeightRow(values=row_vals)
                 snap.height_map.append(row)
+        # Fill GameConfig so Godot gets map dimensions
+        snap.config.map_seed = 0
+        snap.config.map_width = state.map_width if hasattr(state, "map_width") else 64
+        snap.config.map_height = state.map_height if hasattr(state, "map_height") else 64
+        snap.config.max_ticks = 0
+        snap.config.tick_rate = 0.0
+        # Player races — propagate so Godot can do race-aware visual lookup
+        if hasattr(state, "player_races") and isinstance(state.player_races, dict):
+            for pid, race in state.player_races.items():
+                snap.config.player_races[str(pid)] = race
         return snap
 
     @staticmethod
@@ -300,6 +323,9 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             for row_vals in hm:
                 row = state_pb2.HeightRow(values=row_vals)
                 proto.height_map.append(row)
+        # Fill GameConfig from replay dict
+        proto.config.map_width = snap.get("map_width", 64)
+        proto.config.map_height = snap.get("map_height", 64)
         return proto
 
 

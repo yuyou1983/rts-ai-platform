@@ -3,17 +3,19 @@ extends RefCounted
 
 ## Utility class for loading StarCraft sprite sheets into Godot SpriteFrames.
 ##
-## Reads sprite_frames_config.json and dynamically creates SpriteFrames resources
-## for units (8-direction animated) and AtlasTexture for buildings (sub-region
-## of a combined sprite sheet).
+## Reads sprite_frames_config.json AND presentation_manifest.json.
+## Manifest provides atlas_rect, pivot, render_scale, selection_radius,
+## health_bar_offset, and fallback — eliminating hardcoded overrides.
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 const CONFIG_PATH := "res://resources/sprite_frames_config.json"
+const MANIFEST_PATH := "res://resources/presentation_manifest.json"
 const FRAME_TIME_MS := 100  # 10 FPS → 100ms per frame (matches original SC tick)
 const BUILDING_ATLAS_PADDING := 12
 
 # ─── Internal state ───────────────────────────────────────────────────────────
 var _config: Dictionary = {}
+var _manifest: Dictionary = {}
 var _unit_cache: Dictionary = {}   # entity_name → SpriteFrames
 var _building_cache: Dictionary = {}  # entity_name → AtlasTexture
 var _loaded_textures: Dictionary = {}  # file_path → Texture2D
@@ -31,6 +33,7 @@ static var DIRECTION_NAMES: PackedStringArray = [
 # ─── Lifecycle ────────────────────────────────────────────────────────────────
 func _init() -> void:
 	_load_config()
+	_load_manifest()
 
 
 func _load_config() -> void:
@@ -43,14 +46,33 @@ func _load_config() -> void:
 			var err := json.parse(json_text)
 			if err == OK:
 				_config = json.data
-				print("[SpriteLoader] Loaded config: %d units, %d buildings" % [
-					_config.get("units", {}).size(),
-					_config.get("buildings", {}).size()
-				])
+				print("[SpriteLoader] Loaded sprite config: %d units, %d buildings" % [
+						_config.get("units", {}).size(),
+						_config.get("buildings", {}).size()
+					])
 			else:
-				push_error("[SpriteLoader] Failed to parse config JSON: %s" % json.get_error_message())
+				push_error("[SpriteLoader] Failed to parse sprite config JSON: %s" % json.get_error_message())
 	else:
 		push_warning("[SpriteLoader] Config file not found: %s" % CONFIG_PATH)
+
+
+func _load_manifest() -> void:
+	if FileAccess.file_exists(MANIFEST_PATH):
+		var f := FileAccess.open(MANIFEST_PATH, FileAccess.READ)
+		if f:
+			var json_text := f.get_as_text()
+			f.close()
+			var json := JSON.new()
+			var err := json.parse(json_text)
+			if err == OK:
+				_manifest = json.data
+				var b_count: int = _manifest.get("building_visuals", {}).size()
+				var u_count: int = _manifest.get("unit_visuals", {}).size()
+				print("[SpriteLoader] Loaded presentation manifest: %d buildings, %d units" % [b_count, u_count])
+			else:
+				push_error("[SpriteLoader] Failed to parse manifest JSON: %s" % json.get_error_message())
+	else:
+		push_warning("[SpriteLoader] Manifest not found: %s — visual params unavailable" % MANIFEST_PATH)
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -112,14 +134,42 @@ func get_frames(entity_name: String) -> SpriteFrames:
 	return sprite_frames
 
 
-## Get or create an AtlasTexture for a building from the combined sprite sheet.
+## Get or create an AtlasTexture for a building.
+## Priority: presentation_manifest.atlas_rect > sprite_frames_config offset.
 func get_building_atlas(entity_name: String) -> AtlasTexture:
 	if _building_cache.has(entity_name):
 		return _building_cache[entity_name]
 
+	# Try manifest first — it has the precise hand-tuned atlas_rect
+	var bv: Dictionary = _manifest.get("building_visuals", {}).get(entity_name, {})
+	var manifest_atlas_rect: Array = bv.get("atlas_rect", [])
+
+	if manifest_atlas_rect.size() == 4:
+		var texture_path: String = str(bv.get("asset", ""))
+		var texture := _get_texture(texture_path)
+		if texture:
+			var raw_region := Rect2(
+				int(manifest_atlas_rect[0]),
+				int(manifest_atlas_rect[1]),
+				int(manifest_atlas_rect[2]),
+				int(manifest_atlas_rect[3])
+			)
+			var expanded_region := raw_region.grow(BUILDING_ATLAS_PADDING)
+			var texture_rect := Rect2(Vector2.ZERO, texture.get_size())
+			var final_region := expanded_region.intersection(texture_rect)
+
+			var atlas := AtlasTexture.new()
+			atlas.atlas = texture
+			atlas.region = final_region
+			atlas.filter_clip = true
+
+			_building_cache[entity_name] = atlas
+			return atlas
+
+	# Fallback to sprite_frames_config
 	var buildings: Dictionary = _config.get("buildings", {})
 	if not buildings.has(entity_name):
-		push_warning("[SpriteLoader] Building not found in config: %s" % entity_name)
+		push_warning("[SpriteLoader] Building not found in config or manifest: %s" % entity_name)
 		return null
 
 	var info: Dictionary = buildings[entity_name]
@@ -144,6 +194,55 @@ func get_building_atlas(entity_name: String) -> AtlasTexture:
 
 	_building_cache[entity_name] = atlas
 	return atlas
+
+
+## Get visual parameters from presentation_manifest.
+## Returns: {"render_scale": float, "selection_radius": float, "pivot": Vector2,
+##           "health_bar_offset": Vector2, "selection_ring_offset": Vector2,
+##           "fallback": Dictionary}
+func get_visual_params(entity_name: String, is_building: bool) -> Dictionary:
+	var section_name: String = "building_visuals" if is_building else "unit_visuals"
+	var section: Dictionary = _manifest.get(section_name, {})
+	var visual: Dictionary = section.get(entity_name, {})
+	var _rendering: Dictionary = _manifest.get("_rendering", {})
+
+	var building_xform: Dictionary = _rendering.get("building_selection_transform", {})
+	var unit_xform: Dictionary = _rendering.get("unit_selection_transform", {})
+
+	var fallback_rs: float = 0.018 if is_building else 0.022
+	var fallback_sr: float = 1.5 if is_building else 0.55
+	var rs: float = float(visual.get("render_scale", fallback_rs))
+	var sr: float = float(visual.get("selection_radius", fallback_sr))
+
+	# Apply the same transform game_view.gd used, but make it configurable
+	if is_building:
+		var m: float = float(building_xform.get("multiplier", 0.34))
+		var lo: float = float(building_xform.get("min", 0.95))
+		var hi: float = float(building_xform.get("max", 1.65))
+		sr = clampf(sr * m, lo, hi)
+	else:
+		var m: float = float(unit_xform.get("multiplier", 0.78))
+		var lo: float = float(unit_xform.get("min", 0.38))
+		var hi: float = float(unit_xform.get("max", 0.72))
+		sr = clampf(sr * m, lo, hi)
+
+	var pivot_arr: Array = visual.get("pivot", [0.5, 0.72 if is_building else 0.5])
+	var hbo_arr: Array = visual.get("health_bar_offset", [0, -0.28])
+	var sro_arr: Array = visual.get("selection_ring_offset", [0, 0.1 if is_building else 0.05])
+
+	return {
+		"render_scale": rs,
+		"selection_radius": sr,
+		"pivot": Vector2(float(pivot_arr[0]), float(pivot_arr[1])),
+		"health_bar_offset": Vector2(float(hbo_arr[0]), float(hbo_arr[1])),
+		"selection_ring_offset": Vector2(float(sro_arr[0]), float(sro_arr[1])),
+		"fallback": visual.get("fallback", {}),
+	}
+
+
+## Get global rendering parameters (selection ring, health bar, etc).
+func get_rendering_params() -> Dictionary:
+	return _manifest.get("_rendering", {})
 
 
 ## Convert a facing angle (radians) to one of 8 direction indices.
@@ -191,6 +290,13 @@ func clear_cache() -> void:
 	_unit_cache.clear()
 	_building_cache.clear()
 	_loaded_textures.clear()
+
+
+## Reload manifest and config (for hot-reload during development).
+func reload() -> void:
+	clear_cache()
+	_load_config()
+	_load_manifest()
 
 
 # ─── Internal helpers ─────────────────────────────────────────────────────────

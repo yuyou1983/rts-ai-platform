@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTS-AI-Platform 架构图</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1300px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee;
+      border-radius: 50%; animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem; border: 1px solid #1e293b;
+      padding: 1.5rem; overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 900px; display: block; }
+    .cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem; margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card-dot.orange { background: #fb923c; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>RTS-AI-Platform Architecture</h1>
+      </div>
+      <p class="subtitle">三轨混合研究平台 · 运行时 RTS 栈 · 研究平台栈 · 研发自动化栈 — 2026-06-10</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 920">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/>
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185"/>
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)"/>
+
+        <!-- ============================================================
+             THREE-TRACK BOUNDARIES
+             ============================================================ -->
+
+        <!-- Track 1: Runtime RTS Stack -->
+        <rect x="40" y="60" width="680" height="550" rx="12" fill="rgba(6, 78, 59, 0.06)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="52" y="82" fill="#34d399" font-size="11" font-weight="600">轨道 A · 运行时 RTS 栈</text>
+
+        <!-- Track 2: Research Platform Stack -->
+        <rect x="760" y="60" width="400" height="340" rx="12" fill="rgba(120, 53, 15, 0.06)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="772" y="82" fill="#fbbf24" font-size="11" font-weight="600">轨道 B · 研究平台栈</text>
+
+        <!-- Track 3: Dev Automation Stack -->
+        <rect x="760" y="430" width="400" height="500" rx="12" fill="rgba(251, 146, 60, 0.06)" stroke="#fb923c" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="772" y="452" fill="#fb923c" font-size="11" font-weight="600">轨道 C · 研发自动化栈</text>
+
+        <!-- ============================================================
+             L0: PROTO LAYER
+             ============================================================ -->
+        <rect x="100" y="100" width="580" height="90" rx="8" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="112" y="118" fill="#94a3b8" font-size="9" font-weight="600">L0 · 协议层</text>
+
+        <!-- Proto files -->
+        <rect x="120" y="128" width="100" height="48" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="170" y="148" fill="white" font-size="10" font-weight="600" text-anchor="middle">service.proto</text>
+        <text x="170" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">gRPC 合约</text>
+
+        <rect x="240" y="128" width="100" height="48" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="290" y="148" fill="white" font-size="10" font-weight="600" text-anchor="middle">obs.proto</text>
+        <text x="290" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">观测协议</text>
+
+        <rect x="360" y="128" width="100" height="48" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="410" y="148" fill="white" font-size="10" font-weight="600" text-anchor="middle">cmd.proto</text>
+        <text x="410" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">命令协议</text>
+
+        <rect x="480" y="128" width="100" height="48" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="530" y="148" fill="white" font-size="10" font-weight="600" text-anchor="middle">state.proto</text>
+        <text x="530" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">状态快照</text>
+
+        <!-- ============================================================
+             L1: SIMCORE
+             ============================================================ -->
+        <rect x="80" y="220" width="620" height="190" rx="8" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="92" y="240" fill="#34d399" font-size="9" font-weight="600">L1 · SimCore 确定性引擎</text>
+
+        <!-- Core engine -->
+        <rect x="100" y="255" width="120" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="100" y="255" width="120" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="160" y="278" fill="white" font-size="11" font-weight="600" text-anchor="middle">engine.py</text>
+        <text x="160" y="295" fill="#94a3b8" font-size="8" text-anchor="middle">tick 循环 · 碰撞 · 战斗</text>
+
+        <rect x="240" y="255" width="120" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="240" y="255" width="120" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="300" y="278" fill="white" font-size="11" font-weight="600" text-anchor="middle">state.py</text>
+        <text x="300" y="295" fill="#94a3b8" font-size="8" text-anchor="middle">不可变快照 · 迷雾</text>
+
+        <rect x="380" y="255" width="120" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="380" y="255" width="120" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="440" y="278" fill="white" font-size="11" font-weight="600" text-anchor="middle">economy.py</text>
+        <text x="440" y="295" fill="#94a3b8" font-size="8" text-anchor="middle">采集 · gas 循环</text>
+
+        <rect x="520" y="255" width="120" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="520" y="255" width="120" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="580" y="278" fill="white" font-size="11" font-weight="600" text-anchor="middle">construction.py</text>
+        <text x="580" y="295" fill="#94a3b8" font-size="8" text-anchor="middle">建造 · morph</text>
+
+        <!-- Second row -->
+        <rect x="100" y="330" width="100" height="50" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="100" y="330" width="100" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="150" y="352" fill="white" font-size="10" font-weight="600" text-anchor="middle">rules.py</text>
+        <text x="150" y="367" fill="#94a3b8" font-size="8" text-anchor="middle">种族规则</text>
+
+        <rect x="220" y="330" width="100" height="50" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="220" y="330" width="100" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="270" y="352" fill="white" font-size="10" font-weight="600" text-anchor="middle">grpc_server.py</text>
+        <text x="270" y="367" fill="#94a3b8" font-size="8" text-anchor="middle">gRPC :50051</text>
+
+        <!-- HTTP Gateway with P0 violation marker -->
+        <rect x="340" y="330" width="100" height="50" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="2"/>
+        <rect x="340" y="330" width="100" height="50" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="2"/>
+        <text x="390" y="352" fill="#fb7185" font-size="10" font-weight="700" text-anchor="middle">http_gateway.py</text>
+        <text x="390" y="367" fill="#94a3b8" font-size="8" text-anchor="middle">HTTP :8080 ⚠</text>
+
+        <rect x="460" y="330" width="100" height="50" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="460" y="330" width="100" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="510" y="352" fill="white" font-size="10" font-weight="600" text-anchor="middle">recorder.py</text>
+        <text x="510" y="367" fill="#94a3b8" font-size="8" text-anchor="middle">Replay· Hash</text>
+
+        <!-- P0 violation arrow: http_gateway → agents -->
+        <path d="M 390 380 L 390 430 L 390 440" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-rose)"/>
+        <text x="398" y="415" fill="#fb7185" font-size="8" font-weight="600">L1→L2 违规!</text>
+
+        <!-- ============================================================
+             L2: RUNTIME AGENTS
+             ============================================================ -->
+        <rect x="80" y="440" width="560" height="150" rx="8" fill="rgba(6, 78, 59, 0.06)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="92" y="460" fill="#22d3ee" font-size="9" font-weight="600">L2 · 运行时 Agent</text>
+
+        <rect x="100" y="475" width="110" height="48" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="100" y="475" width="110" height="48" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="155" y="496" fill="white" font-size="10" font-weight="600" text-anchor="middle">script_ai.py</text>
+        <text x="155" y="512" fill="#94a3b8" font-size="8" text-anchor="middle">M0 基线 AI</text>
+
+        <rect x="230" y="475" width="110" height="48" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="230" y="475" width="110" height="48" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="285" y="496" fill="white" font-size="10" font-weight="600" text-anchor="middle">coordinator.py</text>
+        <text x="285" y="512" fill="#94a3b8" font-size="8" text-anchor="middle">Econ/Combat/Scout</text>
+
+        <rect x="360" y="475" width="110" height="48" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+        <rect x="360" y="475" width="110" height="48" rx="6" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="415" y="496" fill="#fb7185" font-size="10" font-weight="600" text-anchor="middle">react_adapter.py</text>
+        <text x="415" y="512" fill="#94a3b8" font-size="8" text-anchor="middle">LLM adapter ⚠</text>
+
+        <rect x="490" y="475" width="120" height="48" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="490" y="475" width="120" height="48" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="550" y="496" fill="white" font-size="10" font-weight="600" text-anchor="middle">agent_factory.py</text>
+        <text x="550" y="512" fill="#94a3b8" font-size="8" text-anchor="middle">AI 注入入口</text>
+
+        <!-- Agent sub-boxes -->
+        <rect x="100" y="540" width="70" height="32" rx="4" fill="rgba(8, 51, 68, 0.3)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="135" y="560" fill="#94a3b8" font-size="8" text-anchor="middle">Economy</text>
+
+        <rect x="180" y="540" width="70" height="32" rx="4" fill="rgba(8, 51, 68, 0.3)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="215" y="560" fill="#94a3b8" font-size="8" text-anchor="middle">Combat</text>
+
+        <rect x="260" y="540" width="70" height="32" rx="4" fill="rgba(8, 51, 68, 0.3)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="295" y="560" fill="#94a3b8" font-size="8" text-anchor="middle">Scout</text>
+
+        <!-- Missing compat marker -->
+        <rect x="340" y="540" width="140" height="32" rx="4" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="410" y="558" fill="#fb7185" font-size="8" text-anchor="middle">agentscope_compat ⚠ 缺失</text>
+
+        <!-- ============================================================
+             L3: GODOT FRONTEND
+             ============================================================ -->
+        <rect x="80" y="630" width="560" height="220" rx="8" fill="rgba(8, 51, 68, 0.06)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="92" y="650" fill="#22d3ee" font-size="9" font-weight="600">L3 · Godot 前端 (4.6)</text>
+
+        <!-- gRPC Bridge -->
+        <rect x="100" y="668" width="120" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="100" y="668" width="120" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="160" y="690" fill="white" font-size="10" font-weight="600" text-anchor="middle">grpc_bridge.gd</text>
+        <text x="160" y="705" fill="#94a3b8" font-size="8" text-anchor="middle">HTTP 命令发送</text>
+
+        <!-- Game View -->
+        <rect x="240" y="668" width="120" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="240" y="668" width="120" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="300" y="690" fill="white" font-size="10" font-weight="600" text-anchor="middle">game_view.gd</text>
+        <text x="300" y="705" fill="#94a3b8" font-size="8" text-anchor="middle">渲染 · 选择 · 迷雾</text>
+
+        <!-- HUD -->
+        <rect x="380" y="668" width="110" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="380" y="668" width="110" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="435" y="690" fill="white" font-size="10" font-weight="600" text-anchor="middle">hud.gd</text>
+        <text x="435" y="705" fill="#94a3b8" font-size="8" text-anchor="middle">种族面板 · 建造</text>
+
+        <!-- VFX -->
+        <rect x="510" y="668" width="100" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="510" y="668" width="100" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="560" y="690" fill="white" font-size="10" font-weight="600" text-anchor="middle">vfx_manager.gd</text>
+        <text x="560" y="705" fill="#94a3b8" font-size="8" text-anchor="middle">特效 · 迷雾平滑</text>
+
+        <!-- Sprite + Manifest -->
+        <rect x="100" y="735" width="150" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="100" y="735" width="150" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="175" y="755" fill="white" font-size="10" font-weight="600" text-anchor="middle">sprite_loader.gd</text>
+        <text x="175" y="770" fill="#94a3b8" font-size="8" text-anchor="middle">Atlas 裁剪 · Manifest 驱动</text>
+
+        <rect x="270" y="735" width="150" height="50" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="1.5"/>
+        <rect x="270" y="735" width="150" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="345" y="755" fill="white" font-size="10" font-weight="600" text-anchor="middle">presentation_manifest</text>
+        <text x="345" y="770" fill="#94a3b8" font-size="8" text-anchor="middle">SC1 抽象→视觉映射</text>
+
+        <rect x="440" y="735" width="180" height="50" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="440" y="735" width="180" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="530" y="755" fill="white" font-size="10" font-weight="600" text-anchor="middle">minimap_rect.gd</text>
+        <text x="530" y="770" fill="#94a3b8" font-size="8" text-anchor="middle">小地图 · 血条 · 选择环</text>
+
+        <!-- ============================================================
+             TRACK B: RESEARCH PLATFORM
+             ============================================================ -->
+
+        <!-- Training -->
+        <rect x="790" y="100" width="160" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="790" y="100" width="160" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="870" y="122" fill="white" font-size="11" font-weight="600" text-anchor="middle">Gym 封装</text>
+        <text x="870" y="139" fill="#94a3b8" font-size="8" text-anchor="middle">gym_env.py · obs/action</text>
+
+        <rect x="790" y="172" width="160" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="790" y="172" width="160" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="870" y="194" fill="white" font-size="11" font-weight="600" text-anchor="middle">训练器</text>
+        <text x="870" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">PPO/GRPO · rollout</text>
+
+        <rect x="790" y="244" width="160" height="58" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+        <rect x="790" y="244" width="160" height="58" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="870" y="266" fill="white" font-size="11" font-weight="600" text-anchor="middle">League</text>
+        <text x="870" y="283" fill="#94a3b8" font-size="8" text-anchor="middle">ELO · 版本管理 · 对局池</text>
+
+        <rect x="980" y="100" width="150" height="58" rx="6" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <rect x="980" y="100" width="150" height="58" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="1055" y="122" fill="white" font-size="11" font-weight="600" text-anchor="middle">Benchmark</text>
+        <text x="1055" y="139" fill="#94a3b8" font-size="8" text-anchor="middle">harness · stats · replay</text>
+
+        <rect x="980" y="172" width="150" height="58" rx="6" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <rect x="980" y="172" width="150" height="58" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="1055" y="194" fill="white" font-size="11" font-weight="600" text-anchor="middle">Promotion Gate</text>
+        <text x="1055" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">确定性 · 胜率 · crash率</text>
+
+        <rect x="980" y="244" width="150" height="58" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="1.5"/>
+        <rect x="980" y="244" width="150" height="58" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1055" y="266" fill="white" font-size="11" font-weight="600" text-anchor="middle">Telemetry</text>
+        <text x="1055" y="283" fill="#94a3b8" font-size="8" text-anchor="middle">replay · 输出 artifact</text>
+
+        <!-- Dashboard (mock) -->
+        <rect x="790" y="330" width="340" height="48" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+        <rect x="790" y="330" width="340" height="48" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="960" y="352" fill="white" font-size="11" font-weight="600" text-anchor="middle">Platform Dashboard (React/Vite)</text>
+        <text x="960" y="367" fill="#fbbf24" font-size="8" text-anchor="middle">⚠ 当前使用 mock 数据，未连接 harness API</text>
+
+        <!-- ============================================================
+             TRACK C: DEV AUTOMATION
+             ============================================================ -->
+
+        <!-- .agents/skills -->
+        <rect x="790" y="475" width="160" height="70" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+        <rect x="790" y="475" width="160" height="70" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="870" y="497" fill="white" font-size="11" font-weight="600" text-anchor="middle">.agents/skills/</text>
+        <text x="870" y="514" fill="#94a3b8" font-size="8" text-anchor="middle">22 个本地 skill</text>
+        <text x="870" y="530" fill="#94a3b8" font-size="8" text-anchor="middle">Godot/SimCore/AI/平衡/发布</text>
+
+        <!-- Harness trace -->
+        <rect x="980" y="475" width="150" height="70" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+        <rect x="980" y="475" width="150" height="70" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="1055" y="497" fill="white" font-size="11" font-weight="600" text-anchor="middle">harness/trace/</text>
+        <text x="1055" y="514" fill="#94a3b8" font-size="8" text-anchor="middle">SkillTrial v2 JSONL</text>
+        <text x="1055" y="530" fill="#94a3b8" font-size="8" text-anchor="middle">严格验证 · 绕过推理</text>
+
+        <!-- SkillEvolver -->
+        <rect x="790" y="565" width="160" height="90" rx="8" fill="#0f172a" stroke="#fb923c" stroke-width="2"/>
+        <rect x="790" y="565" width="160" height="90" rx="8" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="2"/>
+        <text x="870" y="590" fill="white" font-size="12" font-weight="700" text-anchor="middle">SkillEvolver</text>
+        <text x="870" y="607" fill="#94a3b8" font-size="8" text-anchor="middle">explore → contrast</text>
+        <text x="870" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">→ generate patch</text>
+        <text x="870" y="633" fill="#94a3b8" font-size="8" text-anchor="middle">→ audit → held-out</text>
+        <text x="870" y="646" fill="#94a3b8" font-size="8" text-anchor="middle">→ promote/rollback</text>
+
+        <!-- Auditor -->
+        <rect x="980" y="565" width="150" height="58" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+        <rect x="980" y="565" width="150" height="58" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="1055" y="588" fill="white" font-size="11" font-weight="600" text-anchor="middle">结构化审计器</text>
+        <text x="1055" y="605" fill="#94a3b8" font-size="8" text-anchor="middle">runtime 代码拦截</text>
+        <text x="1055" y="618" fill="#94a3b8" font-size="8" text-anchor="middle">fixture 泄漏检测</text>
+
+        <!-- Strategy Runner -->
+        <rect x="980" y="643" width="150" height="50" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+        <rect x="980" y="643" width="150" height="50" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="1055" y="665" fill="white" font-size="11" font-weight="600" text-anchor="middle">strategy_runner.py</text>
+        <text x="1055" y="680" fill="#94a3b8" font-size="8" text-anchor="middle">4 策略 fresh-agent 包</text>
+
+        <!-- Held-out Suite -->
+        <rect x="790" y="675" width="160" height="50" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+        <rect x="790" y="675" width="160" height="50" rx="6" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="870" y="697" fill="white" font-size="10" font-weight="600" text-anchor="middle">held_out suite v0.2</text>
+        <text x="870" y="712" fill="#fbbf24" font-size="8" text-anchor="middle">⚠ verify_presentation 崩溃</text>
+
+        <!-- DevOps Harness -->
+        <rect x="790" y="745" width="160" height="45" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+        <rect x="790" y="745" width="160" height="45" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="870" y="767" fill="white" font-size="10" font-weight="600" text-anchor="middle">devops_harness</text>
+        <text x="870" y="782" fill="#94a3b8" font-size="8" text-anchor="middle">task_state · executor 脚本</text>
+
+        <!-- Skill Registry -->
+        <rect x="980" y="710" width="150" height="50" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+        <rect x="980" y="710" width="150" height="50" rx="6" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="1055" y="732" fill="white" font-size="10" font-weight="600" text-anchor="middle">registry.json</text>
+        <text x="1055" y="747" fill="#94a3b8" font-size="8" text-anchor="middle">22 skills · 5 layer 约束</text>
+
+        <!-- Data layer -->
+        <rect x="980" y="780" width="150" height="45" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="1.5"/>
+        <rect x="980" y="780" width="150" height="45" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1055" y="802" fill="white" font-size="10" font-weight="600" text-anchor="middle">data/</text>
+        <text x="1055" y="817" fill="#94a3b8" font-size="8" text-anchor="middle">单位 · 建筑 · 技能 · 伤害矩阵</text>
+
+        <!-- Scripts -->
+        <rect x="790" y="810" width="160" height="45" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+        <rect x="790" y="810" width="160" height="45" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="870" y="832" fill="white" font-size="10" font-weight="600" text-anchor="middle">scripts/</text>
+        <text x="870" y="847" fill="#94a3b8" font-size="8" text-anchor="middle">lint_deps · verify · smoke</text>
+
+        <!-- ============================================================
+             KEY ARROWS — Layer Direction
+             ============================================================ -->
+
+        <!-- L0 → L1: proto drives SimCore -->
+        <line x1="390" y1="195" x2="390" y2="218" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="400" y="210" fill="#94a3b8" font-size="8">生成绑定</text>
+
+        <!-- L1 → L2: SimCore feeds Agent -->
+        <line x1="390" y1="413" x2="390" y2="438" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="400" y="428" fill="#94a3b8" font-size="8">GameState → Obs</text>
+
+        <!-- L2 → L3: Agent commands → Godot -->
+        <line x1="300" y1="595" x2="300" y2="628" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="310" y="618" fill="#94a3b8" font-size="8">commands → render</text>
+
+        <!-- Godot → HTTP Gateway loop -->
+        <line x1="160" y1="668" x2="160" y2="610" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="105" y="645" fill="#94a3b8" font-size="8">HTTP /step</text>
+        <line x1="160" y1="610" x2="270" y2="610" stroke="#22d3ee" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="270" y1="610" x2="270" y2="595" stroke="#22d3ee" stroke-width="1" stroke-dasharray="3,3"/>
+
+        <!-- Track B: Training ↔ SimCore -->
+        <line x1="790" y1="129" x2="660" y2="284" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
+        <text x="710" y="195" fill="#94a3b8" font-size="8">gym_env 封装</text>
+
+        <!-- Track C: SkillEvolver → .agents/skills -->
+        <line x1="870" y1="565" x2="870" y2="547" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="880" y="558" fill="#94a3b8" font-size="7">patch</text>
+
+        <!-- SkillEvolver ↔ Auditor -->
+        <line x1="950" y1="594" x2="978" y2="594" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="962" y="588" fill="#94a3b8" font-size="7">审计</text>
+
+        <!-- SkillEvolver ↔ Strategy Runner -->
+        <line x1="950" y1="620" x2="978" y2="660" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow)"/>
+
+        <!-- ============================================================
+             LEGEND
+             ============================================================ -->
+        <text x="50" y="880" fill="white" font-size="10" font-weight="600">图例</text>
+
+        <rect x="50" y="892" width="14" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="70" y="900" fill="#94a3b8" font-size="8">协议层 (L0)</text>
+
+        <rect x="160" y="892" width="14" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="180" y="900" fill="#94a3b8" font-size="8">SimCore (L1)</text>
+
+        <rect x="270" y="892" width="14" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="290" y="900" fill="#94a3b8" font-size="8">Agent (L2) / Godot (L3)</text>
+
+        <rect x="430" y="892" width="14" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="450" y="900" fill="#94a3b8" font-size="8">研究平台</text>
+
+        <rect x="530" y="892" width="14" height="10" rx="2" fill="rgba(251, 146, 60, 0.3)" stroke="#fb923c" stroke-width="1"/>
+        <text x="550" y="900" fill="#94a3b8" font-size="8">研发自动化</text>
+
+        <rect x="650" y="892" width="14" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+        <text x="670" y="900" fill="#94a3b8" font-size="8">⚠ 风险/违规</text>
+
+        <line x1="760" y1="897" x2="780" y2="897" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5,5"/>
+        <text x="786" y="900" fill="#94a3b8" font-size="8">跨轨道依赖</text>
+
+      </svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>P0 架构风险</h3>
+        </div>
+        <ul>
+          <li>• <code>http_gateway.py</code> L1→L2 违规 import</li>
+          <li>• <code>agentscope_compat</code> 缺失 shim</li>
+          <li>• 修复方向: agent_factory 注入 + compat shim 入库</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>P1 平台风险</h3>
+        </div>
+        <ul>
+          <li>• Godot 4.6 版本漂移 (文档写 4.4.1)</li>
+          <li>• <code>aiohttp</code> / <code>gymnasium</code> 未声明依赖</li>
+          <li>• Dashboard 仅 mock，未接 harness</li>
+          <li>• verify_presentation_scene 崩溃 (dict 映射)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>架构不变量 ✅</h3>
+        </div>
+        <ul>
+          <li>• 四层单向依赖 L0→L1→L2→L3</li>
+          <li>• SimCore 确定性 + hash/replay 测试</li>
+          <li>• SkillEvolver 不直接 patch 业务代码</li>
+          <li>• 跨层通信走 protobuf/gRPC/HTTP</li>
+          <li>• 22 skills 全量注册 + structured audit</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      RTS-AI-Platform Architecture • 2026-06-10 • Three-Track Hybrid Research Platform
+    </p>
+  </div>
+</body>
+</html>
