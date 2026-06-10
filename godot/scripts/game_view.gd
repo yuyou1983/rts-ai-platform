@@ -184,6 +184,17 @@ func _get_entity_type(entity_id: String) -> String:
 		return ""
 	return str(data.get("entity_type", data.get("type", "")))
 
+func _load_texture_or_fallback(primary_path: String, fallback_path: String) -> Texture2D:
+	if ResourceLoader.exists(primary_path):
+		var primary := ResourceLoader.load(primary_path, "Texture2D") as Texture2D
+		if primary:
+			return primary
+	elif FileAccess.file_exists(primary_path):
+		var image := Image.new()
+		if image.load(primary_path) == OK:
+			return ImageTexture.create_from_image(image)
+	return load(fallback_path)
+
 # ───────────────────────────────────────────────────────────
 func _ready() -> void:
 	_default_font = ThemeDB.fallback_font
@@ -287,7 +298,7 @@ func _ready() -> void:
 	_unit_textures["soldier_2"] = load("res://assets/units/Zergling.png")
 	_unit_textures["scout_2"] = load("res://assets/units/Hydralisk.png")
 	# Protoss units
-	_unit_textures["worker_3"] = load("res://assets/units/Probe.png")
+	_unit_textures["worker_3"] = _load_texture_or_fallback("res://assets/sc1_generated/p0/Probe.png", "res://assets/units/Probe.png")
 	_unit_textures["soldier_3"] = load("res://assets/units/Zealot.png")
 	_unit_textures["scout_3"] = load("res://assets/units/Dragoon.png")
 	_building_textures[1] = load("res://assets/buildings/TerranBuilding.png")
@@ -298,8 +309,8 @@ func _ready() -> void:
 	_unit_anim_info["worker_1"] = {"rows": 4, "cols": [8,8,8,4], "fw": [33,41,42,46], "fh": [41,40,40,48], "south": [4,4,4,2]}
 	# Drone: same structure as SCV (will refine later with actual Drone sheet)
 	_unit_anim_info["worker_2"] = _unit_anim_info.get("worker_1", {})
-	# Probe: single strip
-	_unit_anim_info["worker_3"] = {"rows": 1, "cols": [1], "fw": [286], "fh": [62], "south": [0]}
+	# Probe: generated MPQ strip has 17 directional frames in one row.
+	_unit_anim_info["worker_3"] = {"rows": 1, "cols": [17], "fw": [32], "fh": [32], "south": [8]}
 	# Marine: 17-dir, many rows
 	_unit_anim_info["soldier_1"] = {"rows": 14, "cols": [18,18,18,18,18,18,18,18,18,18,18,18,18,7], "fw": [20,18,16,16,21,22,22,23,23,24,23,23,23,41], "fh": [28,28,28,34,28,27,29,27,28,29,31,30,29,37], "south": [9,9,9,9,9,9,9,9,9,9,9,9,9,3]}
 	# Zergling: same structure as Marine (will refine later)
@@ -1407,16 +1418,23 @@ func _is_building_entity_visual(e: Dictionary, visual_id: String) -> bool:
 	return str(e.get("type", e.get("entity_type", ""))) == "building" or _is_known_building_visual(visual_id)
 
 func _visual_scale(visual_id: String, is_building: bool) -> Vector2:
+	var fallback := 0.018 if is_building else 0.022
+	if _sprite_loader:
+		var params := _sprite_loader.get_visual_params(visual_id, is_building)
+		var loader_scale := float(params.get("render_scale", fallback))
+		return Vector2(loader_scale, loader_scale)
 	var section_name := "building_visuals" if is_building else "unit_visuals"
 	var section: Dictionary = _presentation_manifest.get(section_name, {})
 	var visual: Dictionary = section.get(visual_id, {})
-	var fallback := 0.018 if is_building else 0.022
 	var scale := float(visual.get("render_scale", fallback))
 	return Vector2(scale, scale)
 
 func _visual_radius(e: Dictionary) -> float:
 	var visual_id := _resolve_visual_id(e)
 	var is_building := _is_building_entity_visual(e, visual_id)
+	if _sprite_loader:
+		var params := _sprite_loader.get_visual_params(visual_id, is_building)
+		return float(params.get("selection_radius", 1.5 if is_building else 0.55))
 	var section_name := "building_visuals" if is_building else "unit_visuals"
 	var section: Dictionary = _presentation_manifest.get(section_name, {})
 	var visual: Dictionary = section.get(visual_id, {})

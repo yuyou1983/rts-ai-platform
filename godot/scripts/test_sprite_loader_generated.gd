@@ -14,6 +14,7 @@ func _init() -> void:
 
 	var loader: SpriteLoader = SpriteLoaderScript.new(manifest_path)
 	_test_generated_building_atlas(loader)
+	_test_generated_visual_params_override(loader)
 	_test_disabled_generated_entry_falls_back(loader)
 
 	print("\nSpriteLoader generated manifest test: %d passed, %d failed" % [_pass, _fail])
@@ -44,6 +45,8 @@ func _write_test_manifest(path: String, texture_path: String) -> void:
 				"frame_height": 40,
 				"frame_count": 6,
 				"atlas_rect": [4, 6, 32, 40],
+				"render_scale": 0.03125,
+				"selection_radius": 3.0,
 			},
 			"Barracks": {
 				"kind": "building",
@@ -78,6 +81,22 @@ func _test_generated_building_atlas(loader: SpriteLoader) -> void:
 	else:
 		_fail += 1
 		print("FAIL: generated atlas region %s expected %s" % [str(atlas.region), str(expected)])
+
+
+func _test_generated_visual_params_override(loader: SpriteLoader) -> void:
+	var params: Dictionary = loader.get_visual_params("CommandCenter", true)
+	var scale: float = float(params.get("render_scale", 0.0))
+	var radius: float = float(params.get("selection_radius", 0.0))
+	if not is_equal_approx(scale, 0.03125):
+		_fail += 1
+		print("FAIL: generated visual scale %s expected 0.03125" % scale)
+		return
+	if not is_equal_approx(radius, 1.02):
+		_fail += 1
+		print("FAIL: generated selection radius %s expected 1.02" % radius)
+		return
+	_pass += 1
+	print("PASS: generated visual params override presentation manifest")
 
 
 func _test_disabled_generated_entry_falls_back(loader: SpriteLoader) -> void:

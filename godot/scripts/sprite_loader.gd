@@ -232,7 +232,12 @@ func get_building_atlas(entity_name: String) -> AtlasTexture:
 func get_visual_params(entity_name: String, is_building: bool) -> Dictionary:
 	var section_name: String = "building_visuals" if is_building else "unit_visuals"
 	var section: Dictionary = _manifest.get(section_name, {})
-	var visual: Dictionary = section.get(entity_name, {})
+	var visual: Dictionary = section.get(entity_name, {}).duplicate(true)
+	var generated_visual := _get_generated_visual_entry(entity_name, "building" if is_building else "unit")
+	if not generated_visual.is_empty():
+		for key in ["render_scale", "selection_radius", "pivot", "health_bar_offset", "selection_ring_offset"]:
+			if generated_visual.has(key):
+				visual[key] = generated_visual[key]
 	var _rendering: Dictionary = _manifest.get("_rendering", {})
 
 	var building_xform: Dictionary = _rendering.get("building_selection_transform", {})
@@ -332,13 +337,8 @@ func reload() -> void:
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
 func _get_generated_building_atlas(entity_name: String) -> AtlasTexture:
-	var assets: Dictionary = _generated_manifest.get("assets", {})
-	var entry: Dictionary = assets.get(entity_name, {})
+	var entry := _get_generated_visual_entry(entity_name, "building")
 	if entry.is_empty():
-		return null
-	if str(entry.get("kind", "")) != "building":
-		return null
-	if not bool(entry.get("runtime_enabled", false)):
 		return null
 
 	var texture_path: String = str(entry.get("asset", ""))
@@ -372,6 +372,19 @@ func _get_generated_building_atlas(entity_name: String) -> AtlasTexture:
 	atlas.region = final_region
 	atlas.filter_clip = true
 	return atlas
+
+
+func _get_generated_visual_entry(entity_name: String, expected_kind: String) -> Dictionary:
+	var assets: Dictionary = _generated_manifest.get("assets", {})
+	var entry: Dictionary = assets.get(entity_name, {})
+	if entry.is_empty():
+		return {}
+	if str(entry.get("kind", "")) != expected_kind:
+		return {}
+	if not bool(entry.get("runtime_enabled", false)):
+		return {}
+	return entry
+
 
 func _get_texture(file_path: String) -> Texture2D:
 	if _loaded_textures.has(file_path):

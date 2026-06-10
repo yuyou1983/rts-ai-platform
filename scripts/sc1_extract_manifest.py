@@ -13,16 +13,54 @@ import re
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "tools" / "sc1_assets" / "p0_resource_manifest.json"
 DEFAULT_EXTRACTOR = REPO_ROOT / "tools" / "mpq" / "bin" / "storm_extract"
 DEFAULT_RAW_OUT = REPO_ROOT / "local_assets" / "sc1_mpq_raw" / "p0"
 DEFAULT_PNG_OUT = REPO_ROOT / "local_assets" / "sc1_converted" / "p0"
 DEFAULT_REPORT = REPO_ROOT / "local_assets" / "sc1_asset_extract_report.json"
-DEFAULT_GENERATED_MANIFEST = REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generated_manifest.json"
+DEFAULT_GENERATED_MANIFEST = (
+    REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generated_manifest.json"
+)
 
 _CONVERT_META_RE = re.compile(r"frames=(?P<frames>\d+)\s+frame_size=(?P<width>\d+)x(?P<height>\d+)")
+
+# Target maximum on-screen footprint in Godot world units for generated GRP cells.
+# These values keep same-tier buildings visually comparable after replacing old
+# hand-cut atlas cells with exact MPQ frame sizes.
+VISUAL_TARGET_MAX_WORLD = {
+    "CommandCenter": 5.6,
+    "Hatchery": 5.6,
+    "Nexus": 5.6,
+    "Barracks": 4.8,
+    "Gateway": 4.8,
+    "SpawningPool": 4.5,
+    "Refinery": 4.0,
+    "Extractor": 4.0,
+    "Assimilator": 4.0,
+    "Pylon": 1.8,
+    "MineralFieldType1": 1.45,
+    "MineralFieldType2": 1.45,
+    "MineralFieldType3": 1.45,
+    "VespeneGeyser": 2.2,
+}
+
+VISUAL_SELECTION_RADIUS = {
+    "CommandCenter": 4.1,
+    "Hatchery": 4.1,
+    "Nexus": 4.1,
+    "Barracks": 3.2,
+    "Gateway": 3.2,
+    "SpawningPool": 2.8,
+    "Refinery": 2.8,
+    "Extractor": 2.5,
+    "Assimilator": 2.8,
+    "Pylon": 2.0,
+    "MineralFieldType1": 1.0,
+    "MineralFieldType2": 1.0,
+    "MineralFieldType3": 1.0,
+    "VespeneGeyser": 1.6,
+}
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -132,6 +170,23 @@ def _to_res_path(path: Path) -> str:
     return str(path)
 
 
+def _visual_overrides(asset_id: str, kind: str, frame_width: int, frame_height: int) -> dict:
+    if kind not in {"building", "resource"}:
+        return {}
+    max_dim = max(frame_width, frame_height)
+    target_max = VISUAL_TARGET_MAX_WORLD.get(asset_id)
+    if not target_max or max_dim <= 0:
+        return {}
+
+    overrides = {
+        "render_scale": round(target_max / max_dim, 4),
+    }
+    selection_radius = VISUAL_SELECTION_RADIUS.get(asset_id)
+    if selection_radius is not None:
+        overrides["selection_radius"] = selection_radius
+    return overrides
+
+
 def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
     assets: dict[str, dict] = {}
     for record in records:
@@ -146,7 +201,7 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
         asset_id = str(record["id"])
         png_path = Path(str(conversion.get("png_path", png_out / f"{_safe_name(asset_id)}.png")))
 
-        assets[asset_id] = {
+        entry = {
             "kind": kind,
             "runtime_enabled": kind in {"building", "resource"},
             "asset": _to_res_path(png_path),
@@ -157,11 +212,13 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
             "frame_height": frame_height,
             "atlas_rect": [0, 0, frame_width, frame_height],
         }
+        entry.update(_visual_overrides(asset_id, kind, frame_width, frame_height))
+        assets[asset_id] = entry
 
     return {
         "schema_version": 1,
         "generated_by": "scripts/sc1_extract_manifest.py",
-        "runtime_policy": "building_and_resource_overrides_only",
+        "runtime_policy": "building_and_resource_overrides_with_visual_scale",
         "assets": assets,
     }
 
