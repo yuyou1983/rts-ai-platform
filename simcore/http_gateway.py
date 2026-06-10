@@ -23,6 +23,7 @@ from aiohttp import web
 
 from simcore.grpc_client import SimCoreClient
 from simcore.state import GameState
+from simcore.recorder import Recorder
 
 from harness.league import League, AgentVersion, AgentType, MatchupResult, update_elo
 from harness.pool import MatchConfig, MatchResult, MatchScheduler, SimulationPool
@@ -48,6 +49,8 @@ _agent_factory: AgentFactory | None = None
 _league: League | None = None
 # Replay directory — points to harness output
 _replay_dir: Path = Path("harness/output/replays")
+# Match recorder — active during a game session
+_recorder: Recorder | None = None
 
 
 def set_agent_factory(factory: AgentFactory) -> None:
@@ -60,12 +63,24 @@ def set_agent_factory(factory: AgentFactory) -> None:
     _agent_factory = factory
 
 
-def _create_ai_agent(player_id: int, difficulty: str = "medium"):
-    """Create an AI agent using the injected factory (if available)."""
+def _create_ai_agent(player_id: int, difficulty: str = "medium", race: str = "terran"):
+    """Create an AI agent using the injected factory.
+
+    Raises RuntimeError if no agent_factory has been injected via
+    set_agent_factory().  This enforces the L1→L2 boundary: simcore
+    must not import from agents directly.
+    """
     if _agent_factory is not None:
-        return _agent_factory(player_id, difficulty=difficulty)
-    logger.warning("No agent_factory set — cannot create AI agent")
-    return None
+        # Try with race; if factory doesn't accept it, fall back without
+        try:
+            return _agent_factory(player_id, difficulty=difficulty, race=race)
+        except TypeError:
+            return _agent_factory(player_id, difficulty=difficulty)
+    # No factory — raise instead of importing agents (L2) from simcore (L1)
+    raise RuntimeError(
+        f"No agent_factory set for player {player_id}. "
+        "Call set_agent_factory() from the runtime layer before starting a game."
+    )
 
 
 def _state_to_observations(state_dict: dict) -> list[dict]:
@@ -97,25 +112,54 @@ def _godot_state(state_dict: dict) -> dict:
 
 
 async def handle_start_game(req: web.Request) -> web.Response:
-    global _ai_player, _ai_agent, _last_state_dict, _ai_difficulty, _height_map_cache
+    global _ai_player, _ai_agent, _last_state_dict, _ai_difficulty, _height_map_cache, _player_races, _recorder
     params = await req.json()
     assert _client
     _ai_player = params.get("ai_player", 0)
     _ai_difficulty = params.get("ai_difficulty", "medium")
     _last_state_dict = {}
     _height_map_cache = None
+    _player_races = params.get("player_races", {})
+
+    # Start match recorder
+    _recorder = Recorder()
+    game_config = {
+        "seed": params.get("seed", 42),
+        "max_ticks": params.get("max_ticks", 10000),
+        "tick_rate": params.get("tick_rate", 10.0),
+        "ai_player": _ai_player,
+        "ai_difficulty": _ai_difficulty,
+        "enable_elevation": params.get("enable_elevation", True),
+        "player_races": _player_races,
+    }
+    _recorder.start_recording(game_config)
     if _ai_player in (1, 2):
-        _ai_agent = _create_ai_agent(_ai_player, difficulty=_ai_difficulty)
-        if _ai_agent is not None:
-            logger.info("AI agent created for P%d: %s", _ai_player, type(_ai_agent).__name__)
+        try:
+            with open("/tmp/rts_http_debug.log", "a") as _dbg:
+                _dbg.write("[HTTP] start: creating AI for P%d, diff=%s\n" % (_ai_player, _ai_difficulty))
+            _ai_agent = _create_ai_agent(_ai_player, difficulty=_ai_difficulty)
+            with open("/tmp/rts_http_debug.log", "a") as _dbg:
+                _dbg.write("[HTTP] start: ai_agent created = %s\n" % (_ai_agent is not None))
+        except Exception as e:
+            import traceback as _tb
+            with open("/tmp/rts_http_debug.log", "a") as _dbg:
+                _dbg.write("[HTTP] start: AI creation FAILED: %s\n" % e)
+                _dbg.write(_tb.format_exc())
+            _ai_agent = None
     else:
         _ai_agent = None
-    result = await _client.start_game(
-        seed=params.get("seed", 42),
-        max_ticks=params.get("max_ticks", 10000),
-        tick_rate=params.get("tick_rate", 10.0),
-        enable_elevation=params.get("enable_elevation", True),
-    )
+    try:
+        result = await _client.start_game(
+            seed=params.get("seed", 42),
+            max_ticks=params.get("max_ticks", 10000),
+            tick_rate=params.get("tick_rate", 10.0),
+            enable_elevation=params.get("enable_elevation", True),
+            player_races=_player_races,
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e), "traceback": traceback.format_exc()}, status=500)
     _last_state_dict = result
     # Phase D: cache height_map from first state (sent once at game start)
     hm = result.get("height_map")
@@ -131,12 +175,19 @@ async def handle_step(req: web.Request) -> web.Response:
     commands = list(params.get("commands", []))
 
     # Auto-inject AI commands for the configured AI player
+    ai_agent_available = _ai_agent is not None
+    with open("/tmp/rts_http_debug.log", "a") as _dbg:
+        _dbg.write("[HTTP] step: ai_agent=%s, ai_player=%s\n" % (ai_agent_available, _ai_player))
     if _ai_agent is not None and _ai_player in (1, 2):
         try:
             obs_list = _state_to_observations(_last_state_dict)
+            with open("/tmp/rts_http_debug.log", "a") as _dbg:
+                _dbg.write("[HTTP] obs_list len=%d\n" % len(obs_list))
             if len(obs_list) >= _ai_player:
                 ai_obs = obs_list[_ai_player - 1]
                 ai_result = _ai_agent.decide(ai_obs)
+                with open("/tmp/rts_http_debug.log", "a") as _dbg:
+                    _dbg.write("[HTTP] AI decide result type=%s, value=%s\n" % (type(ai_result).__name__, str(ai_result)[:500]))
                 if isinstance(ai_result, dict):
                     ai_cmds = ai_result.get("commands", [])
                 else:
@@ -144,8 +195,13 @@ async def handle_step(req: web.Request) -> web.Response:
                 for cmd in ai_cmds:
                     if "issuer" not in cmd:
                         cmd["issuer"] = _ai_player
+                if ai_cmds:
+                    ai_summary = [(c.get("action"), c.get("unit_type", c.get("building_type",""))) for c in ai_cmds[:5]]
+                    print("[HTTP] AI P%d generated %d commands: %s" % (_ai_player, len(ai_cmds), ai_summary))
                 commands.extend(ai_cmds)
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             logger.warning("AI command generation failed: %s", exc)
 
     # Log AI commands
@@ -160,7 +216,45 @@ async def handle_step(req: web.Request) -> web.Response:
         logger.info("Sending to gRPC - train commands: %s", train_cmds[:3])
     
     result = await _client.step(commands=commands)
-    _last_state_dict = result
+    # If client requested multiple steps, advance additional ticks
+    # (AI commands are injected for each intermediate tick)
+    count = max(1, int(params.get("count", 1)))
+    for _extra in range(count - 1):
+        extra_cmds: list[dict] = []
+        if _ai_agent is not None and _ai_player in (1, 2):
+            try:
+                obs_list = _state_to_observations(_last_state_dict)
+                if len(obs_list) >= _ai_player:
+                    ai_obs = obs_list[_ai_player - 1]
+                    ai_result = _ai_agent.decide(ai_obs)
+                    if isinstance(ai_result, dict):
+                        extra_cmds = ai_result.get("commands", [])
+                    else:
+                        extra_cmds = list(ai_result) if ai_result else []
+                    for cmd in extra_cmds:
+                        if "issuer" not in cmd:
+                            cmd["issuer"] = _ai_player
+            except Exception:
+                pass
+        result = await _client.step(commands=extra_cmds)
+        _last_state_dict = result
+    else:
+        _last_state_dict = result
+
+    # ── Record tick for replay ──
+    if _recorder is not None and _recorder.is_recording:
+        tick_num = result.get("tick", 0)
+        entities = result.get("entities", {})
+        resources = result.get("resources", {})
+        is_terminal = result.get("is_terminal", False)
+        _recorder.record_tick(tick_num, entities, resources, commands, is_terminal)
+        # If terminal, save the replay and stop recording
+        if is_terminal:
+            _replay_dir.mkdir(parents=True, exist_ok=True)
+            filename = Recorder.generate_filename(_player_races)
+            _recorder.save_replay(_replay_dir / filename)
+            _recorder.stop_recording()
+
     return web.json_response(_godot_state(result))
 
 
@@ -342,11 +436,54 @@ async def handle_league_submit_result(req: web.Request) -> web.Response:
 
 def reset_ai_state() -> None:
     """Reset AI configuration globals. Called between tests."""
-    global _ai_player, _ai_agent, _last_state_dict, _league
+    global _ai_player, _ai_agent, _last_state_dict, _league, _recorder
     _ai_player = 0
     _ai_agent = None
     _last_state_dict = {}
     _league = None
+    _recorder = None
+
+
+async def handle_replay_list(req: web.Request) -> web.Response:
+    """GET /api/replay/list — list all replay files."""
+    _replay_dir.mkdir(parents=True, exist_ok=True)
+    replays: list[dict] = []
+    for f in sorted(_replay_dir.glob("*.jsonl")):
+        stat = f.stat()
+        replays.append({
+            "filename": f.name,
+            "size_bytes": stat.st_size,
+            "modified": stat.st_mtime,
+        })
+    # Also include .json format replays
+    for f in sorted(_replay_dir.glob("*.json")):
+        if f.name.endswith(".json") and not any(
+            r["filename"] == f.name for r in replays
+        ):
+            stat = f.stat()
+            replays.append({
+                "filename": f.name,
+                "size_bytes": stat.st_size,
+                "modified": stat.st_mtime,
+            })
+    return web.json_response({"replays": replays})
+
+
+async def handle_replay_download(req: web.Request) -> web.Response:
+    """GET /api/replay/download/{filename} — download a replay JSONL file."""
+    filename = req.match_info["filename"]
+    # Security: only allow filenames without path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return web.json_response({"error": "invalid filename"}, status=400)
+    filepath = _replay_dir / filename
+    if not filepath.is_file():
+        return web.json_response({"error": "file not found"}, status=404)
+    content = filepath.read_text(encoding="utf-8")
+    return web.Response(
+        text=content,
+        content_type="application/x-jsonlines",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = None) -> web.Application:
@@ -368,6 +505,8 @@ async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = 
 
     # New endpoints
     app.router.add_get("/api/replay/{match_id}", handle_replay)
+    app.router.add_get("/api/replay/list", handle_replay_list)
+    app.router.add_get("/api/replay/download/{filename}", handle_replay_download)
     app.router.add_get("/api/league/ranking", handle_league_ranking)
     app.router.add_post("/api/league/match", handle_league_match)
     app.router.add_post("/api/league/submit_result", handle_league_submit_result)
