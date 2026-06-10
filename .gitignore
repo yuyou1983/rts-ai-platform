@@ -23,6 +23,8 @@ local_assets/
 extracted_assets/
 tools/mpq/
 StarCraft/**/*.mpq.extracted/
+godot/assets/sc1_extracted/
+godot/assets/sc1_generated/
 
 # Large assets (available on demand)
 # docs/RTS_Agent_Architecture_Deck.pdf
