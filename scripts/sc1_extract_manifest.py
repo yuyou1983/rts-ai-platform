@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -19,6 +20,9 @@ DEFAULT_EXTRACTOR = REPO_ROOT / "tools" / "mpq" / "bin" / "storm_extract"
 DEFAULT_RAW_OUT = REPO_ROOT / "local_assets" / "sc1_mpq_raw" / "p0"
 DEFAULT_PNG_OUT = REPO_ROOT / "local_assets" / "sc1_converted" / "p0"
 DEFAULT_REPORT = REPO_ROOT / "local_assets" / "sc1_asset_extract_report.json"
+DEFAULT_GENERATED_MANIFEST = REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generated_manifest.json"
+
+_CONVERT_META_RE = re.compile(r"frames=(?P<frames>\d+)\s+frame_size=(?P<width>\d+)x(?P<height>\d+)")
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -104,6 +108,64 @@ def _convert_asset(raw_path: Path, asset_id: str, png_out: Path) -> dict:
     }
 
 
+def _parse_conversion_metadata(stdout: str) -> tuple[int, int, int]:
+    match = _CONVERT_META_RE.search(stdout)
+    if not match:
+        return (0, 0, 0)
+    return (
+        int(match.group("frames")),
+        int(match.group("width")),
+        int(match.group("height")),
+    )
+
+
+def _to_res_path(path: Path) -> str:
+    resolved = path.resolve()
+    godot_root = (REPO_ROOT / "godot").resolve()
+    try:
+        return "res://" + resolved.relative_to(godot_root).as_posix()
+    except ValueError:
+        parts = path.parts
+        if "godot" in parts:
+            index = parts.index("godot")
+            return "res://" + Path(*parts[index + 1 :]).as_posix()
+    return str(path)
+
+
+def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
+    assets: dict[str, dict] = {}
+    for record in records:
+        conversion = record.get("conversion", {})
+        if record.get("status") != "extracted" or conversion.get("status") != "converted":
+            continue
+
+        frame_count, frame_width, frame_height = _parse_conversion_metadata(
+            str(conversion.get("stdout", ""))
+        )
+        kind = str(record.get("kind", ""))
+        asset_id = str(record["id"])
+        png_path = Path(str(conversion.get("png_path", png_out / f"{_safe_name(asset_id)}.png")))
+
+        assets[asset_id] = {
+            "kind": kind,
+            "runtime_enabled": kind in {"building", "resource"},
+            "asset": _to_res_path(png_path),
+            "source_mpq": record.get("source_mpq", ""),
+            "mpq_path": record.get("mpq_path", ""),
+            "frame_count": frame_count,
+            "frame_width": frame_width,
+            "frame_height": frame_height,
+            "atlas_rect": [0, 0, frame_width, frame_height],
+        }
+
+    return {
+        "schema_version": 1,
+        "generated_by": "scripts/sc1_extract_manifest.py",
+        "runtime_policy": "building_and_resource_overrides_only",
+        "assets": assets,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -112,6 +174,7 @@ def main() -> int:
     parser.add_argument("--raw-out", type=Path, default=DEFAULT_RAW_OUT)
     parser.add_argument("--png-out", type=Path, default=DEFAULT_PNG_OUT)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
+    parser.add_argument("--generated-manifest", type=Path, default=DEFAULT_GENERATED_MANIFEST)
     parser.add_argument("--convert", action="store_true")
     args = parser.parse_args()
 
@@ -144,6 +207,11 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + "\n")
 
+    if args.convert:
+        generated_manifest = build_generated_manifest(records, args.png_out)
+        args.generated_manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.generated_manifest.write_text(json.dumps(generated_manifest, indent=2) + "\n")
+
     missing = [r["id"] for r in records if r["status"] != "extracted"]
     converted_failed = [
         r["id"]
@@ -153,6 +221,7 @@ def main() -> int:
     print(f"assets={len(records)} extracted={len(records) - len(missing)} missing={len(missing)}")
     if args.convert:
         print(f"converted_failed={len(converted_failed)}")
+        print(f"generated_manifest={args.generated_manifest}")
     print(f"report={args.report}")
     return 1 if missing or converted_failed else 0
 

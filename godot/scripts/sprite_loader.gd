@@ -10,12 +10,15 @@ extends RefCounted
 # ─── Constants ────────────────────────────────────────────────────────────────
 const CONFIG_PATH := "res://resources/sprite_frames_config.json"
 const MANIFEST_PATH := "res://resources/presentation_manifest.json"
+const GENERATED_MANIFEST_PATH := "res://assets/sc1_generated/generated_manifest.json"
 const FRAME_TIME_MS := 100  # 10 FPS → 100ms per frame (matches original SC tick)
 const BUILDING_ATLAS_PADDING := 12
 
 # ─── Internal state ───────────────────────────────────────────────────────────
 var _config: Dictionary = {}
 var _manifest: Dictionary = {}
+var _generated_manifest: Dictionary = {}
+var _generated_manifest_path: String = GENERATED_MANIFEST_PATH
 var _unit_cache: Dictionary = {}   # entity_name → SpriteFrames
 var _building_cache: Dictionary = {}  # entity_name → AtlasTexture
 var _loaded_textures: Dictionary = {}  # file_path → Texture2D
@@ -31,9 +34,11 @@ static var DIRECTION_NAMES: PackedStringArray = [
 
 
 # ─── Lifecycle ────────────────────────────────────────────────────────────────
-func _init() -> void:
+func _init(generated_manifest_path: String = GENERATED_MANIFEST_PATH) -> void:
+	_generated_manifest_path = generated_manifest_path
 	_load_config()
 	_load_manifest()
+	_load_generated_manifest()
 
 
 func _load_config() -> void:
@@ -73,6 +78,25 @@ func _load_manifest() -> void:
 				push_error("[SpriteLoader] Failed to parse manifest JSON: %s" % json.get_error_message())
 	else:
 		push_warning("[SpriteLoader] Manifest not found: %s — visual params unavailable" % MANIFEST_PATH)
+
+
+func _load_generated_manifest() -> void:
+	_generated_manifest = {}
+	if not FileAccess.file_exists(_generated_manifest_path):
+		return
+
+	var f := FileAccess.open(_generated_manifest_path, FileAccess.READ)
+	if f:
+		var json_text := f.get_as_text()
+		f.close()
+		var json := JSON.new()
+		var err := json.parse(json_text)
+		if err == OK and json.data is Dictionary:
+			_generated_manifest = json.data
+			var a_count: int = _generated_manifest.get("assets", {}).size()
+			print("[SpriteLoader] Loaded generated SC1 manifest: %d assets" % a_count)
+		else:
+			push_error("[SpriteLoader] Failed to parse generated manifest JSON: %s" % json.get_error_message())
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -139,6 +163,11 @@ func get_frames(entity_name: String) -> SpriteFrames:
 func get_building_atlas(entity_name: String) -> AtlasTexture:
 	if _building_cache.has(entity_name):
 		return _building_cache[entity_name]
+
+	var generated_atlas := _get_generated_building_atlas(entity_name)
+	if generated_atlas != null:
+		_building_cache[entity_name] = generated_atlas
+		return generated_atlas
 
 	# Try manifest first — it has the precise hand-tuned atlas_rect
 	var bv: Dictionary = _manifest.get("building_visuals", {}).get(entity_name, {})
@@ -297,19 +326,75 @@ func reload() -> void:
 	clear_cache()
 	_load_config()
 	_load_manifest()
+	_load_generated_manifest()
 
 
 # ─── Internal helpers ─────────────────────────────────────────────────────────
+
+func _get_generated_building_atlas(entity_name: String) -> AtlasTexture:
+	var assets: Dictionary = _generated_manifest.get("assets", {})
+	var entry: Dictionary = assets.get(entity_name, {})
+	if entry.is_empty():
+		return null
+	if str(entry.get("kind", "")) != "building":
+		return null
+	if not bool(entry.get("runtime_enabled", false)):
+		return null
+
+	var texture_path: String = str(entry.get("asset", ""))
+	if texture_path == "":
+		return null
+	var texture := _get_texture(texture_path)
+	if texture == null:
+		return null
+
+	var atlas_rect: Array = entry.get("atlas_rect", [])
+	var frame_width: int = int(entry.get("frame_width", 0))
+	var frame_height: int = int(entry.get("frame_height", 0))
+	var raw_region := Rect2(0, 0, frame_width, frame_height)
+	if atlas_rect.size() == 4:
+		raw_region = Rect2(
+			int(atlas_rect[0]),
+			int(atlas_rect[1]),
+			int(atlas_rect[2]),
+			int(atlas_rect[3])
+		)
+	if raw_region.size.x <= 0 or raw_region.size.y <= 0:
+		raw_region = Rect2(Vector2.ZERO, texture.get_size())
+
+	var texture_rect := Rect2(Vector2.ZERO, texture.get_size())
+	var final_region := raw_region.intersection(texture_rect)
+	if final_region.size.x <= 0 or final_region.size.y <= 0:
+		return null
+
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = final_region
+	atlas.filter_clip = true
+	return atlas
 
 func _get_texture(file_path: String) -> Texture2D:
 	if _loaded_textures.has(file_path):
 		return _loaded_textures[file_path]
 
-	if not ResourceLoader.exists(file_path):
-		push_error("[SpriteLoader] Texture not found: %s" % file_path)
-		return null
-
-	var tex := ResourceLoader.load(file_path, "Texture2D") as Texture2D
+	var tex: Texture2D = null
+	if ResourceLoader.exists(file_path):
+		tex = ResourceLoader.load(file_path, "Texture2D") as Texture2D
+	else:
+		tex = _load_image_texture(file_path)
 	if tex:
 		_loaded_textures[file_path] = tex
+	else:
+		push_error("[SpriteLoader] Texture not found: %s" % file_path)
 	return tex
+
+
+func _load_image_texture(file_path: String) -> Texture2D:
+	if not FileAccess.file_exists(file_path):
+		return null
+	var image := Image.new()
+	var err := image.load(file_path)
+	if err != OK:
+		push_error("[SpriteLoader] Failed to load image texture %s: %s" % [file_path, err])
+		return null
+	return ImageTexture.create_from_image(image)

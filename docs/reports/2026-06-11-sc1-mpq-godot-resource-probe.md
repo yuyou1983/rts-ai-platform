@@ -133,3 +133,43 @@ godot/assets/sc1_generated/p0/VespeneGeyser.png
 5. 扩展 manifest 到当前 Godot 已列出的全部单位/建筑。
 6. 引入 OpenBW/BWAPI 作为语义交叉校验源，减少文件名和文本名表误判。
 7. 最后再决定是否保留当前提交内置资源，或只作为无 MPQ 时的 fallback。
+
+## 后续实现：本地 Generated Override
+
+已完成第 1 步的最小闭环：
+
+- `scripts/sc1_extract_manifest.py` 在 `--convert` 成功时会额外生成 `godot/assets/sc1_generated/generated_manifest.json`。
+- `generated_manifest.json` 记录每个 P0 资源的 `asset`、`source_mpq`、`mpq_path`、`frame_count`、`frame_width`、`frame_height`、`atlas_rect`。
+- runtime policy 当前为 `building_and_resource_overrides_only`：
+  - `building` 和 `resource` 默认 `runtime_enabled=true`。
+  - `unit` 默认 `runtime_enabled=false`，避免在未完成 iscript/动画帧序映射前直接替换单位动画。
+- `SpriteLoader` 会尝试读取 `res://assets/sc1_generated/generated_manifest.json`。
+- 如果 generated manifest 存在且建筑条目 `runtime_enabled=true`，`SpriteLoader.get_building_atlas()` 会直接使用 generated PNG 的原始单帧 `atlas_rect`，不再套用提交内建筑合图的 padding。
+- 如果 generated manifest 缺失、条目禁用、PNG 不存在或加载失败，则自动回退到当前 `presentation_manifest.json` / `sprite_frames_config.json` 路径。
+- 对未导入 Godot 的本地 PNG，`SpriteLoader` 已增加 `Image.load()` + `ImageTexture.create_from_image()` fallback，因此 ignored 目录中的 generated PNG 不需要提交 `.import` 文件。
+
+验证命令：
+
+```bash
+python3 scripts/sc1_extract_manifest.py \
+  --starcraft-dir /Users/yuyou/code/StarCraft \
+  --convert \
+  --png-out godot/assets/sc1_generated/p0 \
+  --report local_assets/sc1_asset_extract_godot_report.json
+
+pytest tests/godot/test_sc1_generated_manifest.py tests/godot/test_presentation_manifest.py -q
+
+/Applications/Godot.app/Contents/MacOS/Godot \
+  --headless --path godot --script scripts/test_sprite_loader_generated.gd
+```
+
+验证结果：
+
+```text
+assets=20 extracted=20 missing=0
+converted_failed=0
+pytest: 16 passed
+SpriteLoader generated manifest test: 2 passed, 0 failed
+```
+
+备注：`Godot --headless --path godot --check-only` 在当前环境中未自然退出，已终止该单独校验进程；本轮以专门的 SpriteLoader headless 脚本作为 Godot 行为验证。
