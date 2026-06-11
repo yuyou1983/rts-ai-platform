@@ -80,13 +80,20 @@ var _debug_click_ttl: int = 0
 var _test_mode: bool = false
 var _test_ents: Array = []
 var _test_btn: Button = null
+var _test_filter_panel: PanelContainer = null
+var _test_race_filter: OptionButton = null
+var _test_kind_filter: OptionButton = null
 var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
 var _zoom_out_btn: Button = null
 var _saved_ents: Array = []
+var _saved_player_races: Dictionary = {}
 var _saved_fog_tiles: PackedInt32Array = []
 var _saved_fog_w: int = 0
 var _saved_fog_h: int = 0
+var _test_filter_race: String = "all"
+var _test_filter_kind: String = "all"
+var _test_section_headers: Array = []
 # Animation state
 var _anim_frame: int = 0
 var _anim_tick: float = 0.0
@@ -388,6 +395,7 @@ func _ready() -> void:
 	_test_btn.modulate = Color(0.8, 1.0, 0.8)
 	_ui_layer.add_child(_test_btn)
 	_test_btn.pressed.connect(_toggle_test_mode)
+	_create_test_filter_panel()
 	# Elevation toggle button (below test button)
 	_elev_btn = Button.new()
 	_elev_btn.text = "⛰ Elev"
@@ -467,6 +475,67 @@ func _ready() -> void:
 	_ui_layer.add_child(_apm_label)
 
 	print("===== GameView ready (Human P1 vs AI P2) Sprint 4 path=", get_path())
+
+func _create_test_filter_panel() -> void:
+	_test_filter_panel = PanelContainer.new()
+	_test_filter_panel.visible = false
+	_test_filter_panel.anchor_left = 0.0
+	_test_filter_panel.anchor_top = 0.0
+	_test_filter_panel.anchor_right = 0.0
+	_test_filter_panel.anchor_bottom = 0.0
+	_test_filter_panel.offset_left = 132
+	_test_filter_panel.offset_top = 8
+	_test_filter_panel.offset_right = 468
+	_test_filter_panel.offset_bottom = 42
+	_ui_layer.add_child(_test_filter_panel)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_test_filter_panel.add_child(row)
+
+	var race_label := Label.new()
+	race_label.text = "Race"
+	row.add_child(race_label)
+	_test_race_filter = OptionButton.new()
+	_add_filter_item(_test_race_filter, "All", "all")
+	_add_filter_item(_test_race_filter, "Terran", "terran")
+	_add_filter_item(_test_race_filter, "Zerg", "zerg")
+	_add_filter_item(_test_race_filter, "Protoss", "protoss")
+	_add_filter_item(_test_race_filter, "Neutral", "neutral")
+	_test_race_filter.item_selected.connect(_on_test_race_filter_selected)
+	row.add_child(_test_race_filter)
+
+	var kind_label := Label.new()
+	kind_label.text = "Type"
+	row.add_child(kind_label)
+	_test_kind_filter = OptionButton.new()
+	_add_filter_item(_test_kind_filter, "All", "all")
+	_add_filter_item(_test_kind_filter, "Buildings", "building")
+	_add_filter_item(_test_kind_filter, "Units", "unit")
+	_add_filter_item(_test_kind_filter, "Resources", "resource")
+	_test_kind_filter.item_selected.connect(_on_test_kind_filter_selected)
+	row.add_child(_test_kind_filter)
+
+
+func _add_filter_item(option: OptionButton, label: String, value: String) -> void:
+	option.add_item(label)
+	option.set_item_metadata(option.item_count - 1, value)
+
+
+func _on_test_race_filter_selected(index: int) -> void:
+	if _test_race_filter == null:
+		return
+	_test_filter_race = str(_test_race_filter.get_item_metadata(index))
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_test_kind_filter_selected(index: int) -> void:
+	if _test_kind_filter == null:
+		return
+	_test_filter_kind = str(_test_kind_filter.get_item_metadata(index))
+	if _test_mode:
+		_build_test_entities()
 
 # ─── Bridge between old _selected and new SelectionManager ──
 var _selected: Dictionary = {}
@@ -581,6 +650,9 @@ func _process(delta: float) -> void:
 		if _anim_tick >= 1.0 / ANIM_FPS:
 			_anim_tick -= 1.0 / ANIM_FPS
 			_anim_frame = (_anim_frame + 1) % 17
+			for e in _test_ents:
+				if str(e.get("preview_action", "")) == "attack":
+					_attack_flash_timers[str(e.get("id", ""))] = ATTACK_FLASH_DURATION
 			_update_entity_sprites()
 	# CameraController handles all camera movement now
 
@@ -1978,6 +2050,10 @@ func _update_entity_sprites() -> void:
 	for e in _ents:
 		var eid: String = str(e.id)
 		active_ids[eid] = true
+		if bool(e.get("preview_hidden", false)):
+			if _sprite_pool.has(eid):
+				_sprite_pool[eid].visible = false
+			continue
 
 		# Skip entities in fog (non-own)
 		if e.owner != 1 and _is_in_fog(e):
@@ -1987,9 +2063,11 @@ func _update_entity_sprites() -> void:
 
 		var visual_id := _resolve_visual_id(e)
 		var is_building := _is_building_entity_visual(e, visual_id)
+		var is_generated_resource_preview: bool = _test_mode and str(e.get("type", "")) == "resource" and str(e.get("generated_asset_id", "")) != ""
+		var is_generated_unit_preview: bool = _test_mode and str(e.get("type", "")) == "unit" and str(e.get("generated_asset_id", "")) != ""
 		var has_unit_override := _has_unit_region_override(e)
 		var node: Node2D = _sprite_pool.get(eid, null)
-		var needs_animated := not is_building and not has_unit_override
+		var needs_animated := not is_building and not has_unit_override and not is_generated_resource_preview
 		if node == null or (needs_animated and not (node is AnimatedSprite2D)) or (not needs_animated and not (node is Sprite2D)):
 			if node:
 				node.queue_free()
@@ -2025,6 +2103,21 @@ func _update_entity_sprites() -> void:
 				else:
 					sprite.texture = null
 					sprite.visible = false
+		elif is_generated_resource_preview:
+			var sprite := node as Sprite2D
+			var asset_id := str(e.get("generated_asset_id", ""))
+			var atlas := _sprite_loader.get_generated_asset_atlas(asset_id, "resource", true) if _sprite_loader else null
+			if atlas:
+				sprite.texture = atlas
+				sprite.region_enabled = false
+				var scale := float(e.get("render_scale", 0.018))
+				sprite.scale = Vector2(scale, scale)
+				sprite.visible = true
+				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			else:
+				sprite.texture = null
+				sprite.visible = false
 		elif has_unit_override:
 			var sprite := node as Sprite2D
 			var uinfo: Dictionary = _get_unit_region_override(e)
@@ -2044,7 +2137,14 @@ func _update_entity_sprites() -> void:
 					push_warning("[GameView] Building '%s' visual_id='%s': no override and no atlas" % [eid, visual_id])
 		else:
 			var anim_sprite := node as AnimatedSprite2D
-			var frames := _sprite_loader.get_frames(visual_id) if _sprite_loader else null
+			var frames: SpriteFrames = null
+			if is_generated_unit_preview and _sprite_loader:
+				frames = _sprite_loader.get_generated_unit_preview_frames(
+					str(e.get("generated_asset_id", visual_id)),
+					str(e.get("preview_action", "moving"))
+				)
+			elif _sprite_loader:
+				frames = _sprite_loader.get_frames(visual_id)
 			if frames:
 				anim_sprite.sprite_frames = frames
 				var anim_key := _unit_animation_key(e, frames)
@@ -2089,6 +2189,8 @@ func _draw_entities(co: Vector2) -> void:
 		# ─── Only draw circles for resources (no sprite) ───
 		# Workers, soldiers, scouts, buildings use Sprite2D nodes instead
 		if e.type == "resource":
+			if bool(e.get("uses_sprite", false)):
+				continue
 			var radius := 0.4
 			if e.resource_type == "mineral":
 				draw_rect(Rect2(pos - Vector2(radius, radius), Vector2(radius * 2, radius * 2)), Color(1.0, 0.85, 0.0, 1.0), true)
@@ -2099,7 +2201,7 @@ func _draw_entities(co: Vector2) -> void:
 
 	# Attack / move target lines
 	for e in _ents:
-		if e.owner != 1:
+		if e.owner != 1 and not _test_mode:
 			continue
 		if e.attack_target_id != "" or not e.is_idle:
 			var lpos := Vector2(e.px, e.py) 
@@ -2576,49 +2678,62 @@ func _draw_test_labels() -> void:
 	var font: Font = _default_font
 	if not font:
 		return
-	# Font sizes in world units — small enough to read when zoomed in
 	var title_size := 1.2
 	var label_size := 0.8
-	const BX := 4.0
-	const UX := 40.0
-	# Building section headers
-	var y := 2.5
-	draw_string(font, Vector2(BX, y), "TERRAN BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(0.4, 0.6, 1.0))
-	y += 4.0 * 5 + 1.0
-	draw_string(font, Vector2(BX, y), "ZERG BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.5, 0.3))
-	y += 4.0 * 5 + 1.0
-	draw_string(font, Vector2(BX, y), "PROTOSS BUILDINGS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.9, 0.3))
-	# Unit section headers
-	var uy := 2.5
-	draw_string(font, Vector2(UX, uy), "TERRAN UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(0.4, 0.6, 1.0))
-	uy += 2.5 * 3 + 1.0
-	draw_string(font, Vector2(UX, uy), "ZERG UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.5, 0.3))
-	uy += 2.5 * 3 + 1.0
-	draw_string(font, Vector2(UX, uy), "PROTOSS UNITS", HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color(1.0, 0.9, 0.3))
-	# Individual entity labels
+	for header in _test_section_headers:
+		draw_string(
+			font,
+			header.get("pos", Vector2.ZERO),
+			str(header.get("text", "")),
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			title_size,
+			header.get("color", Color.WHITE)
+		)
 	for e in _ents:
 		if not str(e.id).begins_with("test_"):
 			continue
-		var label: String = ""
-		if e.type == "building":
-			label = e.building_type
-		else:
-			label = e.type
-		var owner_tag := "T" if e.owner == 1 else ("Z" if e.owner == 2 else "P")
-		var full_label := "%s/%s" % [owner_tag, label]
-		draw_string(font, Vector2(e.px + 1.5, e.py - 0.3), full_label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color(1,1,1,0.9))
+		if bool(e.get("preview_hidden", false)):
+			continue
+		var full_label := str(e.get("label", ""))
+		if full_label == "":
+			continue
+		draw_string(
+			font,
+			Vector2(float(e.get("px", 0.0)) + 1.3, float(e.get("py", 0.0)) - 0.3),
+			full_label,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			label_size,
+			Color(1, 1, 1, 0.9)
+		)
 
 
 func _toggle_test_mode() -> void:
 	_test_mode = not _test_mode
 	if _test_mode:
+		_saved_ents = _ents.duplicate(true)
+		_saved_player_races = _player_races.duplicate(true)
+		_saved_fog_tiles = _fog_tiles
+		_saved_fog_w = _fog_w
+		_saved_fog_h = _fog_h
+		_fog_tiles = PackedInt32Array()
+		_fog_w = 0
+		_fog_h = 0
+		_player_races["1"] = "1"
+		_player_races["2"] = "2"
+		_player_races["3"] = "3"
 		_build_test_entities()
+		if _test_filter_panel:
+			_test_filter_panel.visible = true
 		if _test_btn:
-			_test_btn.text = "🔙 Back"
+			_test_btn.text = "Back"
 			_test_btn.modulate = Color(1.0, 0.8, 0.8)
-		print("[TEST MODE] ON — showing all sprites on map")
+		print("[TEST MODE] ON — generated asset gallery")
 	else:
 		_clear_test_entities()
+		if _test_filter_panel:
+			_test_filter_panel.visible = false
 		if _test_btn:
 			_test_btn.text = "🧪 Test Mode"
 			_test_btn.modulate = Color(0.8, 1.0, 0.8)
@@ -2633,118 +2748,73 @@ func _toggle_elevation() -> void:
 	queue_redraw()
 
 func _build_test_entities() -> void:
-	_clear_test_entities()
-	# Save fog state and disable it
-	_saved_fog_tiles = _fog_tiles
-	_saved_fog_w = _fog_w
-	_saved_fog_h = _fog_h
-	_fog_tiles = PackedInt32Array()
-	_fog_w = 0
-	_fog_h = 0
-	
-	const BX := 4.0      # building section X start
-	const UX := 40.0     # unit section X start
-	const SPACING := 4.0
-	var y := 4.0
-	
-	# ════════════ BUILDINGS (left side) ════════════
-	# Terran buildings
-	for bt in ["base", "barracks", "factory", "refinery", "starport"]:
-		_test_ents.append({
-			"id": "test_t_%s" % bt, "owner": 1, "type": "building",
-			"entity_type": "building", "building_type": bt,
-			"px": BX, "py": y, "health": 1000, "max_health": 1000,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 0, "attack_range": 0, "speed": 0,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		y += SPACING
-	
-	# Zerg buildings
-	y += 1.0
-	for bt in ["base", "barracks", "lair", "hive", "spire"]:
-		_test_ents.append({
-			"id": "test_z_%s" % bt, "owner": 2, "type": "building",
-			"entity_type": "building", "building_type": bt,
-			"px": BX, "py": y, "health": 1000, "max_health": 1000,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 0, "attack_range": 0, "speed": 0,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		y += SPACING
-	
-	# Protoss buildings
-	y += 1.0
-	for bt in ["base", "barracks", "spire"]:
-		_test_ents.append({
-			"id": "test_p_%s" % bt, "owner": 3, "type": "building",
-			"entity_type": "building", "building_type": bt,
-			"px": BX, "py": y, "health": 1000, "max_health": 1000,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 0, "attack_range": 0, "speed": 0,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		y += SPACING
-	
-	# ════════════ UNITS (right side) ════════════
-	var uy := 4.0
-	# Terran units
-	for utype in ["worker", "soldier", "scout"]:
-		_test_ents.append({
-			"id": "test_u1_%s" % utype, "owner": 1, "type": utype,
-			"entity_type": utype, "building_type": "",
-			"px": UX, "py": uy, "health": 100, "max_health": 100,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 10, "attack_range": 5, "speed": 3,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		uy += 2.5
-	
-	uy += 1.0
-	# Zerg units
-	for utype in ["worker", "soldier", "scout"]:
-		_test_ents.append({
-			"id": "test_u2_%s" % utype, "owner": 2, "type": utype,
-			"entity_type": utype, "building_type": "",
-			"px": UX, "py": uy, "health": 100, "max_health": 100,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 10, "attack_range": 5, "speed": 3,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		uy += 2.5
-	
-	uy += 1.0
-	# Protoss units
-	for utype in ["worker", "soldier", "scout"]:
-		_test_ents.append({
-			"id": "test_u3_%s" % utype, "owner": 3, "type": utype,
-			"entity_type": utype, "building_type": "",
-			"px": UX, "py": uy, "health": 100, "max_health": 100,
-			"is_idle": true, "carry_amount": 0, "carry_capacity": 0,
-			"attack": 10, "attack_range": 5, "speed": 3,
-			"resource_amount": 0, "resource_type": "",
-			"attack_target_id": "", "target_x": 0, "target_y": 0,
-			"energy": 0, "max_energy": 0,
-		})
-		uy += 2.5
-	
-	_saved_ents = _ents.duplicate(true)
+	_clear_test_sprites()
+	_test_ents.clear()
+	_test_section_headers.clear()
+
+	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
+	var kind_x: Dictionary = {"building": 5.0, "unit": 26.0, "resource": 53.0}
+	var kind_title: Dictionary = {"building": "Buildings", "unit": "Units", "resource": "Resources"}
+	var race_order: Array = ["terran", "zerg", "protoss", "neutral"]
+	var kind_order: Array = ["building", "unit", "resource"]
+
+	for kind in kind_order:
+		if _test_filter_kind != "all" and _test_filter_kind != kind:
+			continue
+		var x: float = float(kind_x[kind])
+		var y: float = 4.0
+		_add_test_header(kind_title[kind], Vector2(x, 2.5), Color(0.75, 0.9, 1.0))
+		for race in race_order:
+			if _test_filter_race != "all" and _test_filter_race != race:
+				continue
+			var ids: Array = []
+			for asset_id in assets.keys():
+				var entry: Dictionary = assets[asset_id]
+				if str(entry.get("kind", "")) != kind:
+					continue
+				if _test_asset_race(str(asset_id), entry) != race:
+					continue
+				ids.append(str(asset_id))
+			ids.sort()
+			if ids.is_empty():
+				continue
+
+			_add_test_header(
+				"%s %s" % [_test_race_label(race), kind_title[kind]],
+				Vector2(x, y),
+				_test_race_color(race)
+			)
+			y += 2.0
+
+			for asset_id in ids:
+				var entry: Dictionary = assets[asset_id]
+				if kind == "unit":
+					_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
+					y += 3.2
+				else:
+					_test_ents.append(_make_test_asset_entity(asset_id, entry, race, kind, Vector2(x, y)))
+					y += 4.6 if kind == "building" else 3.0
+
 	_ents = _test_ents
 	_update_entity_sprites()
 	queue_redraw()
 
 func _clear_test_entities() -> void:
-	# Remove test sprites
+	_clear_test_sprites()
+	_test_ents.clear()
+	_test_section_headers.clear()
+	_ents = _saved_ents.duplicate(true)
+	_saved_ents.clear()
+	_player_races = _saved_player_races.duplicate(true)
+	_saved_player_races.clear()
+	_fog_tiles = _saved_fog_tiles
+	_fog_w = _saved_fog_w
+	_fog_h = _saved_fog_h
+	_update_entity_sprites()
+	queue_redraw()
+
+
+func _clear_test_sprites() -> void:
 	var to_remove: Array = []
 	for eid in _sprite_pool:
 		if str(eid).begins_with("test_"):
@@ -2752,15 +2822,144 @@ func _clear_test_entities() -> void:
 			to_remove.append(eid)
 	for eid in to_remove:
 		_sprite_pool.erase(eid)
-	_test_ents.clear()
-	# Restore original entities
-	_ents = _saved_ents.duplicate(true)
-	_saved_ents.clear()
-	# Restore fog
-	_fog_tiles = _saved_fog_tiles
-	_fog_w = _saved_fog_w
-	_fog_h = _saved_fog_h
-	queue_redraw()
+
+
+func _add_test_header(text: String, pos: Vector2, color: Color) -> void:
+	_test_section_headers.append({"text": text, "pos": pos, "color": color})
+
+
+func _add_test_unit_pair(asset_id: String, entry: Dictionary, race: String, pos: Vector2) -> void:
+	var move_entity := _make_test_asset_entity(asset_id, entry, race, "unit", pos, "moving")
+	_test_ents.append(move_entity)
+
+	var attack_pos := pos + Vector2(6.0, 0.0)
+	var attack_entity := _make_test_asset_entity(asset_id, entry, race, "unit", attack_pos, "attack")
+	var target_id := "%s_target" % str(attack_entity["id"])
+	attack_entity["attack_target_id"] = target_id
+	_test_ents.append(attack_entity)
+	_test_ents.append({
+		"id": target_id,
+		"owner": attack_entity["owner"],
+		"type": "marker",
+		"entity_type": "marker",
+		"unit_type": "",
+		"building_type": "",
+		"resource_type": "",
+		"preview_hidden": true,
+		"px": attack_pos.x + 2.0,
+		"py": attack_pos.y,
+		"health": 0,
+		"max_health": 0,
+		"is_idle": true,
+		"carry_amount": 0,
+		"carry_capacity": 0,
+		"attack": 0,
+		"attack_range": 0,
+		"speed": 0,
+		"resource_amount": 0,
+		"attack_target_id": "",
+		"target_x": 0,
+		"target_y": 0,
+		"energy": 0,
+		"max_energy": 0,
+	})
+
+
+func _make_test_asset_entity(
+	asset_id: String,
+	entry: Dictionary,
+	race: String,
+	kind: String,
+	pos: Vector2,
+	action: String = ""
+) -> Dictionary:
+	var owner := _test_owner_for_race(race)
+	var entity_type := "building" if kind == "building" else ("resource" if kind == "resource" else "unit")
+	var label := asset_id
+	if kind == "unit":
+		label = "%s %s" % [asset_id, "atk" if action == "attack" else "move"]
+	var entity := {
+		"id": "test_%s_%s_%s" % [kind, asset_id, action if action != "" else "idle"],
+		"owner": owner,
+		"type": entity_type,
+		"entity_type": entity_type,
+		"unit_type": asset_id if kind == "unit" else "",
+		"building_type": asset_id if kind == "building" else "",
+		"resource_type": asset_id if kind == "resource" else "",
+		"generated_asset_id": asset_id,
+		"preview_action": action,
+		"label": label,
+		"uses_sprite": kind == "resource",
+		"render_scale": float(entry.get("render_scale", 0.018)),
+		"px": pos.x,
+		"py": pos.y,
+		"health": 1000 if kind == "building" else 100,
+		"max_health": 1000 if kind == "building" else 100,
+		"is_idle": action == "",
+		"carry_amount": 0,
+		"carry_capacity": 0,
+		"attack": 10 if kind == "unit" else 0,
+		"attack_range": 5 if kind == "unit" else 0,
+		"speed": 3 if kind == "unit" else 0,
+		"resource_amount": 0,
+		"attack_target_id": "",
+		"target_x": pos.x + 2.0 if action == "moving" else 0,
+		"target_y": pos.y if action == "moving" else 0,
+		"energy": 0,
+		"max_energy": 0,
+	}
+	return entity
+
+
+func _test_asset_race(asset_id: String, entry: Dictionary) -> String:
+	var race := str(entry.get("race", "")).to_lower()
+	if race != "":
+		return race
+	match asset_id:
+		"SCV", "Marine", "CommandCenter", "Barracks", "Refinery":
+			return "terran"
+		"Drone", "Zergling", "Hatchery", "SpawningPool", "Extractor":
+			return "zerg"
+		"Probe", "Zealot", "Nexus", "Gateway", "Pylon", "Assimilator":
+			return "protoss"
+		_:
+			return "neutral"
+
+
+func _test_owner_for_race(race: String) -> int:
+	match race:
+		"terran":
+			return 1
+		"zerg":
+			return 2
+		"protoss":
+			return 3
+		_:
+			return 0
+
+
+func _test_race_label(race: String) -> String:
+	match race:
+		"terran":
+			return "Terran"
+		"zerg":
+			return "Zerg"
+		"protoss":
+			return "Protoss"
+		_:
+			return "Neutral"
+
+
+func _test_race_color(race: String) -> Color:
+	match race:
+		"terran":
+			return Color(0.45, 0.65, 1.0)
+		"zerg":
+			return Color(1.0, 0.45, 0.35)
+		"protoss":
+			return Color(1.0, 0.85, 0.25)
+		_:
+			return Color(0.75, 0.75, 0.75)
 
 
 # ─── Replay Callbacks ──────────────────────────────────────

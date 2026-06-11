@@ -15,6 +15,8 @@ func _init() -> void:
 	var loader: SpriteLoader = SpriteLoaderScript.new(manifest_path)
 	_test_generated_building_atlas(loader)
 	_test_generated_visual_params_override(loader)
+	_test_generated_assets_are_enumerable(loader)
+	_test_generated_unit_preview_frames(loader)
 	_test_disabled_generated_entry_falls_back(loader)
 
 	print("\nSpriteLoader generated manifest test: %d passed, %d failed" % [_pass, _fail])
@@ -39,6 +41,7 @@ func _write_test_manifest(path: String, texture_path: String) -> void:
 		"assets": {
 			"CommandCenter": {
 				"kind": "building",
+				"race": "terran",
 				"runtime_enabled": true,
 				"asset": texture_path,
 				"frame_width": 32,
@@ -50,12 +53,23 @@ func _write_test_manifest(path: String, texture_path: String) -> void:
 			},
 			"Barracks": {
 				"kind": "building",
+				"race": "terran",
 				"runtime_enabled": false,
 				"asset": "res://assets/sprites/buildings/TerranBuilding.png",
 				"frame_width": 8,
 				"frame_height": 8,
 				"frame_count": 1,
 				"atlas_rect": [0, 0, 8, 8],
+			},
+			"Probe": {
+				"kind": "unit",
+				"race": "protoss",
+				"runtime_enabled": false,
+				"asset": texture_path,
+				"frame_width": 16,
+				"frame_height": 16,
+				"frame_count": 8,
+				"atlas_rect": [0, 0, 16, 16],
 			},
 		},
 	}
@@ -97,6 +111,35 @@ func _test_generated_visual_params_override(loader: SpriteLoader) -> void:
 		return
 	_pass += 1
 	print("PASS: generated visual params override presentation manifest")
+
+
+func _test_generated_assets_are_enumerable(loader: SpriteLoader) -> void:
+	var assets: Dictionary = loader.get_generated_assets()
+	if assets.has("CommandCenter") and assets.has("Probe"):
+		_pass += 1
+		print("PASS: generated assets can be enumerated")
+	else:
+		_fail += 1
+		print("FAIL: generated assets were not enumerable: %s" % str(assets.keys()))
+
+
+func _test_generated_unit_preview_frames(loader: SpriteLoader) -> void:
+	var moving: SpriteFrames = loader.get_generated_unit_preview_frames("Probe", "moving")
+	var attack: SpriteFrames = loader.get_generated_unit_preview_frames("Probe", "attack")
+	if moving == null or not moving.has_animation("moving_east"):
+		_fail += 1
+		print("FAIL: generated moving preview frames are unavailable")
+		return
+	if attack == null or not attack.has_animation("attack_east"):
+		_fail += 1
+		print("FAIL: generated attack preview frames are unavailable")
+		return
+	if moving.get_frame_count("moving_east") < 2 or attack.get_frame_count("attack_east") < 2:
+		_fail += 1
+		print("FAIL: generated unit preview animations need multiple frames")
+		return
+	_pass += 1
+	print("PASS: generated unit preview frames provide moving and attack animations")
 
 
 func _test_disabled_generated_entry_falls_back(loader: SpriteLoader) -> void:

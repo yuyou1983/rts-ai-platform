@@ -9,6 +9,7 @@ def test_generated_manifest_marks_buildings_and_resources_runtime_enabled() -> N
         {
             "id": "Marine",
             "kind": "unit",
+            "race": "terran",
             "mpq_path": "unit\\terran\\marine.grp",
             "source_mpq": "StarDat.mpq",
             "status": "extracted",
@@ -21,6 +22,7 @@ def test_generated_manifest_marks_buildings_and_resources_runtime_enabled() -> N
         {
             "id": "CommandCenter",
             "kind": "building",
+            "race": "terran",
             "mpq_path": "unit\\terran\\control.grp",
             "source_mpq": "StarDat.mpq",
             "status": "extracted",
@@ -36,6 +38,7 @@ def test_generated_manifest_marks_buildings_and_resources_runtime_enabled() -> N
         {
             "id": "MineralFieldType1",
             "kind": "resource",
+            "race": "neutral",
             "mpq_path": "unit\\neutral\\min01.grp",
             "source_mpq": "StarDat.mpq",
             "status": "extracted",
@@ -51,11 +54,14 @@ def test_generated_manifest_marks_buildings_and_resources_runtime_enabled() -> N
 
     assert generated["schema_version"] == 1
     assert generated["assets"]["Marine"]["runtime_enabled"] is False
+    assert generated["assets"]["Marine"]["race"] == "terran"
     assert generated["assets"]["CommandCenter"]["runtime_enabled"] is True
+    assert generated["assets"]["CommandCenter"]["race"] == "terran"
     assert generated["assets"]["CommandCenter"]["asset"] == "res://assets/sc1_generated/p0/CommandCenter.png"
     assert generated["assets"]["CommandCenter"]["atlas_rect"] == [0, 0, 128, 160]
     assert generated["assets"]["CommandCenter"]["frame_count"] == 6
     assert generated["assets"]["MineralFieldType1"]["runtime_enabled"] is True
+    assert generated["assets"]["MineralFieldType1"]["race"] == "neutral"
 
 
 def test_generated_manifest_adds_visual_scales_for_generated_buildings() -> None:

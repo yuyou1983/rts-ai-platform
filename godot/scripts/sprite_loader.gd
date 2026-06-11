@@ -21,6 +21,8 @@ var _generated_manifest: Dictionary = {}
 var _generated_manifest_path: String = GENERATED_MANIFEST_PATH
 var _unit_cache: Dictionary = {}   # entity_name → SpriteFrames
 var _building_cache: Dictionary = {}  # entity_name → AtlasTexture
+var _generated_atlas_cache: Dictionary = {}  # kind:entity_name → AtlasTexture
+var _generated_unit_preview_cache: Dictionary = {}  # entity_name:action → SpriteFrames
 var _loaded_textures: Dictionary = {}  # file_path → Texture2D
 
 # ─── Direction mapping ────────────────────────────────────────────────────────
@@ -225,6 +227,86 @@ func get_building_atlas(entity_name: String) -> AtlasTexture:
 	return atlas
 
 
+## Return generated local SC1 assets from the optional ignored manifest.
+## Used by Test Mode/resource QA only; generated commercial assets are not committed.
+func get_generated_assets() -> Dictionary:
+	return _generated_manifest.get("assets", {}).duplicate(true)
+
+
+## Build simple generated unit preview animations from a converted GRP contact sheet.
+## The generated manifest does not know StarCraft iscript action ranges yet, so this
+## samples different windows of the frame strip for movement and attack QA.
+func get_generated_unit_preview_frames(entity_name: String, action: String) -> SpriteFrames:
+	var cache_key := "%s:%s" % [entity_name, action]
+	if _generated_unit_preview_cache.has(cache_key):
+		return _generated_unit_preview_cache[cache_key]
+
+	var entry := _get_generated_asset_entry(entity_name, "unit", false)
+	if entry.is_empty():
+		return null
+
+	var texture_path: String = str(entry.get("asset", ""))
+	if texture_path == "":
+		return null
+	var texture := _get_texture(texture_path)
+	if texture == null:
+		return null
+
+	var frame_count: int = int(entry.get("frame_count", 0))
+	var frame_width: int = int(entry.get("frame_width", 0))
+	var frame_height: int = int(entry.get("frame_height", 0))
+	if frame_count <= 0 or frame_width <= 0 or frame_height <= 0:
+		return null
+
+	var columns: int = maxi(1, int(texture.get_width() / frame_width))
+	var start_frame: int = 0
+	if action == "attack" and frame_count > 2:
+		start_frame = int(frame_count * 0.55)
+	elif action == "moving" and frame_count > 17:
+		start_frame = mini(17, frame_count - 1)
+	var preview_count: int = mini(10, frame_count)
+	if frame_count < 2:
+		preview_count = 1
+
+	var anim_name := "%s_east" % action
+	var frames := SpriteFrames.new()
+	frames.add_animation(anim_name)
+	frames.set_animation_loop(anim_name, true)
+	frames.set_animation_speed(anim_name, 1000.0 / FRAME_TIME_MS)
+
+	for i in range(preview_count):
+		var frame_idx: int = (start_frame + i) % frame_count
+		var atlas := AtlasTexture.new()
+		atlas.atlas = texture
+		atlas.region = Rect2(
+			(frame_idx % columns) * frame_width,
+			int(frame_idx / columns) * frame_height,
+			frame_width,
+			frame_height
+		)
+		atlas.filter_clip = true
+		frames.add_frame(anim_name, atlas)
+
+	_generated_unit_preview_cache[cache_key] = frames
+	return frames
+
+
+## Load a generated building/resource frame directly from the generated manifest.
+func get_generated_asset_atlas(
+	entity_name: String,
+	expected_kind: String,
+	require_runtime_enabled: bool = false
+) -> AtlasTexture:
+	var cache_key := "%s:%s" % [expected_kind, entity_name]
+	if _generated_atlas_cache.has(cache_key):
+		return _generated_atlas_cache[cache_key]
+
+	var atlas := _get_generated_asset_atlas(entity_name, expected_kind, require_runtime_enabled)
+	if atlas != null:
+		_generated_atlas_cache[cache_key] = atlas
+	return atlas
+
+
 ## Get visual parameters from presentation_manifest.
 ## Returns: {"render_scale": float, "selection_radius": float, "pivot": Vector2,
 ##           "health_bar_offset": Vector2, "selection_ring_offset": Vector2,
@@ -323,6 +405,8 @@ func is_unit(entity_name: String) -> bool:
 func clear_cache() -> void:
 	_unit_cache.clear()
 	_building_cache.clear()
+	_generated_atlas_cache.clear()
+	_generated_unit_preview_cache.clear()
 	_loaded_textures.clear()
 
 
@@ -337,7 +421,15 @@ func reload() -> void:
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
 func _get_generated_building_atlas(entity_name: String) -> AtlasTexture:
-	var entry := _get_generated_visual_entry(entity_name, "building")
+	return _get_generated_asset_atlas(entity_name, "building", true)
+
+
+func _get_generated_asset_atlas(
+	entity_name: String,
+	expected_kind: String,
+	require_runtime_enabled: bool
+) -> AtlasTexture:
+	var entry := _get_generated_asset_entry(entity_name, expected_kind, require_runtime_enabled)
 	if entry.is_empty():
 		return null
 
@@ -375,13 +467,21 @@ func _get_generated_building_atlas(entity_name: String) -> AtlasTexture:
 
 
 func _get_generated_visual_entry(entity_name: String, expected_kind: String) -> Dictionary:
+	return _get_generated_asset_entry(entity_name, expected_kind, true)
+
+
+func _get_generated_asset_entry(
+	entity_name: String,
+	expected_kind: String,
+	require_runtime_enabled: bool
+) -> Dictionary:
 	var assets: Dictionary = _generated_manifest.get("assets", {})
 	var entry: Dictionary = assets.get(entity_name, {})
 	if entry.is_empty():
 		return {}
 	if str(entry.get("kind", "")) != expected_kind:
 		return {}
-	if not bool(entry.get("runtime_enabled", false)):
+	if require_runtime_enabled and not bool(entry.get("runtime_enabled", false)):
 		return {}
 	return entry
 

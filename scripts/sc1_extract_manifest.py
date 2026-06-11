@@ -109,6 +109,7 @@ def _extract_asset(
             return {
                 "id": asset["id"],
                 "kind": asset["kind"],
+                "race": asset.get("race", ""),
                 "mpq_path": asset["mpq_path"],
                 "source_mpq": mpq_name,
                 "raw_path": str(target),
@@ -119,6 +120,7 @@ def _extract_asset(
     return {
         "id": asset["id"],
         "kind": asset["kind"],
+        "race": asset.get("race", ""),
         "mpq_path": asset["mpq_path"],
         "raw_path": str(target),
         "status": "missing",
@@ -203,6 +205,7 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
 
         entry = {
             "kind": kind,
+            "race": record.get("race", ""),
             "runtime_enabled": kind in {"building", "resource"},
             "asset": _to_res_path(png_path),
             "source_mpq": record.get("source_mpq", ""),
