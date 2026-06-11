@@ -23,7 +23,7 @@
       "content_extent": 40,
       "scale_basis": "content_median_extent",
       "batch": "p0",
-      "visual_class": "small_ground"
+      "visual_class": "worker_ground"
     },
     "Marine": {
       "kind": "unit",
@@ -67,7 +67,7 @@
       "content_extent": 38,
       "scale_basis": "content_median_extent",
       "batch": "p0",
-      "visual_class": "small_ground"
+      "visual_class": "worker_ground"
     },
     "Zergling": {
       "kind": "unit",
@@ -111,7 +111,7 @@
       "content_extent": 27,
       "scale_basis": "content_median_extent",
       "batch": "p0",
-      "visual_class": "small_ground"
+      "visual_class": "worker_ground"
     },
     "Zealot": {
       "kind": "unit",
@@ -133,7 +133,7 @@
       "content_extent": 31,
       "scale_basis": "content_median_extent",
       "batch": "p0",
-      "visual_class": "medium_ground"
+      "visual_class": "small_ground"
     },
     "CommandCenter": {
       "kind": "building",
@@ -154,7 +154,8 @@
       "render_scale": 0.035,
       "selection_radius": 4.1,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "large_building",
+      "tech_tier": 0
     },
     "Barracks": {
       "kind": "building",
@@ -175,7 +176,8 @@
       "render_scale": 0.025,
       "selection_radius": 3.2,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "medium_building",
+      "tech_tier": 1
     },
     "Refinery": {
       "kind": "building",
@@ -196,7 +198,8 @@
       "render_scale": 0.0208,
       "selection_radius": 2.8,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "small_building",
+      "tech_tier": 0
     },
     "Hatchery": {
       "kind": "building",
@@ -217,7 +220,8 @@
       "render_scale": 0.0292,
       "selection_radius": 4.1,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "large_building",
+      "tech_tier": 0
     },
     "SpawningPool": {
       "kind": "building",
@@ -238,7 +242,8 @@
       "render_scale": 0.0352,
       "selection_radius": 2.8,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "medium_building",
+      "tech_tier": 1
     },
     "Extractor": {
       "kind": "building",
@@ -259,7 +264,8 @@
       "render_scale": 0.0208,
       "selection_radius": 2.5,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "small_building",
+      "tech_tier": 0
     },
     "Nexus": {
       "kind": "building",
@@ -280,7 +286,8 @@
       "render_scale": 0.025,
       "selection_radius": 4.1,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "large_building",
+      "tech_tier": 0
     },
     "Gateway": {
       "kind": "building",
@@ -301,7 +308,8 @@
       "render_scale": 0.03,
       "selection_radius": 3.2,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "medium_building",
+      "tech_tier": 1
     },
     "Pylon": {
       "kind": "building",
@@ -322,7 +330,8 @@
       "render_scale": 0.0281,
       "selection_radius": 2.0,
       "batch": "p0",
-      "visual_class": "medium_ground"
+      "visual_class": "small_building",
+      "tech_tier": 0
     },
     "Assimilator": {
       "kind": "building",
@@ -343,7 +352,8 @@
       "render_scale": 0.0208,
       "selection_radius": 2.8,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "small_building",
+      "tech_tier": 0
     },
     "MineralFieldType1": {
       "kind": "resource",
@@ -364,7 +374,7 @@
       "render_scale": 0.0151,
       "selection_radius": 1.0,
       "batch": "p0",
-      "visual_class": "medium_ground"
+      "visual_class": "resource"
     },
     "MineralFieldType2": {
       "kind": "resource",
@@ -385,7 +395,7 @@
       "render_scale": 0.0151,
       "selection_radius": 1.0,
       "batch": "p0",
-      "visual_class": "medium_ground"
+      "visual_class": "resource"
     },
     "MineralFieldType3": {
       "kind": "resource",
@@ -406,7 +416,7 @@
       "render_scale": 0.0151,
       "selection_radius": 1.0,
       "batch": "p0",
-      "visual_class": "medium_ground"
+      "visual_class": "resource"
     },
     "VespeneGeyser": {
       "kind": "resource",
@@ -427,12 +437,12 @@
       "render_scale": 0.0172,
       "selection_radius": 1.6,
       "batch": "p0",
-      "visual_class": "large_ground"
+      "visual_class": "resource"
     },
     "Firebat": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "small_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Firebat.png",
@@ -454,8 +464,8 @@
     "Ghost": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
-      "visual_class": "small_ground",
+      "batch": "p0",
+      "visual_class": "medium_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Ghost.png",
       "source_mpq": "StarDat.mpq",
@@ -476,7 +486,7 @@
     "Vulture": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "medium_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Vulture.png",
@@ -498,8 +508,8 @@
     "Goliath": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
-      "visual_class": "large_ground",
+      "batch": "p0",
+      "visual_class": "medium_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Goliath.png",
       "source_mpq": "StarDat.mpq",
@@ -520,7 +530,7 @@
     "SiegeTank": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "large_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/SiegeTank.png",
@@ -542,8 +552,8 @@
     "Wraith": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
-      "visual_class": "small_air",
+      "batch": "p0",
+      "visual_class": "air",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Wraith.png",
       "source_mpq": "StarDat.mpq",
@@ -564,8 +574,8 @@
     "Dropship": {
       "kind": "unit",
       "race": "terran",
-      "batch": "p1a_core_units",
-      "visual_class": "large_air",
+      "batch": "p0",
+      "visual_class": "air_transport",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Dropship.png",
       "source_mpq": "StarDat.mpq",
@@ -586,7 +596,7 @@
     "Hydralisk": {
       "kind": "unit",
       "race": "zerg",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "medium_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Hydralisk.png",
@@ -608,8 +618,8 @@
     "Mutalisk": {
       "kind": "unit",
       "race": "zerg",
-      "batch": "p1a_core_units",
-      "visual_class": "small_air",
+      "batch": "p0",
+      "visual_class": "air",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Mutalisk.png",
       "source_mpq": "StarDat.mpq",
@@ -630,8 +640,8 @@
     "Overlord": {
       "kind": "unit",
       "race": "zerg",
-      "batch": "p1a_core_units",
-      "visual_class": "large_air",
+      "batch": "p0",
+      "visual_class": "air_transport",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Overlord.png",
       "source_mpq": "StarDat.mpq",
@@ -652,7 +662,7 @@
     "Dragoon": {
       "kind": "unit",
       "race": "protoss",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "medium_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/Dragoon.png",
@@ -674,7 +684,7 @@
     "DarkTemplar": {
       "kind": "unit",
       "race": "protoss",
-      "batch": "p1a_core_units",
+      "batch": "p0",
       "visual_class": "small_ground",
       "runtime_enabled": false,
       "asset": "/Users/yuyou/code/rts-ai-platform/local_assets/sc1_converted/p1a_core_units/DarkTemplar.png",

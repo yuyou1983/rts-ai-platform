@@ -93,7 +93,9 @@ var _saved_fog_w: int = 0
 var _saved_fog_h: int = 0
 var _test_filter_race: String = "all"
 var _test_filter_kind: String = "all"
+var _test_filter_batch: String = "all"
 var _test_section_headers: Array = []
+var _test_batch_filter: OptionButton = null
 # Animation state
 var _anim_frame: int = 0
 var _anim_tick: float = 0.0
@@ -485,7 +487,7 @@ func _create_test_filter_panel() -> void:
 	_test_filter_panel.anchor_bottom = 0.0
 	_test_filter_panel.offset_left = 132
 	_test_filter_panel.offset_top = 8
-	_test_filter_panel.offset_right = 468
+	_test_filter_panel.offset_right = 600
 	_test_filter_panel.offset_bottom = 42
 	_ui_layer.add_child(_test_filter_panel)
 
@@ -516,6 +518,19 @@ func _create_test_filter_panel() -> void:
 	_test_kind_filter.item_selected.connect(_on_test_kind_filter_selected)
 	row.add_child(_test_kind_filter)
 
+	var batch_label := Label.new()
+	batch_label.text = "Batch"
+	row.add_child(batch_label)
+	_test_batch_filter = OptionButton.new()
+	_add_filter_item(_test_batch_filter, "All", "all")
+	if _sprite_loader:
+		var batches = _sprite_loader.get_batches()
+		for b in batches:
+			var b_str = str(b)
+			_add_filter_item(_test_batch_filter, b_str.to_upper(), b_str.to_lower())
+	_test_batch_filter.item_selected.connect(_on_test_batch_filter_selected)
+	row.add_child(_test_batch_filter)
+
 
 func _add_filter_item(option: OptionButton, label: String, value: String) -> void:
 	option.add_item(label)
@@ -534,6 +549,13 @@ func _on_test_kind_filter_selected(index: int) -> void:
 	if _test_kind_filter == null:
 		return
 	_test_filter_kind = str(_test_kind_filter.get_item_metadata(index))
+	if _test_mode:
+		_build_test_entities()
+
+func _on_test_batch_filter_selected(index: int) -> void:
+	if _test_batch_filter == null:
+		return
+	_test_filter_batch = str(_test_batch_filter.get_item_metadata(index))
 	if _test_mode:
 		_build_test_entities()
 
@@ -2684,6 +2706,7 @@ func _draw_test_labels() -> void:
 		return
 	var title_size := 1.2
 	var label_size := 0.8
+	var vc_label_size := 0.55
 	for header in _test_section_headers:
 		draw_string(
 			font,
@@ -2699,7 +2722,7 @@ func _draw_test_labels() -> void:
 			continue
 		if bool(e.get("preview_hidden", false)):
 			continue
-		var full_label := str(e.get("label", ""))
+		var full_label = str(e.get("label", ""))
 		if full_label == "":
 			continue
 		draw_string(
@@ -2711,6 +2734,20 @@ func _draw_test_labels() -> void:
 			label_size,
 			Color(1, 1, 1, 0.9)
 		)
+		# Visual class grouping label below the sprite
+		var vc = str(e.get("visual_class", ""))
+		if vc != "":
+			var entity_type = str(e.get("entity_type", ""))
+			var vc_y_offset = 2.5 if entity_type == "unit" else 4.2 if entity_type == "building" else 2.5
+			draw_string(
+				font,
+				Vector2(float(e.get("px", 0.0)) + 1.3, float(e.get("py", 0.0)) + vc_y_offset),
+				vc,
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				vc_label_size,
+				Color(0.7, 0.9, 1.0, 0.7)
+			)
 
 
 func _toggle_test_mode() -> void:
@@ -2757,6 +2794,10 @@ func _build_test_entities() -> void:
 	_test_section_headers.clear()
 
 	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
+	# Apply batch filter first — use SpriteLoader batch API if active
+	if _test_filter_batch != "all" and _sprite_loader:
+		var batch_assets = _sprite_loader.get_assets_by_batch(_test_filter_batch)
+		assets = batch_assets
 	var kind_x: Dictionary = {"building": 5.0, "unit": 26.0, "resource": 53.0}
 	var kind_title: Dictionary = {"building": "Buildings", "unit": "Units", "resource": "Resources"}
 	var race_order: Array = ["terran", "zerg", "protoss", "neutral"]
@@ -2779,7 +2820,29 @@ func _build_test_entities() -> void:
 				if _test_asset_race(str(asset_id), entry) != race:
 					continue
 				ids.append(str(asset_id))
-			ids.sort()
+			# Sort buildings by (race, tech_tier); sort units by (race, visual_class)
+			if kind == "building":
+				ids.sort_custom(func(a, b):
+					var ea = assets.get(a, {})
+					var eb = assets.get(b, {})
+					var ta = int(ea.get("tech_tier", 1))
+					var tb = int(eb.get("tech_tier", 1))
+					if ta != tb:
+						return ta < tb
+					return a.naturalnocasemp_to(b) < 0
+				)
+			elif kind == "unit":
+				ids.sort_custom(func(a, b):
+					var ea = assets.get(a, {})
+					var eb = assets.get(b, {})
+					var vca = str(ea.get("visual_class", ""))
+					var vcb = str(eb.get("visual_class", ""))
+					if vca != vcb:
+						return vca.naturalnocasemp_to(vcb) < 0
+					return a.naturalnocasemp_to(b) < 0
+				)
+			else:
+				ids.sort()
 			if ids.is_empty():
 				continue
 
@@ -2879,9 +2942,14 @@ func _make_test_asset_entity(
 ) -> Dictionary:
 	var owner := _test_owner_for_race(race)
 	var entity_type := "building" if kind == "building" else ("resource" if kind == "resource" else "unit")
+	var visual_class = str(entry.get("visual_class", ""))
 	var label := asset_id
 	if kind == "unit":
-		label = "%s %s" % [asset_id, "atk" if action == "attack" else "move"]
+		var action_tag = "atk" if action == "attack" else "move"
+		if "air" in visual_class:
+			label = "✈%s %s" % [asset_id, action_tag]
+		else:
+			label = "%s %s" % [asset_id, action_tag]
 	var entity := {
 		"id": "test_%s_%s_%s" % [kind, asset_id, action if action != "" else "idle"],
 		"owner": owner,
@@ -2893,6 +2961,8 @@ func _make_test_asset_entity(
 		"generated_asset_id": asset_id,
 		"preview_action": action,
 		"label": label,
+		"visual_class": visual_class,
+		"tech_tier": int(entry.get("tech_tier", 1)) if kind == "building" else -1,
 		"uses_sprite": kind == "resource",
 		"render_scale": float(entry.get("render_scale", 0.018)),
 		"px": pos.x,
