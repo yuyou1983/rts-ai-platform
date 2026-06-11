@@ -217,6 +217,85 @@ def test_generated_manifest_adds_normalized_unit_render_scales(tmp_path: Path) -
     assert 0.9 <= probe["content_extent"] * probe["render_scale"] <= 1.0
 
 
+def test_generated_manifest_scales_units_from_visual_class(tmp_path: Path) -> None:
+    firebat_path = tmp_path / "Firebat.png"
+    reaver_path = tmp_path / "Reaver.png"
+    wraith_path = tmp_path / "Wraith.png"
+    _write_padded_unit_sheet(firebat_path, 32, 32, [28, 29, 29, 30, 31])
+    _write_padded_unit_sheet(reaver_path, 84, 84, [82, 84, 84, 84, 84])
+    _write_padded_unit_sheet(wraith_path, 64, 64, [62, 64, 64, 64, 64])
+
+    records = [
+        {
+            "id": "Firebat",
+            "kind": "unit",
+            "race": "terran",
+            "mpq_path": "unit\\terran\\firebat.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": str(firebat_path),
+                "stdout": "wrote Firebat.png from firebat.grp frames=5 frame_size=32x32",
+            },
+        },
+        {
+            "id": "Reaver",
+            "kind": "unit",
+            "race": "protoss",
+            "mpq_path": "unit\\protoss\\trilob.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": str(reaver_path),
+                "stdout": "wrote Reaver.png from trilob.grp frames=5 frame_size=84x84",
+            },
+        },
+        {
+            "id": "Wraith",
+            "kind": "unit",
+            "race": "terran",
+            "mpq_path": "unit\\terran\\phoenix.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": str(wraith_path),
+                "stdout": "wrote Wraith.png from phoenix.grp frames=5 frame_size=64x64",
+            },
+        },
+    ]
+    input_manifest = {
+        "assets": [
+            {"id": "Firebat", "visual_class": "small_ground"},
+            {"id": "Reaver", "visual_class": "large_ground"},
+            {"id": "Wraith", "visual_class": "small_air"},
+        ]
+    }
+
+    generated = build_generated_manifest(
+        records,
+        Path("/repo/godot/assets/sc1_generated/p1a_core_units"),
+        batch="p1a_core_units",
+        input_manifest=input_manifest,
+    )
+
+    firebat = generated["assets"]["Firebat"]
+    reaver = generated["assets"]["Reaver"]
+    wraith = generated["assets"]["Wraith"]
+
+    assert firebat["content_extent"] == 29
+    assert reaver["content_extent"] == 84
+    assert wraith["content_extent"] == 64
+    assert firebat["scale_basis"] == "content_median_extent"
+    assert reaver["scale_basis"] == "content_median_extent"
+    assert wraith["scale_basis"] == "content_median_extent"
+    assert 0.68 <= firebat["content_extent"] * firebat["render_scale"] <= 0.72
+    assert 1.52 <= reaver["content_extent"] * reaver["render_scale"] <= 1.58
+    assert 1.03 <= wraith["content_extent"] * wraith["render_scale"] <= 1.07
+
+
 def test_game_view_prefers_generated_probe_strip_for_protoss_worker() -> None:
     source = (Path(__file__).resolve().parents[2] / "godot/scripts/game_view.gd").read_text()
 

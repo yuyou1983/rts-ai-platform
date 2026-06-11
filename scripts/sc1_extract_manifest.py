@@ -223,6 +223,21 @@ def _measure_content_extent(
     return int(round(statistics.median(extents)))
 
 
+DEFAULT_SCALE_CONFIG = REPO_ROOT / "tools" / "sc1_assets" / "visual_class_scale_config.json"
+
+
+def _load_visual_class_targets(path: Path = DEFAULT_SCALE_CONFIG) -> dict[str, float]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text())
+    targets: dict[str, float] = {}
+    for visual_class, entry in data.get("visual_classes", {}).items():
+        lo = float(entry["body_world_min"])
+        hi = float(entry["body_world_max"])
+        targets[visual_class] = round((lo + hi) / 2.0, 4)
+    return targets
+
+
 def _visual_overrides(
     asset_id: str,
     kind: str,
@@ -230,12 +245,17 @@ def _visual_overrides(
     frame_height: int,
     png_path: Path | None = None,
     frame_count: int = 0,
+    visual_class: str = "",
+    visual_class_targets: dict[str, float] | None = None,
 ) -> dict:
     if kind not in {"building", "resource", "unit"}:
         return {}
     max_dim = max(frame_width, frame_height)
     if kind == "unit":
+        targets = visual_class_targets or {}
         target_max = VISUAL_UNIT_TARGET_BODY_WORLD.get(asset_id)
+        if target_max is None and visual_class:
+            target_max = targets.get(visual_class)
         content_extent = (
             _measure_content_extent(png_path, frame_count, frame_width, frame_height)
             if png_path
@@ -277,6 +297,7 @@ def build_generated_manifest(
     if input_manifest:
         for asset in input_manifest.get("assets", []):
             vc_lookup[asset["id"]] = asset.get("visual_class", "")
+    visual_class_targets = _load_visual_class_targets()
     for record in records:
         conversion = record.get("conversion", {})
         if record.get("status") != "extracted" or conversion.get("status") != "converted":
@@ -314,6 +335,8 @@ def build_generated_manifest(
                 frame_height,
                 png_path,
                 frame_count,
+                visual_class=vc_lookup.get(asset_id, ""),
+                visual_class_targets=visual_class_targets,
             )
         )
         assets[asset_id] = entry
