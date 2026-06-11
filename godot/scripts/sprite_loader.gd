@@ -539,11 +539,25 @@ func _get_texture(file_path: String) -> Texture2D:
 		tex = ResourceLoader.load(file_path, "Texture2D") as Texture2D
 	else:
 		tex = _load_image_texture(file_path)
+	# Fallback: if res:// path failed, try the absolute project path
+	if tex == null and file_path.begins_with("res://"):
+		var abs_path = _res_to_abs_path(file_path)
+		if abs_path != "":
+			tex = _load_image_texture(abs_path)
 	if tex:
 		_loaded_textures[file_path] = tex
 	else:
 		push_error("[SpriteLoader] Texture not found: %s" % file_path)
 	return tex
+
+
+func _res_to_abs_path(res_path: String) -> String:
+	# Convert res:// path to an absolute filesystem path.
+	# ProjectSettings.globalize_path handles this reliably in the editor.
+	var globalized = ProjectSettings.globalize_path(res_path)
+	if globalized != "" and FileAccess.file_exists(globalized):
+		return globalized
+	return ""
 
 
 func _load_image_texture(file_path: String) -> Texture2D:
