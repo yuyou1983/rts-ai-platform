@@ -10,7 +10,7 @@ GENERATED_MANIFEST = REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generat
 
 def test_scale_config_schema() -> None:
     cfg = json.loads(SCALE_CONFIG.read_text())
-    assert cfg["schema_version"] == 1
+    assert cfg["schema_version"] == 2
     assert len(cfg["visual_classes"]) >= 5
     for vc, entry in cfg["visual_classes"].items():
         assert "body_world_min" in entry, f"{vc} missing body_world_min"

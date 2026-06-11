@@ -6,7 +6,8 @@ BrooDat.mpq, and StarDat.mpq using mpq_path from the manifest.
 
 Supports:
   - Exact path probe (mpq_path is not "PENDING")
-  - Fuzzy path probe for "PENDING" entries (tries abbreviated 8.3 names)
+  - Fuzzy path probe for "PENDING" entries
+    (tries candidate_names against ``unit\\<race>\\``)
   - Reports found / missing / pending status per asset
 """
 
@@ -23,11 +24,11 @@ DEFAULT_EXTRACTOR = REPO_ROOT / "tools" / "mpq" / "bin" / "storm_extract"
 DEFAULT_STARSCRAFT_DIR = Path("/Users/yuyou/code/StarCraft")
 MPQ_PRIORITY = ["Patch_rt.mpq", "BrooDat.mpq", "StarDat.mpq"]
 
-# SC1 uses 8.3 abbreviated filenames inside MPQs.
-# Known abbreviation patterns: full_name → abbreviated (up to 8 chars before .grp)
+# SC1 uses abbreviated filenames inside MPQs.
+# Known alias patterns: game_name → [internal_names from PyMS Listfile]
 ABBREVIATION_MAP: dict[str, list[str]] = {
-    "Wraith": ["wraith", "twraith", "wrait", "twrait"],
-    "Reaver": ["reaver", "preaver", "reav", "preav", "reavr"],
+    "Wraith": ["phoenix", "twraith", "wraith", "twrait", "wrait"],
+    "Reaver": ["trilob", "preaver", "reaver", "preav", "reavr"],
 }
 
 
@@ -55,19 +56,21 @@ def _fuzzy_probe(
     kind: str,
     race: str,
     tmp_out: Path,
+    candidate_names: list[str] | None = None,
 ) -> str | None:
     """Try abbreviated path variants for a PENDING asset.
 
+    All SC1 sprites (units AND buildings) live under unit\\<race>\\.
     Returns the successful mpq_path or None.
     """
-    abbreviations = ABBREVIATION_MAP.get(asset_id, [])
-    if not abbreviations:
+    names = candidate_names or ABBREVIATION_MAP.get(asset_id, [])
+    if not names:
         return None
 
     race_dir = race.lower()
-    kind_dir = "unit" if kind == "unit" else kind
-    for abbrev in abbreviations:
-        candidate = f"{kind_dir}\\{race_dir}\\{abbrev}.grp"
+    for abbrev in names:
+        # MPQ paths use single backslash separator
+        candidate = "unit\\" + race_dir + "\\" + abbrev + ".grp"
         if _probe(extractor, mpq_path, candidate, tmp_out):
             return candidate
     return None
@@ -94,7 +97,10 @@ def discover(
             for mpq_name in MPQ_PRIORITY:
                 mpq_path = starcraft_dir / mpq_name
                 tmp_out = out_path.parent / f"_probe_{asset_id}.tmp"
-                hit = _fuzzy_probe(extractor, mpq_path, asset_id, kind, race, tmp_out)
+                hit = _fuzzy_probe(
+                    extractor, mpq_path, asset_id, kind, race, tmp_out,
+                    candidate_names=cand.get("candidate_names"),
+                )
                 if hit is not None:
                     if tmp_out.exists():
                         tmp_out.unlink()
