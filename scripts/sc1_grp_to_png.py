@@ -14,7 +14,6 @@ from pathlib import Path
 
 from PIL import Image
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYMS_ROOT = REPO_ROOT / "tools" / "mpq" / "PyMS"
 DEFAULT_PALETTE = PYMS_ROOT / "Palettes" / "Units.pal"
