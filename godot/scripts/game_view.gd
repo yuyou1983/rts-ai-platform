@@ -2829,7 +2829,7 @@ func _build_test_entities() -> void:
 					var tb = int(eb.get("tech_tier", 1))
 					if ta != tb:
 						return ta < tb
-					return a.naturalnocasemp_to(b) < 0
+					return a.nocasecmp_to(b) < 0
 				)
 			elif kind == "unit":
 				ids.sort_custom(func(a, b):
@@ -2838,8 +2838,8 @@ func _build_test_entities() -> void:
 					var vca = str(ea.get("visual_class", ""))
 					var vcb = str(eb.get("visual_class", ""))
 					if vca != vcb:
-						return vca.naturalnocasemp_to(vcb) < 0
-					return a.naturalnocasemp_to(b) < 0
+						return vca.nocasecmp_to(vcb) < 0
+					return a.nocasecmp_to(b) < 0
 				)
 			else:
 				ids.sort()
