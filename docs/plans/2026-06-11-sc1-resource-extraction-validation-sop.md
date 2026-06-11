@@ -376,3 +376,10 @@ Wraith and Reaver have `mpq_path: "PENDING"` — their actual GRP filename insid
 - [ ] Batch filter in Test Mode shows P0/P1A/All
 - [ ] Flying units show ✈ marker
 - [ ] Building sorting follows race + tech tier
+
+---
+
+## P1A Resolved Aliases
+
+- Wraith uses `unit\terran\phoenix.grp` in StarDat.mpq (SC1 dev codename: phoenix).
+- Reaver uses `unit\protoss\trilob.grp` in StarDat.mpq (SC1 dev codename: trilob).
