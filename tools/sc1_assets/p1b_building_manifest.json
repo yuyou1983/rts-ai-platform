@@ -58,8 +58,9 @@
       "kind": "building",
       "race": "zerg",
       "visual_class": "medium_building",
-      "mpq_path": "unit\\zerg\\hydra.grp",
+      "mpq_path": "unit\\zerg\\Mutapit.grp",
       "candidate_names": [
+        "Mutapit",
         "hydra"
       ],
       "godot_asset": "res://assets/sprites/buildings/ZergBuilding.png"

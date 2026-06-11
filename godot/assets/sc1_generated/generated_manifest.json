@@ -226,18 +226,18 @@
       "runtime_enabled": true,
       "asset": "res://assets/sc1_generated/p0/SpawningPool.png",
       "source_mpq": "StarDat.mpq",
-      "mpq_path": "unit\\zerg\\chrysal.grp",
-      "frame_count": 4,
-      "frame_width": 96,
+      "mpq_path": "unit\\zerg\\Snakey.grp",
+      "frame_count": 3,
+      "frame_width": 160,
       "frame_height": 128,
       "atlas_rect": [
         0,
         0,
-        96,
+        160,
         128
       ],
       "visual_class": "medium_building",
-      "render_scale": 0.0352,
+      "render_scale": 0.0281,
       "selection_radius": 2.8
     },
     "Extractor": {
@@ -784,8 +784,8 @@
       "runtime_enabled": true,
       "asset": "res://assets/sc1_generated/p1b_tech_buildings/HydraliskDen.png",
       "source_mpq": "StarDat.mpq",
-      "mpq_path": "unit\\zerg\\hydra.grp",
-      "frame_count": 297,
+      "mpq_path": "unit\\zerg\\Mutapit.grp",
+      "frame_count": 4,
       "frame_width": 128,
       "frame_height": 128,
       "atlas_rect": [
