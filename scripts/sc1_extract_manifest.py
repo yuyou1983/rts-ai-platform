@@ -391,8 +391,10 @@ def main() -> int:
     if args.batch_out:
         raw_out = REPO_ROOT / "local_assets" / "sc1_mpq_raw" / batch
         png_out = REPO_ROOT / "local_assets" / "sc1_converted" / batch
+        # Always write to the top-level aggregate manifest, not per-batch
         generated_manifest_path = (
-            REPO_ROOT / "godot" / "assets" / "sc1_generated" / batch / "generated_manifest.json"
+            args.generated_manifest
+            or (REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generated_manifest.json")
         )
     else:
         raw_out = args.raw_out

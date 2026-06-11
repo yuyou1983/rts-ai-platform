@@ -91,3 +91,11 @@ def test_generated_manifest_matches_p0_plus_extractable_p1a() -> None:
     assert not (actual_ids & p1a_pending_ids), (
         f"PENDING assets leaked into generated: {sorted(actual_ids & p1a_pending_ids)}"
     )
+
+
+def test_p1a_generated_manifest_path_is_top_level_contract() -> None:
+    generated = json.loads(GENERATED_MANIFEST.read_text())
+    assert "assets" in generated
+    assert generated["assets"]["Firebat"]["asset"] == (
+        "res://assets/sc1_generated/p1a_core_units/Firebat.png"
+    )

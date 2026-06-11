@@ -495,6 +495,28 @@
       "content_extent": 50,
       "scale_basis": "content_median_extent"
     },
+    "Tank": {
+      "kind": "unit",
+      "race": "terran",
+      "batch": "p1a_core_units",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1a_core_units/Tank.png",
+      "source_mpq": "BrooDat.mpq",
+      "mpq_path": "unit\\terran\\tank.grp",
+      "frame_count": 51,
+      "frame_width": 128,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "visual_class": "large_ground",
+      "render_scale": 0.0246,
+      "content_extent": 63,
+      "scale_basis": "content_median_extent"
+    },
     "Goliath": {
       "kind": "unit",
       "race": "terran",
@@ -515,6 +537,28 @@
       "visual_class": "medium_ground",
       "render_scale": 0.027,
       "content_extent": 38,
+      "scale_basis": "content_median_extent"
+    },
+    "Wraith": {
+      "kind": "unit",
+      "race": "terran",
+      "batch": "p1a_core_units",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1a_core_units/Wraith.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\terran\\phoenix.grp",
+      "frame_count": 17,
+      "frame_width": 64,
+      "frame_height": 64,
+      "atlas_rect": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "visual_class": "small_air",
+      "render_scale": 0.0233,
+      "content_extent": 45,
       "scale_basis": "content_median_extent"
     },
     "Hydralisk": {
@@ -539,28 +583,6 @@
       "content_extent": 38,
       "scale_basis": "content_median_extent"
     },
-    "Mutalisk": {
-      "kind": "unit",
-      "race": "zerg",
-      "batch": "p1a_core_units",
-      "runtime_enabled": false,
-      "asset": "res://assets/sc1_generated/p1a_core_units/Mutalisk.png",
-      "source_mpq": "StarDat.mpq",
-      "mpq_path": "unit\\zerg\\mutalid.grp",
-      "frame_count": 85,
-      "frame_width": 128,
-      "frame_height": 128,
-      "atlas_rect": [
-        0,
-        0,
-        128,
-        128
-      ],
-      "visual_class": "small_air",
-      "render_scale": 0.0214,
-      "content_extent": 49,
-      "scale_basis": "content_median_extent"
-    },
     "Overlord": {
       "kind": "unit",
       "race": "zerg",
@@ -581,6 +603,28 @@
       "visual_class": "large_air",
       "render_scale": 0.0284,
       "content_extent": 67,
+      "scale_basis": "content_median_extent"
+    },
+    "Mutalisk": {
+      "kind": "unit",
+      "race": "zerg",
+      "batch": "p1a_core_units",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1a_core_units/Mutalisk.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\zerg\\mutalid.grp",
+      "frame_count": 85,
+      "frame_width": 128,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "visual_class": "small_air",
+      "render_scale": 0.0214,
+      "content_extent": 49,
       "scale_basis": "content_median_extent"
     },
     "Dragoon": {
@@ -605,26 +649,26 @@
       "content_extent": 49,
       "scale_basis": "content_median_extent"
     },
-    "Tank": {
+    "Reaver": {
       "kind": "unit",
-      "race": "terran",
+      "race": "protoss",
       "batch": "p1a_core_units",
       "runtime_enabled": false,
-      "asset": "res://assets/sc1_generated/p1a_core_units/Tank.png",
-      "source_mpq": "BrooDat.mpq",
-      "mpq_path": "unit\\terran\\tank.grp",
-      "frame_count": 51,
-      "frame_width": 128,
-      "frame_height": 128,
+      "asset": "res://assets/sc1_generated/p1a_core_units/Reaver.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\trilob.grp",
+      "frame_count": 153,
+      "frame_width": 84,
+      "frame_height": 84,
       "atlas_rect": [
         0,
         0,
-        128,
-        128
+        84,
+        84
       ],
       "visual_class": "large_ground",
-      "render_scale": 0.0246,
-      "content_extent": 63,
+      "render_scale": 0.025,
+      "content_extent": 62,
       "scale_basis": "content_median_extent"
     },
     "Carrier": {
