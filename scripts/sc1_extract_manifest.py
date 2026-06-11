@@ -256,7 +256,11 @@ def _visual_overrides(
     return overrides
 
 
-def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
+def build_generated_manifest(
+    records: list[dict],
+    png_out: Path,
+    batch: str = "p0",
+) -> dict:
     assets: dict[str, dict] = {}
     for record in records:
         conversion = record.get("conversion", {})
@@ -273,6 +277,7 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
         entry = {
             "kind": kind,
             "race": record.get("race", ""),
+            "batch": batch,
             "runtime_enabled": kind in {"building", "resource"},
             "asset": _to_res_path(png_path),
             "source_mpq": record.get("source_mpq", ""),
@@ -302,6 +307,19 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
     }
 
 
+def _merge_manifests(existing: dict, incoming: dict) -> dict:
+    """Merge *incoming* manifest entries into *existing*, preserving all keys."""
+    merged = dict(existing)
+    merged.setdefault("assets", {})
+    for asset_id, entry in incoming.get("assets", {}).items():
+        merged["assets"][asset_id] = entry
+    # Ensure top-level metadata from incoming if missing in existing
+    for key in ("schema_version", "generated_by", "runtime_policy"):
+        if key not in merged and key in incoming:
+            merged[key] = incoming[key]
+    return merged
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -312,41 +330,87 @@ def main() -> int:
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--generated-manifest", type=Path, default=DEFAULT_GENERATED_MANIFEST)
     parser.add_argument("--convert", action="store_true")
+    parser.add_argument(
+        "--batch-out",
+        action="store_true",
+        help=(
+            "Output to batch-specific subdirs derived from manifest scope "
+            "(e.g. local_assets/sc1_mpq_raw/{batch}/). "
+            "Defaults to 'p0' when scope is absent."
+        ),
+    )
     args = parser.parse_args()
 
     manifest = json.loads(args.manifest.read_text())
     mpq_names = manifest["mpq_priority_high_to_low"]
-    records = []
+    batch = manifest.get("scope", "p0")
+
+    # Resolve output directories — batch-specific when --batch-out is set
+    if args.batch_out:
+        raw_out = REPO_ROOT / "local_assets" / "sc1_mpq_raw" / batch
+        png_out = REPO_ROOT / "local_assets" / "sc1_converted" / batch
+        generated_manifest_path = (
+            REPO_ROOT / "godot" / "assets" / "sc1_generated" / batch / "generated_manifest.json"
+        )
+    else:
+        raw_out = args.raw_out
+        png_out = args.png_out
+        generated_manifest_path = args.generated_manifest
+
+    records: list[dict] = []
+    skipped = 0
     for asset in manifest["assets"]:
+        # Skip assets whose mpq_path is PENDING
+        if asset.get("mpq_path") == "PENDING":
+            print(f"WARNING: skipping PENDING asset: {asset['id']}")
+            skipped += 1
+            continue
+
         record = _extract_asset(
             args.extractor,
             args.starcraft_dir,
             mpq_names,
             asset,
-            args.raw_out,
+            raw_out,
         )
         if args.convert and record["status"] == "extracted":
             record["conversion"] = _convert_asset(
                 Path(record["raw_path"]),
                 asset["id"],
-                args.png_out,
+                png_out,
             )
         records.append(record)
+
+    total = len(records) + skipped
+    extracted = len(records) - sum(1 for r in records if r["status"] != "extracted")
+    converted = sum(
+        1 for r in records if r.get("conversion", {}).get("status") == "converted"
+    )
 
     report = {
         "manifest": str(args.manifest),
         "starcraft_dir": str(args.starcraft_dir),
-        "raw_out": str(args.raw_out),
-        "png_out": str(args.png_out) if args.convert else "",
+        "raw_out": str(raw_out),
+        "png_out": str(png_out) if args.convert else "",
         "records": records,
     }
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + "\n")
 
+    merged_total = 0
     if args.convert:
-        generated_manifest = build_generated_manifest(records, args.png_out)
-        args.generated_manifest.parent.mkdir(parents=True, exist_ok=True)
-        args.generated_manifest.write_text(json.dumps(generated_manifest, indent=2) + "\n")
+        batch_manifest = build_generated_manifest(records, png_out, batch=batch)
+        generated_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Merge with existing generated_manifest.json if present
+        if generated_manifest_path.exists():
+            existing = json.loads(generated_manifest_path.read_text())
+            merged = _merge_manifests(existing, batch_manifest)
+        else:
+            merged = batch_manifest
+
+        generated_manifest_path.write_text(json.dumps(merged, indent=2) + "\n")
+        merged_total = len(merged.get("assets", {}))
 
     missing = [r["id"] for r in records if r["status"] != "extracted"]
     converted_failed = [
@@ -354,10 +418,13 @@ def main() -> int:
         for r in records
         if r.get("conversion", {}).get("status") == "convert_failed"
     ]
-    print(f"assets={len(records)} extracted={len(records) - len(missing)} missing={len(missing)}")
+    print(
+        f"total={total} extracted={extracted} converted={converted} "
+        f"skipped={skipped} merged_total={merged_total}"
+    )
     if args.convert:
         print(f"converted_failed={len(converted_failed)}")
-        print(f"generated_manifest={args.generated_manifest}")
+        print(f"generated_manifest={generated_manifest_path}")
     print(f"report={args.report}")
     return 1 if missing or converted_failed else 0
 
