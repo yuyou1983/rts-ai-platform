@@ -5,6 +5,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 P1A_MANIFEST = REPO_ROOT / "tools" / "sc1_assets" / "p1a_resource_manifest.json"
+P1B_MANIFEST = REPO_ROOT / "tools" / "sc1_assets" / "p1b_building_manifest.json"
 P0_MANIFEST = REPO_ROOT / "tools" / "sc1_assets" / "p0_resource_manifest.json"
 SCALE_CONFIG = REPO_ROOT / "tools" / "sc1_assets" / "visual_class_scale_config.json"
 
@@ -64,10 +65,11 @@ def test_p1a_godot_asset_paths_valid() -> None:
 GENERATED_MANIFEST = REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generated_manifest.json"
 
 
-def test_generated_manifest_matches_p0_plus_extractable_p1a() -> None:
+def test_generated_manifest_matches_p0_plus_extractable_p1a_p1b() -> None:
     generated = json.loads(GENERATED_MANIFEST.read_text())
     p0 = json.loads(P0_MANIFEST.read_text())
     p1a = json.loads(P1A_MANIFEST.read_text())
+    p1b = json.loads(P1B_MANIFEST.read_text())
 
     p0_ids = {asset["id"] for asset in p0["assets"]}
     p1a_extractable_ids = {
@@ -80,13 +82,19 @@ def test_generated_manifest_matches_p0_plus_extractable_p1a() -> None:
         for asset in p1a["assets"]
         if asset.get("mpq_path", "").upper() == "PENDING"
     }
+    p1b_extractable_ids = {
+        asset["id"]
+        for asset in p1b["assets"]
+        if asset.get("mpq_path", "").upper() != "PENDING"
+    }
 
     actual_ids = set(generated["assets"])
-    expected_ids = p0_ids | p1a_extractable_ids
+    expected_ids = p0_ids | p1a_extractable_ids | p1b_extractable_ids
 
     assert actual_ids == expected_ids, (
-        f"Expected {sorted(expected_ids)}, got {sorted(actual_ids)}. "
-        f"Extra: {sorted(actual_ids - expected_ids)}, Missing: {sorted(expected_ids - actual_ids)}"
+        f"Expected {len(expected_ids)} assets, got {len(actual_ids)}. "
+        f"Extra: {sorted(actual_ids - expected_ids)}, "
+        f"Missing: {sorted(expected_ids - actual_ids)}"
     )
     assert not (actual_ids & p1a_pending_ids), (
         f"PENDING assets leaked into generated: {sorted(actual_ids & p1a_pending_ids)}"

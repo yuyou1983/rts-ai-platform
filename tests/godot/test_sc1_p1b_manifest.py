@@ -17,11 +17,14 @@ def test_p1b_manifest_schema() -> None:
     assert len(manifest["assets"]) == 11
 
 
-def test_p1b_assets_have_discovery_candidates() -> None:
+def test_p1b_assets_have_resolved_mpq_paths() -> None:
+    """P1B buildings have been discovered — mpq_path should no longer be PENDING."""
     manifest = json.loads(P1B_MANIFEST.read_text())
     for asset in manifest["assets"]:
         assert asset["kind"] == "building"
-        assert asset["mpq_path"] == "PENDING"
+        assert asset["mpq_path"] != "PENDING", (
+            f"{asset['id']}: mpq_path still PENDING"
+        )
         assert asset["candidate_names"], f"{asset['id']}: missing candidate_names"
         assert asset["visual_class"] in {"small_building", "medium_building", "large_building"}
 

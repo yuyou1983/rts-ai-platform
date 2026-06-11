@@ -56,6 +56,18 @@ VISUAL_TARGET_MAX_WORLD = {
     "MineralFieldType2": 1.45,
     "MineralFieldType3": 1.45,
     "VespeneGeyser": 2.2,
+    # P1B tech buildings
+    "SupplyDepot": 3.5,
+    "Factory": 4.8,
+    "Starport": 5.0,
+    "Bunker": 3.0,
+    "HydraliskDen": 4.5,
+    "Spire": 4.5,
+    "SunkenColony": 3.5,
+    "PhotonCannon": 3.0,
+    "CyberneticsCore": 3.5,
+    "Stargate": 5.0,
+    "RoboticsFacility": 4.5,
 }
 
 VISUAL_SELECTION_RADIUS = {
@@ -73,6 +85,18 @@ VISUAL_SELECTION_RADIUS = {
     "MineralFieldType2": 1.0,
     "MineralFieldType3": 1.0,
     "VespeneGeyser": 1.6,
+    # P1B tech buildings
+    "SupplyDepot": 2.5,
+    "Factory": 3.2,
+    "Starport": 3.2,
+    "Bunker": 2.5,
+    "HydraliskDen": 2.8,
+    "Spire": 2.8,
+    "SunkenColony": 2.5,
+    "PhotonCannon": 2.5,
+    "CyberneticsCore": 2.5,
+    "Stargate": 3.2,
+    "RoboticsFacility": 3.0,
 }
 
 
@@ -272,7 +296,11 @@ def _visual_overrides(
             overrides["scale_basis"] = "content_median_extent"
         return overrides
 
+    # Buildings & resources: prefer per-ID override, then visual_class fallback
     target_max = VISUAL_TARGET_MAX_WORLD.get(asset_id)
+    if target_max is None and visual_class:
+        targets = visual_class_targets or {}
+        target_max = targets.get(visual_class)
     if not target_max or max_dim <= 0:
         return {}
 

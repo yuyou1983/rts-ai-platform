@@ -25,6 +25,7 @@ tools/mpq/
 StarCraft/**/*.mpq.extracted/
 godot/assets/sc1_extracted/
 godot/assets/sc1_generated/
+!godot/assets/sc1_generated/generated_manifest.json
 
 # Large assets (available on demand)
 # docs/RTS_Agent_Architecture_Deck.pdf

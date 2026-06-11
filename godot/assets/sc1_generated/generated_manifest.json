@@ -692,6 +692,237 @@
       "render_scale": 0.02,
       "content_extent": 95,
       "scale_basis": "content_median_extent"
+    },
+    "SupplyDepot": {
+      "kind": "building",
+      "race": "terran",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/SupplyDepot.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\terran\\depot.grp",
+      "frame_count": 2,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "small_building",
+      "render_scale": 0.0273,
+      "selection_radius": 2.5
+    },
+    "Factory": {
+      "kind": "building",
+      "race": "terran",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/Factory.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\terran\\factory.grp",
+      "frame_count": 7,
+      "frame_width": 128,
+      "frame_height": 160,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        160
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.03,
+      "selection_radius": 3.2
+    },
+    "Starport": {
+      "kind": "building",
+      "race": "terran",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/Starport.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\terran\\starport.grp",
+      "frame_count": 6,
+      "frame_width": 128,
+      "frame_height": 160,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        160
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0312,
+      "selection_radius": 3.2
+    },
+    "Bunker": {
+      "kind": "building",
+      "race": "terran",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/Bunker.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\terran\\pillbox.grp",
+      "frame_count": 2,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "small_building",
+      "render_scale": 0.0234,
+      "selection_radius": 2.5
+    },
+    "HydraliskDen": {
+      "kind": "building",
+      "race": "zerg",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/HydraliskDen.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\zerg\\hydra.grp",
+      "frame_count": 297,
+      "frame_width": 128,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0352,
+      "selection_radius": 2.8
+    },
+    "Spire": {
+      "kind": "building",
+      "race": "zerg",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/Spire.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\zerg\\spire.grp",
+      "frame_count": 4,
+      "frame_width": 128,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0352,
+      "selection_radius": 2.8
+    },
+    "SunkenColony": {
+      "kind": "building",
+      "race": "zerg",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/SunkenColony.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\zerg\\scolony.grp",
+      "frame_count": 4,
+      "frame_width": 128,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "visual_class": "small_building",
+      "render_scale": 0.0273,
+      "selection_radius": 2.5
+    },
+    "PhotonCannon": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/PhotonCannon.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\photon.grp",
+      "frame_count": 4,
+      "frame_width": 64,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        64,
+        128
+      ],
+      "visual_class": "small_building",
+      "render_scale": 0.0234,
+      "selection_radius": 2.5
+    },
+    "CyberneticsCore": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/CyberneticsCore.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\gencore.grp",
+      "frame_count": 1,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0273,
+      "selection_radius": 2.5
+    },
+    "Stargate": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/Stargate.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\stargate.grp",
+      "frame_count": 1,
+      "frame_width": 128,
+      "frame_height": 160,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        160
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0312,
+      "selection_radius": 3.2
+    },
+    "RoboticsFacility": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1b_tech_buildings",
+      "runtime_enabled": true,
+      "asset": "res://assets/sc1_generated/p1b_tech_buildings/RoboticsFacility.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\robotic.grp",
+      "frame_count": 20,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0352,
+      "selection_radius": 3.0
     }
   }
 }
