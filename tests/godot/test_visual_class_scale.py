@@ -37,3 +37,16 @@ def test_p1a_units_in_scale_range() -> None:
             f"{asset_id} ({vc}) body_world={body_world:.3f} "
             f"outside [{lo}, {hi}]"
         )
+
+
+def test_all_generated_units_use_configured_visual_class() -> None:
+    cfg = json.loads(SCALE_CONFIG.read_text())
+    manifest = json.loads(GENERATED_MANIFEST.read_text())
+    ranges = cfg["visual_classes"]
+    for asset_id, entry in manifest["assets"].items():
+        if entry["kind"] != "unit":
+            continue
+        visual_class = entry.get("visual_class", "")
+        assert visual_class in ranges, (
+            f"{asset_id}: unconfigured visual_class '{visual_class}'"
+        )

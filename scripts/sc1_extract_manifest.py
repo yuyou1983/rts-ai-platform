@@ -362,7 +362,7 @@ def main() -> int:
 
     manifest = json.loads(args.manifest.read_text())
     mpq_names = manifest["mpq_priority_high_to_low"]
-    batch = manifest.get("scope", "p0")
+    batch = manifest.get("batch", manifest.get("scope", "p0"))
 
     # Resolve output directories — batch-specific when --batch-out is set
     if args.batch_out:
