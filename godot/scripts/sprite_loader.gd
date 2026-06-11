@@ -233,6 +233,50 @@ func get_generated_assets() -> Dictionary:
 	return _generated_manifest.get("assets", {}).duplicate(true)
 
 
+## Return all entries from generated_manifest where entry['batch'] == batch_name.
+func get_assets_by_batch(batch_name: String) -> Dictionary:
+	var result = {}
+	var assets = _generated_manifest.get("assets", {})
+	for asset_id in assets:
+		var entry = assets[asset_id]
+		if str(entry.get("batch", "")) == batch_name:
+			result[asset_id] = entry.duplicate(true)
+	return result
+
+
+## Return all entries from generated_manifest where entry['visual_class'] == vc.
+func get_assets_by_visual_class(vc: String) -> Dictionary:
+	var result = {}
+	var assets = _generated_manifest.get("assets", {})
+	for asset_id in assets:
+		var entry = assets[asset_id]
+		if str(entry.get("visual_class", "")) == vc:
+			result[asset_id] = entry.duplicate(true)
+	return result
+
+
+## Return unique batch names from generated_manifest.
+func get_batches() -> PackedStringArray:
+	var seen = {}
+	var assets = _generated_manifest.get("assets", {})
+	for asset_id in assets:
+		var b = str(assets[asset_id].get("batch", ""))
+		if b != "" and not seen.has(b):
+			seen[b] = true
+	return PackedStringArray(seen.keys())
+
+
+## Return unique visual_class values from generated_manifest.
+func get_visual_classes() -> PackedStringArray:
+	var seen = {}
+	var assets = _generated_manifest.get("assets", {})
+	for asset_id in assets:
+		var vc = str(assets[asset_id].get("visual_class", ""))
+		if vc != "" and not seen.has(vc):
+			seen[vc] = true
+	return PackedStringArray(seen.keys())
+
+
 ## Build simple generated unit preview animations from a converted GRP contact sheet.
 ## The generated manifest does not know StarCraft iscript action ranges yet, so this
 ## samples different windows of the frame strip for movement and attack QA.
