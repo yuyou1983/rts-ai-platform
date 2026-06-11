@@ -327,3 +327,52 @@ git commit -m "docs: add sc1 resource extraction validation sop"
 ```
 
 Expected: commit includes only code/tests/docs, not commercial generated assets.
+
+## P1A Extension Notes
+
+### Batch Extraction
+
+P1A uses `--batch-out` flag on `sc1_extract_manifest.py`:
+```bash
+python3 scripts/sc1_extract_manifest.py \
+  --manifest tools/sc1_assets/p1a_resource_manifest.json \
+  --starcraft-dir /Users/yuyou/code/StarCraft \
+  --convert --batch-out
+```
+
+### Path Discovery
+
+New units may have abbreviated MPQ filenames. Use `sc1_discover_assets.py` to probe:
+```bash
+python3 scripts/sc1_discover_assets.py \
+  --manifest tools/sc1_assets/p1a_resource_manifest.json
+```
+
+Known abbreviations:
+- Hydralisk → `hydra.grp`
+- Mutalisk → `mutalid.grp`
+- Dragoon → comes from BrooDat.mpq
+
+### Pending Assets
+
+Wraith and Reaver have `mpq_path: "PENDING"` — their actual GRP filename inside StarDat.mpq could not be determined via images.tbl. These need manual MPQ browsing or dat file parsing.
+
+### Visual Class Scale Rules
+
+| Class | body_world range |
+|-------|-----------------|
+| worker | 0.85–0.95 |
+| small_ground | 0.70–0.85 |
+| medium_ground | 0.90–1.15 |
+| large_ground | 1.30–1.80 |
+| small_air | 0.90–1.20 |
+| large_air | 1.60–2.20 |
+
+### P1A QA Checklist (append to existing)
+
+- [ ] P0 + P1A manifest merge produces 30+ assets
+- [ ] No ID overlap between P0 and P1A
+- [ ] All unit visual_classes map to valid scale ranges
+- [ ] Batch filter in Test Mode shows P0/P1A/All
+- [ ] Flying units show ✈ marker
+- [ ] Building sorting follows race + tech tier
