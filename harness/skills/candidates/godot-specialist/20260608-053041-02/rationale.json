@@ -1,0 +1,13 @@
+{
+  "skill": "godot-specialist",
+  "rationale": "contrastive validation delta: pass traces include commands absent from fail traces",
+  "evidence_pass": [
+    "godot-vfx-pass-001",
+    "godot-vfx-pass-nested-manifest-001"
+  ],
+  "evidence_fail": [
+    "godot-vfx-fail-001"
+  ],
+  "audit_result": "dry_run_rejected",
+  "audit_details": "godot_task_missing_check_only"
+}

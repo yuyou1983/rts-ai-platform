@@ -1,0 +1,9 @@
+{
+  "pass_trial_ids": [
+    "godot-vfx-pass-001",
+    "godot-vfx-pass-nested-manifest-001"
+  ],
+  "fail_trial_ids": [
+    "godot-vfx-fail-001"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "run_id": "godot-vfx-e2e-001",
+  "fixture_id": "godot-vfx/sc1-resource-alignment",
+  "skill_name": "godot-specialist",
+  "created_at": "2026-06-08T04:31:06.962599+00:00",
+  "packets": [
+    {
+      "strategy_label": "A",
+      "packet_path": "godot-vfx-e2e-001/strategy-A.md"
+    },
+    {
+      "strategy_label": "B",
+      "packet_path": "godot-vfx-e2e-001/strategy-B.md"
+    },
+    {
+      "strategy_label": "C",
+      "packet_path": "godot-vfx-e2e-001/strategy-C.md"
+    },
+    {
+      "strategy_label": "D",
+      "packet_path": "godot-vfx-e2e-001/strategy-D.md"
+    }
+  ]
+}

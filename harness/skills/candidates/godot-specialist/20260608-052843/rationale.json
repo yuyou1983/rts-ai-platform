@@ -1,0 +1,13 @@
+{
+  "skill": "godot-specialist",
+  "rationale": "contrastive boundary risk: failed traces touched forbidden runtime paths",
+  "evidence_pass": [
+    "godot-vfx-pass-001",
+    "godot-vfx-pass-nested-manifest-001"
+  ],
+  "evidence_fail": [
+    "godot-vfx-fail-001"
+  ],
+  "audit_result": "dry_run_rejected",
+  "audit_details": "godot_task_missing_check_only; godot_patch_missing_static_or_manifest_validation"
+}

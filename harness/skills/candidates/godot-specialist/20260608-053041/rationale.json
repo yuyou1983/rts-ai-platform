@@ -1,0 +1,13 @@
+{
+  "skill": "godot-specialist",
+  "rationale": "silent-bypass 是 skill 被加载但核心规则被忽略的情况。",
+  "evidence_pass": [
+    "godot-vfx-pass-001",
+    "godot-vfx-pass-nested-manifest-001"
+  ],
+  "evidence_fail": [
+    "godot-vfx-fail-001"
+  ],
+  "audit_result": "dry_run_accepted",
+  "audit_details": ""
+}
