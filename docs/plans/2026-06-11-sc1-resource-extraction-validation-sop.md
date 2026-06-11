@@ -38,18 +38,18 @@ Use this when checking whether extracted resources look correct.
 
 ## Current Unit Scale Baseline
 
-Generated unit scale is normalized by target max footprint:
+Generated unit scale is normalized by measured non-transparent body footprint, not full GRP cell size. This matters because many SC1 unit GRP frames have large transparent padding or occasional outlier frames.
 
-| Asset | Race | Frame | Target Max World |
-| --- | --- | --- | --- |
-| `SCV` | Terran | `72x72` | `1.15` |
-| `Marine` | Terran | `64x64` | `1.05` |
-| `Drone` | Zerg | `128x128` | `1.15` |
-| `Zergling` | Zerg | `128x128` | `1.00` |
-| `Probe` | Protoss | `32x32` | `1.15` |
-| `Zealot` | Protoss | `128x128` | `1.20` |
+| Asset | Race | Frame | Content Extent | Visible Body World |
+| --- | --- | --- | --- | --- |
+| `SCV` | Terran | `72x72` | `40` | `0.652` |
+| `Marine` | Terran | `64x64` | `26` | `0.720` |
+| `Drone` | Zerg | `128x128` | `38` | `0.718` |
+| `Zergling` | Zerg | `128x128` | `27` | `0.621` |
+| `Probe` | Protoss | `32x32` | `27` | `0.950` |
+| `Zealot` | Protoss | `128x128` | `31` | `0.949` |
 
-Acceptance range for manual QA: generated unit max footprint should generally stay between `1.0` and `1.2` world units unless a future design file explicitly marks a unit as large, tiny, air, or hero scale.
+Acceptance range for manual QA: generated unit body footprint should be readable in Test Mode and should not collapse below `0.6` world units for P0 ground units. SCV and Probe are treated as current visual anchors; Marine/Drone/Zergling/Zealot should be judged relative to those anchors, not relative to raw 64/128 px cell sizes.
 
 ## Task 1: Prepare Branch And Baseline
 
@@ -169,9 +169,10 @@ m = json.loads(Path("godot/assets/sc1_generated/generated_manifest.json").read_t
 for asset_id, entry in m["assets"].items():
     if entry["kind"] != "unit":
         continue
-    max_world = max(entry["frame_width"], entry["frame_height"]) * float(entry["render_scale"])
-    print(asset_id, entry["race"], round(max_world, 3))
-    assert 0.95 <= max_world <= 1.25, (asset_id, max_world)
+    body_world = entry["content_extent"] * float(entry["render_scale"])
+    print(asset_id, entry["race"], round(body_world, 3), entry["scale_basis"])
+    assert entry["scale_basis"] == "content_median_extent"
+    assert body_world >= 0.6, (asset_id, body_world)
 PY
 ```
 

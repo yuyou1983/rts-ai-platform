@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import subprocess
 from pathlib import Path
 
@@ -25,16 +26,22 @@ DEFAULT_GENERATED_MANIFEST = (
 
 _CONVERT_META_RE = re.compile(r"frames=(?P<frames>\d+)\s+frame_size=(?P<width>\d+)x(?P<height>\d+)")
 
+# Target non-transparent body footprint in Godot world units for generated unit GRPs.
+# Generated unit cells often contain large transparent padding, so units must scale
+# from measured alpha content rather than full GRP cell size.
+VISUAL_UNIT_TARGET_BODY_WORLD = {
+    "SCV": 0.65,
+    "Marine": 0.72,
+    "Drone": 0.72,
+    "Zergling": 0.62,
+    "Probe": 0.95,
+    "Zealot": 0.95,
+}
+
 # Target maximum on-screen footprint in Godot world units for generated GRP cells.
 # These values keep same-tier buildings visually comparable after replacing old
 # hand-cut atlas cells with exact MPQ frame sizes.
 VISUAL_TARGET_MAX_WORLD = {
-    "SCV": 1.15,
-    "Marine": 1.05,
-    "Drone": 1.15,
-    "Zergling": 1.0,
-    "Probe": 1.15,
-    "Zealot": 1.2,
     "CommandCenter": 5.6,
     "Hatchery": 5.6,
     "Nexus": 5.6,
@@ -178,10 +185,64 @@ def _to_res_path(path: Path) -> str:
     return str(path)
 
 
-def _visual_overrides(asset_id: str, kind: str, frame_width: int, frame_height: int) -> dict:
+def _measure_content_extent(
+    png_path: Path,
+    frame_count: int,
+    frame_width: int,
+    frame_height: int,
+) -> int:
+    if frame_count <= 0 or frame_width <= 0 or frame_height <= 0 or not png_path.exists():
+        return 0
+
+    from PIL import Image
+
+    image = Image.open(png_path).convert("RGBA")
+    columns = max(1, image.width // frame_width)
+    extents: list[int] = []
+    for frame_idx in range(frame_count):
+        x = (frame_idx % columns) * frame_width
+        y = (frame_idx // columns) * frame_height
+        if x + frame_width > image.width or y + frame_height > image.height:
+            continue
+        frame = image.crop((x, y, x + frame_width, y + frame_height))
+        bbox = frame.getchannel("A").getbbox()
+        if not bbox:
+            continue
+        extents.append(max(bbox[2] - bbox[0], bbox[3] - bbox[1]))
+    if not extents:
+        return 0
+    return int(round(statistics.median(extents)))
+
+
+def _visual_overrides(
+    asset_id: str,
+    kind: str,
+    frame_width: int,
+    frame_height: int,
+    png_path: Path | None = None,
+    frame_count: int = 0,
+) -> dict:
     if kind not in {"building", "resource", "unit"}:
         return {}
     max_dim = max(frame_width, frame_height)
+    if kind == "unit":
+        target_max = VISUAL_UNIT_TARGET_BODY_WORLD.get(asset_id)
+        content_extent = (
+            _measure_content_extent(png_path, frame_count, frame_width, frame_height)
+            if png_path
+            else 0
+        )
+        scale_basis = content_extent if content_extent > 0 else max_dim
+        if not target_max or scale_basis <= 0:
+            return {}
+        overrides = {
+            "render_scale": round(target_max / scale_basis, 4),
+        }
+        if content_extent > 0:
+            overrides["content_extent"] = content_extent
+            overrides["scale_basis"] = "content_median_extent"
+        return overrides
+
     target_max = VISUAL_TARGET_MAX_WORLD.get(asset_id)
     if not target_max or max_dim <= 0:
         return {}
@@ -221,7 +282,16 @@ def build_generated_manifest(records: list[dict], png_out: Path) -> dict:
             "frame_height": frame_height,
             "atlas_rect": [0, 0, frame_width, frame_height],
         }
-        entry.update(_visual_overrides(asset_id, kind, frame_width, frame_height))
+        entry.update(
+            _visual_overrides(
+                asset_id,
+                kind,
+                frame_width,
+                frame_height,
+                png_path,
+                frame_count,
+            )
+        )
         assets[asset_id] = entry
 
     return {

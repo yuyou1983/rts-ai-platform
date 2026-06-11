@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from PIL import Image
+
 from scripts.sc1_extract_manifest import build_generated_manifest
 
 
@@ -132,7 +134,29 @@ def test_generated_manifest_adds_visual_scales_for_generated_buildings() -> None
     assert 1.6 <= max(pylon["frame_width"], pylon["frame_height"]) * pylon["render_scale"] <= 2.0
 
 
-def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
+def _write_padded_unit_sheet(
+    path: Path,
+    frame_width: int,
+    frame_height: int,
+    extents: list[int],
+) -> None:
+    image = Image.new("RGBA", (frame_width * len(extents), frame_height), (0, 0, 0, 0))
+    for index, extent in enumerate(extents):
+        patch = Image.new("RGBA", (extent, extent), (255, 255, 255, 255))
+        x = index * frame_width + (frame_width - extent) // 2
+        y = (frame_height - extent) // 2
+        image.alpha_composite(patch, (x, y))
+    image.save(path)
+
+
+def test_generated_manifest_adds_normalized_unit_render_scales(tmp_path: Path) -> None:
+    scv_path = tmp_path / "SCV.png"
+    marine_path = tmp_path / "Marine.png"
+    probe_path = tmp_path / "Probe.png"
+    _write_padded_unit_sheet(scv_path, 72, 72, [39, 40, 40, 41, 42])
+    _write_padded_unit_sheet(marine_path, 64, 64, [26, 26, 27, 26, 58])
+    _write_padded_unit_sheet(probe_path, 32, 32, [26, 27, 27, 28, 30])
+
     records = [
         {
             "id": "SCV",
@@ -143,8 +167,8 @@ def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
             "status": "extracted",
             "conversion": {
                 "status": "converted",
-                "png_path": "/repo/godot/assets/sc1_generated/p0/SCV.png",
-                "stdout": "wrote SCV.png from scv.grp frames=51 frame_size=72x72",
+                "png_path": str(scv_path),
+                "stdout": "wrote SCV.png from scv.grp frames=5 frame_size=72x72",
             },
         },
         {
@@ -156,8 +180,8 @@ def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
             "status": "extracted",
             "conversion": {
                 "status": "converted",
-                "png_path": "/repo/godot/assets/sc1_generated/p0/Marine.png",
-                "stdout": "wrote Marine.png from marine.grp frames=229 frame_size=64x64",
+                "png_path": str(marine_path),
+                "stdout": "wrote Marine.png from marine.grp frames=5 frame_size=64x64",
             },
         },
         {
@@ -169,8 +193,8 @@ def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
             "status": "extracted",
             "conversion": {
                 "status": "converted",
-                "png_path": "/repo/godot/assets/sc1_generated/p0/Probe.png",
-                "stdout": "wrote Probe.png from probe.grp frames=17 frame_size=32x32",
+                "png_path": str(probe_path),
+                "stdout": "wrote Probe.png from probe.grp frames=5 frame_size=32x32",
             },
         },
     ]
@@ -181,12 +205,16 @@ def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
     marine = generated["assets"]["Marine"]
     probe = generated["assets"]["Probe"]
 
-    assert scv["render_scale"] == 0.016
-    assert marine["render_scale"] == 0.0164
-    assert probe["render_scale"] == 0.0359
-    assert 1.0 <= scv["frame_width"] * scv["render_scale"] <= 1.2
-    assert 1.0 <= marine["frame_width"] * marine["render_scale"] <= 1.2
-    assert 1.0 <= probe["frame_width"] * probe["render_scale"] <= 1.2
+    assert scv["content_extent"] == 40
+    assert marine["content_extent"] == 26
+    assert probe["content_extent"] == 27
+    assert scv["render_scale"] == 0.0163
+    assert marine["render_scale"] == 0.0277
+    assert probe["render_scale"] == 0.0352
+    assert scv["scale_basis"] == "content_median_extent"
+    assert 0.6 <= scv["content_extent"] * scv["render_scale"] <= 0.7
+    assert 0.68 <= marine["content_extent"] * marine["render_scale"] <= 0.75
+    assert 0.9 <= probe["content_extent"] * probe["render_scale"] <= 1.0
 
 
 def test_game_view_prefers_generated_probe_strip_for_protoss_worker() -> None:
