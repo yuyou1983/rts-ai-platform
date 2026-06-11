@@ -10,6 +10,7 @@ var _fail: int = 0
 func _init() -> void:
 	_test_generated_probe_region()
 	_test_resource_gallery_builds_generated_entities()
+	_test_generated_unit_preview_uses_manifest_scale()
 
 	print("\nGameView Probe override test: %d passed, %d failed" % [_pass, _fail])
 	if _fail > 0:
@@ -99,11 +100,12 @@ func _write_gallery_manifest(path: String) -> void:
 				"kind": "unit",
 				"race": "terran",
 				"runtime_enabled": false,
-				"asset": "user://unused.png",
+				"asset": "user://scv_preview_scale_test.png",
 				"frame_width": 32,
 				"frame_height": 32,
 				"frame_count": 8,
 				"atlas_rect": [0, 0, 32, 32],
+				"render_scale": 0.016,
 			},
 			"MineralFieldType1": {
 				"kind": "resource",
@@ -125,3 +127,63 @@ func _write_gallery_manifest(path: String) -> void:
 		return
 	file.store_string(JSON.stringify(manifest))
 	file.close()
+
+
+func _test_generated_unit_preview_uses_manifest_scale() -> void:
+	var texture_path: String = "user://scv_preview_scale_test.png"
+	var image := Image.create(256, 32, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.8, 0.8, 1.0, 1.0))
+	if image.save_png(texture_path) != OK:
+		_fail += 1
+		print("FAIL: cannot write preview scale texture")
+		return
+
+	var manifest_path: String = "user://game_view_gallery_manifest_test.json"
+	_write_gallery_manifest(manifest_path)
+
+	var view := GameViewScript.new()
+	view._test_mode = true
+	view._sprite_loader = SpriteLoaderScript.new(manifest_path)
+	view._sprite_container = Node2D.new()
+	view.add_child(view._sprite_container)
+	view._ents = [
+		{
+			"id": "test_unit_scv_moving",
+			"owner": 1,
+			"type": "unit",
+			"entity_type": "unit",
+			"unit_type": "SCV",
+			"building_type": "",
+			"resource_type": "",
+			"generated_asset_id": "SCV",
+			"preview_action": "moving",
+			"render_scale": 0.016,
+			"px": 4.0,
+			"py": 4.0,
+			"health": 100,
+			"max_health": 100,
+			"is_idle": false,
+			"carry_amount": 0,
+			"carry_capacity": 0,
+			"attack": 0,
+			"attack_range": 0,
+			"speed": 3,
+			"resource_amount": 0,
+			"attack_target_id": "",
+			"target_x": 6.0,
+			"target_y": 4.0,
+			"energy": 0,
+			"max_energy": 0,
+		},
+	]
+	view._update_entity_sprites()
+	var sprite: Node2D = view._sprite_pool.get("test_unit_scv_moving", null)
+	var scale_ok := sprite != null and is_equal_approx(sprite.scale.x, 0.016) and is_equal_approx(sprite.scale.y, 0.016)
+	view.free()
+
+	if scale_ok:
+		_pass += 1
+		print("PASS: generated unit preview uses manifest render_scale")
+	else:
+		_fail += 1
+		print("FAIL: generated unit preview did not use manifest render_scale")

@@ -132,6 +132,63 @@ def test_generated_manifest_adds_visual_scales_for_generated_buildings() -> None
     assert 1.6 <= max(pylon["frame_width"], pylon["frame_height"]) * pylon["render_scale"] <= 2.0
 
 
+def test_generated_manifest_adds_normalized_unit_render_scales() -> None:
+    records = [
+        {
+            "id": "SCV",
+            "kind": "unit",
+            "race": "terran",
+            "mpq_path": "unit\\terran\\scv.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": "/repo/godot/assets/sc1_generated/p0/SCV.png",
+                "stdout": "wrote SCV.png from scv.grp frames=51 frame_size=72x72",
+            },
+        },
+        {
+            "id": "Marine",
+            "kind": "unit",
+            "race": "terran",
+            "mpq_path": "unit\\terran\\marine.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": "/repo/godot/assets/sc1_generated/p0/Marine.png",
+                "stdout": "wrote Marine.png from marine.grp frames=229 frame_size=64x64",
+            },
+        },
+        {
+            "id": "Probe",
+            "kind": "unit",
+            "race": "protoss",
+            "mpq_path": "unit\\protoss\\probe.grp",
+            "source_mpq": "StarDat.mpq",
+            "status": "extracted",
+            "conversion": {
+                "status": "converted",
+                "png_path": "/repo/godot/assets/sc1_generated/p0/Probe.png",
+                "stdout": "wrote Probe.png from probe.grp frames=17 frame_size=32x32",
+            },
+        },
+    ]
+
+    generated = build_generated_manifest(records, Path("/repo/godot/assets/sc1_generated/p0"))
+
+    scv = generated["assets"]["SCV"]
+    marine = generated["assets"]["Marine"]
+    probe = generated["assets"]["Probe"]
+
+    assert scv["render_scale"] == 0.016
+    assert marine["render_scale"] == 0.0164
+    assert probe["render_scale"] == 0.0359
+    assert 1.0 <= scv["frame_width"] * scv["render_scale"] <= 1.2
+    assert 1.0 <= marine["frame_width"] * marine["render_scale"] <= 1.2
+    assert 1.0 <= probe["frame_width"] * probe["render_scale"] <= 1.2
+
+
 def test_game_view_prefers_generated_probe_strip_for_protoss_worker() -> None:
     source = (Path(__file__).resolve().parents[2] / "godot/scripts/game_view.gd").read_text()
 

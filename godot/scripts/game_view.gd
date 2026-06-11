@@ -2153,7 +2153,11 @@ func _update_entity_sprites() -> void:
 						anim_sprite.animation = anim_key
 					if not anim_sprite.is_playing():
 						anim_sprite.play()
-				anim_sprite.scale = _visual_scale(visual_id, false)
+				if is_generated_unit_preview and e.has("render_scale"):
+					var scale := float(e.get("render_scale", 0.022))
+					anim_sprite.scale = Vector2(scale, scale)
+				else:
+					anim_sprite.scale = _visual_scale(visual_id, false)
 				anim_sprite.visible = true
 				anim_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			else:

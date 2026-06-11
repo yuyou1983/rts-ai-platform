@@ -29,6 +29,12 @@ _CONVERT_META_RE = re.compile(r"frames=(?P<frames>\d+)\s+frame_size=(?P<width>\d
 # These values keep same-tier buildings visually comparable after replacing old
 # hand-cut atlas cells with exact MPQ frame sizes.
 VISUAL_TARGET_MAX_WORLD = {
+    "SCV": 1.15,
+    "Marine": 1.05,
+    "Drone": 1.15,
+    "Zergling": 1.0,
+    "Probe": 1.15,
+    "Zealot": 1.2,
     "CommandCenter": 5.6,
     "Hatchery": 5.6,
     "Nexus": 5.6,
@@ -173,7 +179,7 @@ def _to_res_path(path: Path) -> str:
 
 
 def _visual_overrides(asset_id: str, kind: str, frame_width: int, frame_height: int) -> dict:
-    if kind not in {"building", "resource"}:
+    if kind not in {"building", "resource", "unit"}:
         return {}
     max_dim = max(frame_width, frame_height)
     target_max = VISUAL_TARGET_MAX_WORLD.get(asset_id)
