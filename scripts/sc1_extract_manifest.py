@@ -172,7 +172,16 @@ def _parse_conversion_metadata(stdout: str) -> tuple[int, int, int]:
     )
 
 
-def _to_res_path(path: Path) -> str:
+def _to_res_path(path: Path, batch: str = "", asset_id: str = "") -> str:
+    """Convert a filesystem path to a Godot res:// path.
+
+    When batch and asset_id are provided (batch extraction mode),
+    we know the intended res:// path directly:
+        res://assets/sc1_generated/{batch}/{asset_id}.png
+    Otherwise fall back to path manipulation.
+    """
+    if batch and asset_id:
+        return f"res://assets/sc1_generated/{batch}/{_safe_name(asset_id)}.png"
     resolved = path.resolve()
     godot_root = (REPO_ROOT / "godot").resolve()
     try:
@@ -260,8 +269,14 @@ def build_generated_manifest(
     records: list[dict],
     png_out: Path,
     batch: str = "p0",
+    input_manifest: dict | None = None,
 ) -> dict:
     assets: dict[str, dict] = {}
+    # Build visual_class lookup from input manifest if available
+    vc_lookup: dict[str, str] = {}
+    if input_manifest:
+        for asset in input_manifest.get("assets", []):
+            vc_lookup[asset["id"]] = asset.get("visual_class", "")
     for record in records:
         conversion = record.get("conversion", {})
         if record.get("status") != "extracted" or conversion.get("status") != "converted":
@@ -279,7 +294,7 @@ def build_generated_manifest(
             "race": record.get("race", ""),
             "batch": batch,
             "runtime_enabled": kind in {"building", "resource"},
-            "asset": _to_res_path(png_path),
+            "asset": _to_res_path(png_path, batch=batch, asset_id=asset_id),
             "source_mpq": record.get("source_mpq", ""),
             "mpq_path": record.get("mpq_path", ""),
             "frame_count": frame_count,
@@ -287,6 +302,10 @@ def build_generated_manifest(
             "frame_height": frame_height,
             "atlas_rect": [0, 0, frame_width, frame_height],
         }
+        # Carry visual_class from input manifest
+        vc = vc_lookup.get(asset_id, "")
+        if vc:
+            entry["visual_class"] = vc
         entry.update(
             _visual_overrides(
                 asset_id,
@@ -399,7 +418,9 @@ def main() -> int:
 
     merged_total = 0
     if args.convert:
-        batch_manifest = build_generated_manifest(records, png_out, batch=batch)
+        batch_manifest = build_generated_manifest(
+            records, png_out, batch=batch, input_manifest=manifest,
+        )
         generated_manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Merge with existing generated_manifest.json if present
