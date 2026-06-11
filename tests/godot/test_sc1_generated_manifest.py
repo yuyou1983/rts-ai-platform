@@ -208,11 +208,11 @@ def test_generated_manifest_adds_normalized_unit_render_scales(tmp_path: Path) -
     assert scv["content_extent"] == 40
     assert marine["content_extent"] == 26
     assert probe["content_extent"] == 27
-    assert scv["render_scale"] == 0.0163
+    assert scv["render_scale"] == 0.0212
     assert marine["render_scale"] == 0.0277
     assert probe["render_scale"] == 0.0352
     assert scv["scale_basis"] == "content_median_extent"
-    assert 0.6 <= scv["content_extent"] * scv["render_scale"] <= 0.7
+    assert 0.8 <= scv["content_extent"] * scv["render_scale"] <= 0.9
     assert 0.68 <= marine["content_extent"] * marine["render_scale"] <= 0.75
     assert 0.9 <= probe["content_extent"] * probe["render_scale"] <= 1.0
 

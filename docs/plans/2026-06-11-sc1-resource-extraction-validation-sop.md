@@ -42,14 +42,14 @@ Generated unit scale is normalized by measured non-transparent body footprint, n
 
 | Asset | Race | Frame | Content Extent | Visible Body World |
 | --- | --- | --- | --- | --- |
-| `SCV` | Terran | `72x72` | `40` | `0.652` |
+| `SCV` | Terran | `72x72` | `40` | `0.848` |
 | `Marine` | Terran | `64x64` | `26` | `0.720` |
 | `Drone` | Zerg | `128x128` | `38` | `0.718` |
 | `Zergling` | Zerg | `128x128` | `27` | `0.621` |
 | `Probe` | Protoss | `32x32` | `27` | `0.950` |
 | `Zealot` | Protoss | `128x128` | `31` | `0.949` |
 
-Acceptance range for manual QA: generated unit body footprint should be readable in Test Mode and should not collapse below `0.6` world units for P0 ground units. SCV and Probe are treated as current visual anchors; Marine/Drone/Zergling/Zealot should be judged relative to those anchors, not relative to raw 64/128 px cell sizes.
+Acceptance range for manual QA: generated unit body footprint should be readable in Test Mode and should not collapse below `0.6` world units for P0 ground units. SCV should now be judged as a readable worker-scale sprite near Drone/Probe, not as a small Terran anchor. Marine/Drone/Zergling/Zealot should be judged relative to readable body footprint, not relative to raw 64/128 px cell sizes.
 
 ## Task 1: Prepare Branch And Baseline
 

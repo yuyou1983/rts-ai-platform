@@ -30,7 +30,7 @@ _CONVERT_META_RE = re.compile(r"frames=(?P<frames>\d+)\s+frame_size=(?P<width>\d
 # Generated unit cells often contain large transparent padding, so units must scale
 # from measured alpha content rather than full GRP cell size.
 VISUAL_UNIT_TARGET_BODY_WORLD = {
-    "SCV": 0.65,
+    "SCV": 0.85,
     "Marine": 0.72,
     "Drone": 0.72,
     "Zergling": 0.62,
