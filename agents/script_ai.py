@@ -214,12 +214,17 @@ class ScriptAI:
                             if e.get("entity_type") == "soldier"])
 
         # ─── Pre-compute building status (needed for worker reservation) ──
+        # Normalize building_type: strip underscores and lowercase to handle
+        # both "SupplyDepot" and "supply_depot" naming conventions.
+        def _norm_bt(b: dict) -> str:
+            return b.get("building_type", "").lower().replace("_", "")
+
         supply_count = sum(1 for b in my_buildings.values()
                           if b.get("unit_type", "").lower() == supply_name.lower()
-                          or b.get("building_type", "").lower() in ("supply_depot", "pylon"))
+                          or _norm_bt(b) in ("supplydepot", "pylon"))
         has_supply = any(
             (b.get("unit_type", "").lower() == supply_name.lower()
-             or b.get("building_type", "").lower() in ("supply_depot", "pylon"))
+             or _norm_bt(b) in ("supplydepot", "pylon"))
             and not b.get("is_constructing", False)
             for b in my_buildings.values()
         )
@@ -229,13 +234,15 @@ class ScriptAI:
         max_supply_buildings = max(3, worker_count // 8 + soldier_count // 6)
         has_barracks = any(
             (b.get("building_type", "").lower() == "barracks"
-             or b.get("unit_type", "").lower() == barracks_name.lower())
+             or b.get("unit_type", "").lower() == barracks_name.lower()
+             or _norm_bt(b) in ("barracks", "gateway", "spawningpool"))
             and not b.get("is_constructing", False)
             for b in my_buildings.values()
         )
         barracks_building = any(
             (b.get("building_type", "").lower() == "barracks"
-             or b.get("unit_type", "").lower() == barracks_name.lower())
+             or b.get("unit_type", "").lower() == barracks_name.lower()
+             or _norm_bt(b) in ("barracks", "gateway", "spawningpool"))
             and b.get("is_constructing", False)
             for b in my_buildings.values()
         )
@@ -411,7 +418,8 @@ class ScriptAI:
         completed_barracks = [b for b in my_buildings.values()
                               if (b.get("building_type", "").lower() == "barracks"
                                   or b.get("building_type", "").lower() == barracks_name.lower()
-                                  or b.get("unit_type", "").lower() == barracks_name.lower())
+                                  or b.get("unit_type", "").lower() == barracks_name.lower()
+                                  or _norm_bt(b) in ("barracks", "gateway", "spawningpool"))
                               and not b.get("is_constructing")]
 
         production_building = base_building or (completed_barracks[0]

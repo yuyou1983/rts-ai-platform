@@ -1103,7 +1103,7 @@
         "build": 4
       }
     },
-    "StarGate": {
+    "Stargate": {
       "file": "res://assets/sprites/buildings/ProtossBuilding.png",
       "offset_x": 209,
       "offset_y": 400,

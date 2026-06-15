@@ -76,7 +76,7 @@ _BUILDING_TYPE_MAP = {
     "CyberneticsCore": "CyberneticsCore",
     "ShieldBattery": "ShieldBattery",
     "RoboticsFacility": "RoboticsFacility",
-    "StarGate": "StarGate",
+    "Stargate": "Stargate",
     "CitadelOfAdun": "CitadelOfAdun",
     "RoboticsSupportBay": "RoboticsSupportBay",
     "FleetBeacon": "FleetBeacon",
@@ -297,7 +297,7 @@ def check_train_prerequisites(
         "CyberneticsCore": ["SingularityCharge", "AirWeapons", "AirArmor"],
         "Forge": ["GroundWeapons", "GroundArmor", "PlasmaShields"],
         "RoboticsFacility": ["Reaver", "Shuttle"],
-        "StarGate": ["Scout", "Carrier", "Corsair", "Arbiter"],
+        "Stargate": ["Scout", "Carrier", "Corsair", "Arbiter"],
         "CitadelOfAdun": ["LegEnhancement"],
         "TemplarArchives": ["HighTemplar", "PsionicStorm", "Hallucination", "KhaydarinAmulet"],
         "RoboticsSupportBay": ["Reaver", "ScarabDamage"],
@@ -391,7 +391,7 @@ def _detect_race(entities: dict[str, Any], owner: int) -> str:
                  "DefilerMound", "Extractor", "CreepColony", "SunkenColony", "SporeColony",
                  "NydusCanal"},
         "protoss": {"Nexus", "Pylon", "Gateway", "Forge", "CyberneticsCore",
-                    "RoboticsFacility", "StarGate", "CitadelOfAdun", "FleetBeacon",
+                    "RoboticsFacility", "Stargate", "CitadelOfAdun", "FleetBeacon",
                     "TemplarArchives", "Observatory", "ArbiterTribunal",
                     "Assimilator", "PhotonCannon", "ShieldBattery"},
     }
@@ -505,11 +505,13 @@ def process_construction(
 
         # Create the building
         new_id = f"{btype}_{tick}_{bid}"
+        json_name = _BUILDING_TYPE_MAP.get(btype, btype)
         new_building = {
             "id": new_id,
             "owner": owner,
             "entity_type": "building",
             "building_type": btype,
+            "unit_type": json_name,
             "pos_x": target_x,
             "pos_y": target_y,
             "health": 1,  # starts at 1 so combat doesn't kill it; real HP fills via build_progress

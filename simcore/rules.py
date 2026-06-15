@@ -961,6 +961,34 @@ def check_terminal(entities: dict[str, Any], tick: int, max_ticks: int) -> tuple
         return True, 1, "p2_base_destroyed"
     if tick >= max_ticks:
         return True, 0, "max_ticks_reached"
+    # Safety valve: if both players have no combat units and no production
+    # buildings, the game is deadlocked — declare the player with more HP winner
+    p1_combat = [e for e in entities.values()
+                 if e.get("owner") == 1 and e.get("entity_type") in ("soldier", "scout")]
+    p2_combat = [e for e in entities.values()
+                 if e.get("owner") == 2 and e.get("entity_type") in ("soldier", "scout")]
+    p1_barracks = [e for e in entities.values()
+                   if e.get("owner") == 1 and e.get("entity_type") == "building"
+                   and not e.get("is_constructing", False)
+                   and (e.get("building_type", "").lower() in ("barracks",) or
+                        e.get("building_type", "").lower().replace("_", "") in
+                        ("barracks", "gateway", "spawningpool"))]
+    p2_barracks = [e for e in entities.values()
+                   if e.get("owner") == 2 and e.get("entity_type") == "building"
+                   and not e.get("is_constructing", False)
+                   and (e.get("building_type", "").lower() in ("barracks",) or
+                        e.get("building_type", "").lower().replace("_", "") in
+                        ("barracks", "gateway", "spawningpool"))]
+    # After tick 2000, if no combat units and no barracks on either side, it's a deadlock
+    if tick >= 2000 and not p1_combat and not p2_combat and not p1_barracks and not p2_barracks:
+        # Determine winner by base HP; if equal, it's a draw
+        hp1 = sum(b.get("health", 0) for b in bases_p1)
+        hp2 = sum(b.get("health", 0) for b in bases_p2)
+        if hp1 > hp2:
+            return True, 1, "deadlock_p1_advantage"
+        elif hp2 > hp1:
+            return True, 2, "deadlock_p2_advantage"
+        return True, 0, "deadlock_draw"
     return False, 0, ""
 
 
