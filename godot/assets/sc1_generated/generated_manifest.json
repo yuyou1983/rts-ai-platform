@@ -1999,6 +1999,132 @@
       "render_scale": 0.0231,
       "content_extent": 67,
       "scale_basis": "content_median_extent"
+    },
+    "FleetBeacon": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/FleetBeacon.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\beacon.grp",
+      "frame_count": 1,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.026,
+      "selection_radius": 2.5
+    },
+    "Observatory": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/Observatory.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "unit\\protoss\\stasis.grp",
+      "frame_count": 1,
+      "frame_width": 160,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        160,
+        128
+      ],
+      "visual_class": "small_building",
+      "render_scale": 0.0234,
+      "selection_radius": 2.2
+    },
+    "EvolutionChamber": {
+      "kind": "building",
+      "race": "zerg",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/EvolutionChamber.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "hash:File00000098",
+      "frame_count": 3,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.026,
+      "selection_radius": 2.5
+    },
+    "UltraliskCavern": {
+      "kind": "building",
+      "race": "zerg",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/UltraliskCavern.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "hash:File00000121",
+      "frame_count": 4,
+      "frame_width": 224,
+      "frame_height": 160,
+      "atlas_rect": [
+        0,
+        0,
+        224,
+        160
+      ],
+      "visual_class": "large_building",
+      "render_scale": 0.0195,
+      "selection_radius": 3.5
+    },
+    "ArbiterTribunal": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/ArbiterTribunal.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "hash:File00000187",
+      "frame_count": 1,
+      "frame_width": 96,
+      "frame_height": 128,
+      "atlas_rect": [
+        0,
+        0,
+        96,
+        128
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.0273,
+      "selection_radius": 2.5
+    },
+    "RoboticsSupportBay": {
+      "kind": "building",
+      "race": "protoss",
+      "batch": "p1c_missing",
+      "runtime_enabled": false,
+      "asset": "res://assets/sc1_generated/p1c_missing/RoboticsSupportBay.png",
+      "source_mpq": "StarDat.mpq",
+      "mpq_path": "hash:File00000196",
+      "frame_count": 1,
+      "frame_width": 128,
+      "frame_height": 160,
+      "atlas_rect": [
+        0,
+        0,
+        128,
+        160
+      ],
+      "visual_class": "medium_building",
+      "render_scale": 0.025,
+      "selection_radius": 3.0
     }
   }
 }
