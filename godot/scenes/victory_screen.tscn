@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/victory_screen.gd" id="1"]
+
+[node name="VictoryScreen" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+
+[node name="Spacer" type="Control" parent="Panel/VBox"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="Stats" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.75, 0.75, 0.75, 1)
+
+[node name="Spacer2" type="Control" parent="Panel/VBox"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnAgain" type="Button" parent="Panel/VBox/HBox"]
+layout_mode = 2
+minimum_size = Vector2(120, 0)
+text = "Play Again"
+
+[node name="BtnReplay" type="Button" parent="Panel/VBox/HBox"]
+layout_mode = 2
+minimum_size = Vector2(120, 0)
+text = "Watch Replay"
+
+[node name="BtnQuit" type="Button" parent="Panel/VBox/HBox"]
+layout_mode = 2
+minimum_size = Vector2(120, 0)
+text = "Back to Menu"

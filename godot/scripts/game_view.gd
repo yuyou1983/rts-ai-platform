@@ -29,6 +29,7 @@ const GrpcBridgeScript := preload("res://scripts/grpc_bridge.gd")
 const CallableStateMachine = preload("res://scripts/callable_state_machine.gd")
 const CameraControllerScript = preload("res://scripts/camera_controller.gd")
 const HUDScene := preload("res://scenes/hud.tscn")
+const VictoryScene := preload("res://scenes/victory_screen.tscn")
 const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
 const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
@@ -120,8 +121,6 @@ var _game_over_shown := false
 var _replay_mode := false
 var _replay_player: ReplayPlayer
 var _replay_overlay: Control
-var _game_over_panel: Control
-var _game_over_label: Label
 var _victory_screen: CanvasLayer
 
 # ─── APM counter ───────────────────────────────────────────
@@ -423,40 +422,13 @@ func _ready() -> void:
 	_ui_layer.add_child(_zoom_out_btn)
 	_zoom_out_btn.pressed.connect(func(): _cam_ctrl._zoom_out() if _cam_ctrl else null)
 
-	# ─── Game Over Panel (in CanvasLayer, hidden by default) ───
-	_game_over_panel = Control.new()
-	_game_over_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_game_over_panel.visible = false
-	_game_over_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_ui_layer.add_child(_game_over_panel)
-	# Dark background behind the text
-	var go_bg := ColorRect.new()
-	go_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	go_bg.color = Color(0, 0, 0, 0.6)
-	go_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_game_over_panel.add_child(go_bg)
-	var go_vbox := VBoxContainer.new()
-	go_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	go_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	_game_over_panel.add_child(go_vbox)
-	_game_over_label = Label.new()
-	_game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_over_label.add_theme_font_size_override("font_size", 48)
-	_game_over_label.add_theme_color_override("font_color", Color.GREEN)
-	go_vbox.add_child(_game_over_label)
-	var restart_label := Label.new()
-	restart_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restart_label.text = "Press R to restart · Q to quit · W to watch replay"
-	restart_label.add_theme_color_override("font_color", Color.GRAY)
-	restart_label.add_theme_font_size_override("font_size", 18)
-	go_vbox.add_child(restart_label)
-	# Additional stats label under game over
-	var go_stats_label := Label.new()
-	go_stats_label.name = "GameOverStats"
-	go_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	go_stats_label.add_theme_color_override("font_color", Color.LIGHT_GRAY)
-	go_stats_label.add_theme_font_size_override("font_size", 16)
-	go_vbox.add_child(go_stats_label)
+	# ─── Victory Screen (in CanvasLayer, hidden by default) ───
+	_victory_screen = VictoryScene.instantiate()
+	_victory_screen.visible = false
+	_ui_layer.add_child(_victory_screen)
+	_victory_screen.play_again.connect(_on_victory_play_again)
+	_victory_screen.quit_game.connect(_on_victory_back_to_menu)
+	_victory_screen.watch_replay.connect(_on_victory_watch_replay)
 
 	# ─── APM label (top-right HUD corner) ───
 	_apm_label = Label.new()
@@ -907,14 +879,8 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over_shown and event is InputEventKey and event.pressed:
-		if event.keycode == KEY_R:
-			_restart_game()
-			_bridge.start_game(42)
-		elif event.keycode == KEY_Q:
-			get_tree().quit()
-		elif event.keycode == KEY_W:
-			# Watch replay: fetch the latest replay and enter replay mode
-			_request_latest_replay()
+		if event.keycode == KEY_ESCAPE:
+			_on_victory_back_to_menu()
 	if _replay_mode and event is InputEventKey and event.pressed:
 		if event.keycode == KEY_Q:
 			get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
@@ -1386,9 +1352,6 @@ func _on_game_over(winner: int, tick: int) -> void:
 	var mineral_gathered: int = 0
 	var gas_gathered: int = 0
 	# Count kills/losses from entity changes
-	for e in _ents:
-		if e.owner != 1:
-			continue
 	for old_id in _prev_entities:
 		var old_e: Dictionary = _prev_entities[old_id]
 		if old_e.get("owner", 0) == 2 and float(old_e.get("health", 0)) > 0:
@@ -1406,28 +1369,16 @@ func _on_game_over(winner: int, tick: int) -> void:
 		"total_actions": _total_actions,
 	}
 
-	if _game_over_panel:
-		_game_over_panel.visible = true
-	if _game_over_label:
-		_game_over_label.text = "YOU WIN!" if winner == 1 else "YOU LOSE!"
-		_game_over_label.add_theme_color_override("font_color", Color.GREEN if winner == 1 else Color.RED)
-
-	# Update stats label
-	var stats_node := _game_over_panel.get_node_or_null("GameOverStats") as Label if _game_over_panel else null
-	if stats_node:
-		var minutes: int = int(duration_sec) / 60
-		var seconds: int = int(duration_sec) % 60
-		stats_node.text = "Time: %d:%02d | Kills: %d | Losses: %d | APM: %d" % [
-			minutes, seconds, kills_val, losses_val, _apm_value
-		]
+	if _victory_screen:
+		_victory_screen.show_result(winner, 1, stats)
 
 	print("===== GAME OVER: P%d wins at tick %d (APM=%d)" % [winner, tick, _apm_value])
 
 func _restart_game() -> void:
 	_game_over_shown = false
 	_game_active = true
-	if _game_over_panel:
-		_game_over_panel.visible = false
+	if _victory_screen:
+		_victory_screen.visible = false
 	if _selection:
 		_selection.remove_all_selection()
 	else:
@@ -1448,6 +1399,16 @@ func _restart_game() -> void:
 	_rally_indicators.clear()
 	var new_seed := randi() % 100000
 	_bridge.start_game(new_seed)
+
+# ─── Victory Screen Callbacks ───────────────────────────────
+func _on_victory_play_again() -> void:
+	_restart_game()
+
+func _on_victory_back_to_menu() -> void:
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+func _on_victory_watch_replay() -> void:
+	_request_latest_replay()
 
 func _to_f(value, fallback: float = 0.0) -> float:
 	if value == null:
@@ -2599,7 +2560,7 @@ func _draw_drag_box() -> void:
 	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.7), false, 0.06)
 
 func _draw_game_over_overlay() -> void:
-	# Game over overlay is now handled by _game_over_panel in CanvasLayer
+	# Game over overlay is now handled by _victory_screen in CanvasLayer
 	pass
 
 # ─── Minimap ──────────────────────────────────────────────
