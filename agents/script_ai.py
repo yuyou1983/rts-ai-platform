@@ -318,14 +318,15 @@ class ScriptAI:
 
         all_combat = idle_soldiers + idle_scouts
 
-        if all_combat and enemies:
-            target_eid, target_e = min(
+        # Compute threat level and primary target (needed regardless of attack phase)
+        base_threat = False
+        target_eid = ""
+        if enemies:
+            target_eid, _ = min(
                 enemies,
                 key=lambda x: x[1].get("health", 100)
                                / max(x[1].get("max_health", 100), 1)
             )
-
-            base_threat = False
             if my_base:
                 base_threat = any(_dist(my_base, e) < 10 for _, e in enemies)
             if base_threat and tick - self._threat_detected_tick < self._reaction_delay:
@@ -333,20 +334,61 @@ class ScriptAI:
             elif base_threat:
                 self._threat_detected_tick = tick
 
-            should_attack = (
-                len(all_combat) >= self.RALLY_SIZE
-                or base_threat
-                or tick > 600
-            )
+        # ─── Time-scaling attack pressure ─────────────────────
+        # As the game progresses, AI becomes more aggressive:
+        #  - tick < 300: only defend (base_threat) or rally
+        #  - tick 300-800: attack if rallied or base threat
+        #  - tick > 800: always push regardless of rally size
+        #  - tick > 1200: all-in with everything (workers too)
+        attack_phase = 0
+        if base_threat:
+            attack_phase = 2  # defend immediately
+        elif len(all_combat) >= self.RALLY_SIZE:
+            attack_phase = 2  # full group ready
+        elif tick > 1200:
+            attack_phase = 2  # late-game all-in
+        elif tick > 800:
+            attack_phase = 1  # push with what we have
+        elif tick > 300 and len(all_combat) >= max(1, self.RALLY_SIZE // 2):
+            attack_phase = 1  # small group, early push
+        elif tick > 600:
+            attack_phase = 1  # time pressure
 
-            if should_attack:
-                for uid, _ in all_combat:
+        if attack_phase >= 2 and enemies:
+            # Full attack — target enemy base if visible, else weakest unit
+            enemy_base_eid = None
+            for eid, e in enemies:
+                if e.get("entity_type") == "building" and (
+                    e.get("building_type") == "base"
+                    or e.get("unit_type") in ("CommandCenter", "Hatchery", "Nexus")
+                ):
+                    enemy_base_eid = eid
+                    break
+            target_id = enemy_base_eid if enemy_base_eid else target_eid
+
+            for uid, _ in all_combat:
+                commands.append({
+                    "action": "attack", "attacker_id": uid,
+                    "target_id": target_id, "issuer": self.player_id,
+                })
+            # Late-game: pull 2 workers into the fight
+            if tick > 1200 and len(all_combat) < 3:
+                for uid, _ in idle_workers[:2]:
                     commands.append({
                         "action": "attack", "attacker_id": uid,
-                        "target_id": target_eid, "issuer": self.player_id,
+                        "target_id": target_id, "issuer": self.player_id,
                     })
-        elif all_combat and tick > 600:
-            # Push toward enemy base even without enemies visible
+        elif attack_phase >= 2 and not enemies:
+            # All-in push toward enemy base (fog — move until we see them)
+            for uid, _ in all_combat:
+                commands.append({
+                    "action": "move", "unit_id": uid,
+                    "target_x": enemy_base_x,
+                    "target_y": enemy_base_y,
+                    "issuer": self.player_id,
+                })
+        elif attack_phase >= 1:
+            # Push toward enemy base (attack-move)
             for uid, _ in all_combat:
                 commands.append({
                     "action": "move", "unit_id": uid,
