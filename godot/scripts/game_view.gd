@@ -315,8 +315,8 @@ func _ready() -> void:
 	# ─── Unit animation metadata (row, total_cols, frame_w, frame_h, south_col) ───
 	# SCV: 8-dir, row0 walk, row1 carry, row2 attack, row3 gather
 	_unit_anim_info["worker_1"] = {"rows": 4, "cols": [8,8,8,4], "fw": [33,41,42,46], "fh": [41,40,40,48], "south": [4,4,4,2]}
-	# Drone: same structure as SCV (will refine later with actual Drone sheet)
-	_unit_anim_info["worker_2"] = _unit_anim_info.get("worker_1", {})
+	# Drone: 17-dir, 11 rows (walk×8, carry, attack, death). Rows spaced ~102px apart.
+	_unit_anim_info["worker_2"] = {"rows": 11, "cols": [18,18,18,18,18,18,18,18,18,18,27], "fw": [37,37,34,40,42,40,34,38,38,38,34], "fh": [27,27,26,26,26,27,28,26,27,28,25], "south": [9,9,9,9,9,9,9,9,9,9,5], "row_gap": 102, "first_row_y": 52}
 	# Probe: generated MPQ strip has 17 directional frames in one row.
 	_unit_anim_info["worker_3"] = {"rows": 1, "cols": [17], "fw": [32], "fh": [32], "south": [8]}
 	# Marine: 17-dir, many rows
@@ -1908,6 +1908,7 @@ func _calc_unit_region(utype: String, owner: int, row: int, frame: int) -> Rect2
 	var cols_arr: Array = info.get("cols", [17])
 	var fw_arr: Array = info.get("fw", [38])
 	var fh_arr: Array = info.get("fh", [40])
+	var row_gap: int = int(info.get("row_gap", 10))  # configurable row spacing
 	
 	row = mini(row, cols_arr.size() - 1)
 	var n_cols: int = cols_arr[row]
@@ -1926,13 +1927,13 @@ func _calc_unit_region(utype: String, owner: int, row: int, frame: int) -> Rect2
 	var col_w: float = float(sheet_w) / float(maxi(n_cols, 1))
 	var px: int = int(float(frame) * col_w)
 	
-	# Calculate y offset by accumulating row heights
-	var py: int = 0
+	# Calculate y offset by accumulating row heights + gap
+	var py: int = int(info.get("first_row_y", 0))
 	for r in range(row):
 		if r < fh_arr.size():
-			py += fh_arr[r] + 10  # ~10px gap between rows
+			py += fh_arr[r] + row_gap
 		else:
-			py += fh_arr[-1] + 10
+			py += fh_arr[-1] + row_gap
 	
 	return Rect2(px, py, int(col_w), fh)
 
