@@ -14,7 +14,7 @@ var _stats: Dictionary = {}
 var _alpha: float = 0.0
 var _player_id: int = 1
 
-@onready var _panel: Panel = $Panel
+@onready var _panel: PanelContainer = $Panel
 @onready var _title: Label = $Panel/VBox/Title
 @onready var _stats_label: Label = $Panel/VBox/Stats
 @onready var _btn_again: Button = $Panel/VBox/HBox/BtnAgain
