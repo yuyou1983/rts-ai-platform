@@ -29,10 +29,8 @@ godot/assets/sc1_generated/*
 
 # Large assets (available on demand)
 # docs/RTS_Agent_Architecture_Deck.pdf
-# Godot editor cache
-godot/.godot/editor/
-godot/.godot/uid_cache.bin
-godot/.godot/shader_cache/
+# Godot editor/import cache (entire .godot dir)
+godot/.godot/
 godot/export_presets.cfg
 godot/scripts/*.gd.uid
 

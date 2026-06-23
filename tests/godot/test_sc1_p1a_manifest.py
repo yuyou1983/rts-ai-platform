@@ -66,39 +66,47 @@ GENERATED_MANIFEST = REPO_ROOT / "godot" / "assets" / "sc1_generated" / "generat
 
 
 def test_generated_manifest_matches_p0_plus_extractable_p1a_p1b() -> None:
+    """All extractable assets from every manifest must appear in generated; no untracked assets."""
     generated = json.loads(GENERATED_MANIFEST.read_text())
     p0 = json.loads(P0_MANIFEST.read_text())
     p1a = json.loads(P1A_MANIFEST.read_text())
     p1b = json.loads(P1B_MANIFEST.read_text())
+    p1c = json.loads((REPO_ROOT / "tools" / "sc1_assets" / "p1c_building_manifest.json").read_text())
+    p2 = json.loads((REPO_ROOT / "tools" / "sc1_assets" / "p2_unit_manifest.json").read_text())
 
-    p0_ids = {asset["id"] for asset in p0["assets"]}
-    p1a_extractable_ids = {
-        asset["id"]
-        for asset in p1a["assets"]
-        if asset.get("mpq_path", "").upper() != "PENDING"
-    }
-    p1a_pending_ids = {
-        asset["id"]
-        for asset in p1a["assets"]
-        if asset.get("mpq_path", "").upper() == "PENDING"
-    }
-    p1b_extractable_ids = {
-        asset["id"]
-        for asset in p1b["assets"]
-        if asset.get("mpq_path", "").upper() != "PENDING"
-    }
+    all_manifests = [p0, p1a, p1b, p1c, p2]
 
-    actual_ids = set(generated["assets"])
-    expected_ids = p0_ids | p1a_extractable_ids | p1b_extractable_ids
+    # Every non-PENDING asset across all manifests must exist in generated
+    all_extractable: set[str] = set()
+    for m in all_manifests:
+        all_extractable |= {
+            asset["id"]
+            for asset in m["assets"]
+            if asset.get("mpq_path", "").upper() != "PENDING"
+        }
 
-    assert actual_ids == expected_ids, (
-        f"Expected {len(expected_ids)} assets, got {len(actual_ids)}. "
-        f"Extra: {sorted(actual_ids - expected_ids)}, "
-        f"Missing: {sorted(expected_ids - actual_ids)}"
-    )
-    assert not (actual_ids & p1a_pending_ids), (
-        f"PENDING assets leaked into generated: {sorted(actual_ids & p1a_pending_ids)}"
-    )
+    gen_ids = set(generated["assets"])
+    missing = all_extractable - gen_ids
+    assert not missing, f"Extractable assets missing from generated: {sorted(missing)}"
+
+    # Every generated asset must be declared in at least one manifest
+    all_declared: set[str] = set()
+    for m in all_manifests:
+        all_declared |= {asset["id"] for asset in m["assets"]}
+
+    untracked = gen_ids - all_declared
+    assert not untracked, f"Generated assets not in any manifest: {sorted(untracked)}"
+
+    # PENDING assets must not leak into generated manifest
+    all_pending: set[str] = set()
+    for m in all_manifests:
+        all_pending |= {
+            asset["id"]
+            for asset in m["assets"]
+            if asset.get("mpq_path", "").upper() == "PENDING"
+        }
+    leaked = gen_ids & all_pending
+    assert not leaked, f"PENDING assets leaked into generated: {sorted(leaked)}"
 
 
 def test_p1a_generated_manifest_path_is_top_level_contract() -> None:
