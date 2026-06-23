@@ -47,6 +47,7 @@ var _bridge
 var _frame: int = 0
 var _default_font: Font
 var _analysis_written := false
+var _feel_config: Dictionary = {}
 
 # Entity cache
 var _ents: Array = []
@@ -75,9 +76,17 @@ var _drag_end := Vector2.ZERO
 const SELECT_RADIUS := 1.5
 const PYLON_POWER_RADIUS: float = 8.0
 
-# Debug click marker
-var _debug_click_pos: Vector2 = Vector2.ZERO
-var _debug_click_ttl: int = 0
+# ─── Command ping feedback ──────────────────────────────────
+var _command_pings: Array = []  # [{pos: Vector2, age: float, duration: float, color: Color, type: String}]
+var _control_group_hints: Array = []  # [{text: String, age: float, duration: float}]
+var _ground_ping_duration: float = 0.32
+var _ground_ping_color: Color = Color(0.267, 1.0, 0.533)  # #44ff88
+var _attack_ping_duration: float = 0.38
+var _attack_ping_color: Color = Color(1.0, 0.267, 0.267)  # #ff4444
+var _invalid_ping_duration: float = 0.22
+var _invalid_ping_color: Color = Color(0.667, 0.4, 0.4)  # #aa6666
+var _assign_flash_duration: float = 0.5
+var _empty_group_hint_duration: float = 0.8
 var _test_mode: bool = false
 var _test_ents: Array = []
 var _test_btn: Button = null
@@ -228,6 +237,19 @@ func _ready() -> void:
 	# Phase D: elevation flag (default true)
 	_bridge.enable_elevation = true
 	add_child(_bridge)
+	_feel_config = _load_feel_config()
+	if _feel_config.has("command_feedback"):
+		var cf: Dictionary = _feel_config["command_feedback"]
+		_ground_ping_duration = float(cf.get("ground_ping_duration", _ground_ping_duration))
+		_ground_ping_color = Color.from_string(str(cf.get("ground_ping_color", "#44ff88")), _ground_ping_color)
+		_attack_ping_duration = float(cf.get("attack_ping_duration", _attack_ping_duration))
+		_attack_ping_color = Color.from_string(str(cf.get("attack_ping_color", "#ff4444")), _attack_ping_color)
+		_invalid_ping_duration = float(cf.get("invalid_ping_duration", _invalid_ping_duration))
+		_invalid_ping_color = Color.from_string(str(cf.get("invalid_ping_color", "#aa6666")), _invalid_ping_color)
+	if _feel_config.has("control_group_feedback"):
+		var cg: Dictionary = _feel_config["control_group_feedback"]
+		_assign_flash_duration = float(cg.get("assign_flash_duration", _assign_flash_duration))
+		_empty_group_hint_duration = float(cg.get("empty_group_hint_duration", _empty_group_hint_duration))
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
@@ -670,6 +692,16 @@ func _process(delta: float) -> void:
 		effect["age"] = float(effect.get("age", 0.0)) + delta
 	_dead_effects = _dead_effects.filter(func(eff): return float(eff.get("age", 0.0)) < float(eff.get("lifetime", DEATH_EFFECT_DURATION)))
 
+	# Age and prune command pings
+	for ping in _command_pings:
+		ping["age"] = float(ping.get("age", 0.0)) + delta
+	_command_pings = _command_pings.filter(func(p): return float(p.get("age", 0.0)) < float(p.get("duration", 0.32)))
+
+	# Age and prune control group hints
+	for hint in _control_group_hints:
+		hint["age"] = float(hint.get("age", 0.0)) + delta
+	_control_group_hints = _control_group_hints.filter(func(h): return float(h.get("age", 0.0)) < float(h.get("duration", 0.5)))
+
 	# Hover detection (throttled)
 	_hover_check_timer -= delta
 	if _hover_check_timer <= 0.0:
@@ -763,9 +795,6 @@ func _input(event: InputEvent) -> void:
 		_dragging = true
 		_drag_start = mpos
 		_drag_end = mpos
-		# Debug: show world click position
-		_debug_click_pos = _screen_to_world(mpos)
-		_debug_click_ttl = 30  # frames
 		return
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
@@ -788,8 +817,10 @@ func _input(event: InputEvent) -> void:
 			if _selection:
 				if event.ctrl_pressed:
 					_selection.create_hotkey_group(group_idx)
+					_control_group_hints.append({"text": "Ctrl+%d → Group %d" % [group_idx, group_idx], "age": 0.0, "duration": _assign_flash_duration})
 				elif event.shift_pressed:
 					_selection.add_to_hotkey_group(group_idx)
+					_control_group_hints.append({"text": "Shift+%d → Added to Group %d" % [group_idx, group_idx], "age": 0.0, "duration": _assign_flash_duration})
 				else:
 					# Double-tap detection: same key within 0.3s → jump camera
 					var now: float = Time.get_ticks_msec() / 1000.0
@@ -799,6 +830,9 @@ func _input(event: InputEvent) -> void:
 						_last_group_time = 0.0
 					else:
 						_selection.select_hotkey_group(group_idx)
+						var recalled_ids: Array = _selection.get_selected_ids() if _selection else []
+						if recalled_ids.is_empty():
+							_control_group_hints.append({"text": "Group %d (empty)" % group_idx, "age": 0.0, "duration": _empty_group_hint_duration})
 						_last_group_key = key
 						_last_group_time = now
 			return
@@ -966,12 +1000,14 @@ func _handle_right_click() -> void:
 				continue
 			if e.type == "building" and e.owner == 1:
 				_set_rally_point(uid, world_pos)
+				_spawn_command_ping(world_pos, "move")
 				return
 
 	# Smart context
 	if not clicked_ent.is_empty():
 		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
 			action = "attack"
+			_spawn_command_ping(Vector2(clicked_ent.px, clicked_ent.py), "attack")
 		elif clicked_ent.type == "resource" and workers_selected:
 			# Gas geyser without refinery → auto-build refinery on it
 			if clicked_ent.resource_type == "gas" and not _has_refinery_on_geyser(clicked_ent.id):
@@ -980,6 +1016,7 @@ func _handle_right_click() -> void:
 				_build_mode = true
 			else:
 				action = "gather"
+				_spawn_command_ping(Vector2(clicked_ent.px, clicked_ent.py), "move")
 		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
 			action = "move"
 	elif combat_selected and not workers_selected:
@@ -1011,6 +1048,7 @@ func _handle_right_click() -> void:
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
 					if not nearest_enemy.is_empty():
+						_spawn_command_ping(Vector2(nearest_enemy.px, nearest_enemy.py), "attack")
 						cmds.append({
 							"action": "attack",
 							"attacker_id": uid,
@@ -1038,6 +1076,7 @@ func _handle_right_click() -> void:
 					if _build_type == "refinery" and not clicked_ent.is_empty() and clicked_ent.resource_type == "gas":
 						build_x = clicked_ent.px
 						build_y = clicked_ent.py
+					_spawn_command_ping(Vector2(build_x, build_y), "move")
 					cmds.append({
 						"action": "build",
 						"builder_id": uid,
@@ -1052,6 +1091,7 @@ func _handle_right_click() -> void:
 
 	# Formation-based move commands
 	if not moving_ids.is_empty():
+		_spawn_command_ping(world_pos, "move")
 		var formation: Array = _selection.calculate_formation_positions(world_pos, moving_ids.size()) if _selection \
 			else _calc_formation_fallback(world_pos, moving_ids.size())
 		for i in range(moving_ids.size()):
@@ -1073,6 +1113,10 @@ func _handle_right_click() -> void:
 	if _event_bus and cmds.size() > 0:
 		for cmd in cmds:
 			_event_bus.emit_command_issued(cmd)
+
+	# Invalid command feedback — selected units but no valid action
+	if cmds.is_empty() and not selected_ids.is_empty():
+		_spawn_command_ping(world_pos, "invalid")
 
 	# Hide build panel after placing
 	if _build_mode and _hud:
@@ -1276,6 +1320,44 @@ func _emit_attack_indicator(world_pos: Vector2) -> void:
 		_mm_rect_node.add_attack_indicator(world_pos)
 	if _event_bus:
 		_event_bus.emit_attack_occurred(world_pos, 1)
+
+# ─── Feel config loading ──────────────────────────────────
+func _load_feel_config() -> Dictionary:
+	var path: String = "res://resources/feel/control_feel_config.json"
+	if not ResourceLoader.exists(path):
+		push_warning("control_feel_config.json not found — using defaults")
+		return {}
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		push_warning("Failed to open control_feel_config.json")
+		return {}
+	var text: String = f.get_as_text()
+	f.close()
+	var json: JSON = JSON.new()
+	var err: int = json.parse(text)
+	if err != OK:
+		push_warning("JSON parse error in control_feel_config.json: " + json.get_error_message())
+		return {}
+	return json.data
+
+# ─── Command ping spawning ────────────────────────────────
+func _spawn_command_ping(world_pos: Vector2, ping_type: String) -> void:
+	var duration: float = _ground_ping_duration
+	var color: Color = _ground_ping_color
+	match ping_type:
+		"attack":
+			duration = _attack_ping_duration
+			color = _attack_ping_color
+		"invalid":
+			duration = _invalid_ping_duration
+			color = _invalid_ping_color
+	_command_pings.append({
+		"pos": world_pos,
+		"age": 0.0,
+		"duration": duration,
+		"color": color,
+		"type": ping_type,
+	})
 
 # ─── Formation Fallback ────────────────────────────────────
 static func _calc_formation_fallback(center: Vector2, count: int, spacing: float = 0.8) -> Array:
@@ -1740,8 +1822,9 @@ func _draw() -> void:
 	_draw_rally_lines(co)
 	_draw_drag_box()
 	_draw_damage_floats(co)
+	_draw_command_pings(co)
+	_draw_control_group_hints(co)
 	_draw_game_over_overlay()
-	_draw_debug_click()
 	if _test_mode:
 		_draw_test_labels()
 
@@ -2588,15 +2671,47 @@ func _handle_minimap_click(screen_pos: Vector2) -> void:
 	else:
 		_camera.position = target_pos
 
-func _draw_debug_click() -> void:
-	if _debug_click_ttl <= 0:
-		return
-	_debug_click_ttl -= 1
-	var alpha: float = clampf(float(_debug_click_ttl) / 30.0, 0.0, 1.0)
-	# Draw a bright green cross at the resolved world position
-	draw_line(_debug_click_pos - Vector2(0.5, 0), _debug_click_pos + Vector2(0.5, 0), Color(0, 1, 0, alpha), 0.08, true)
-	draw_line(_debug_click_pos - Vector2(0, 0.5), _debug_click_pos + Vector2(0, 0.5), Color(0, 1, 0, alpha), 0.08, true)
-	draw_circle(_debug_click_pos, 0.3, Color(0, 1, 0, alpha * 0.3))
+func _draw_command_pings(_co: Vector2) -> void:
+	for ping in _command_pings:
+		var age: float = float(ping.get("age", 0.0))
+		var duration: float = float(ping.get("duration", 0.32))
+		var progress: float = clampf(age / duration, 0.0, 1.0)
+		var alpha: float = 1.0 - progress
+		var base_color: Color = Color(ping.get("color", _ground_ping_color))
+		var pos: Vector2 = Vector2(ping.get("pos", Vector2.ZERO))
+		var ping_type: String = str(ping.get("type", "move"))
+		
+		# Expanding ring
+		var max_radius: float = 0.6 if ping_type != "invalid" else 0.35
+		var radius: float = progress * max_radius
+		var ring_color: Color = Color(base_color.r, base_color.g, base_color.b, alpha * 0.9)
+		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.06, true)
+		
+		# Center dot (only for first 40% of duration)
+		if progress < 0.4:
+			var dot_alpha: float = alpha * (1.0 - progress / 0.4)
+			var dot_color: Color = Color(base_color.r, base_color.g, base_color.b, dot_alpha)
+			draw_circle(pos, 0.1, dot_color)
+
+func _draw_control_group_hints(_co: Vector2) -> void:
+	for hint in _control_group_hints:
+		var age: float = float(hint.get("age", 0.0))
+		var duration: float = float(hint.get("duration", 0.5))
+		var progress: float = clampf(age / duration, 0.0, 1.0)
+		var alpha: float = 1.0 - progress
+		var text: String = str(hint.get("text", ""))
+		
+		var screen_center := get_viewport().get_visible_rect().size / 2.0
+		var hint_pos := _screen_to_world(screen_center) + Vector2(0, _map_h * 0.4)
+		var font_size: int = 16
+		var font: Font = _default_font if _default_font else ThemeDB.fallback_font
+		var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+		var bg_rect := Rect2(hint_pos - text_size / 2.0 - Vector2(6, 3), text_size + Vector2(12, 6))
+		
+		var bg_alpha: float = alpha * 0.6
+		draw_rect(bg_rect, Color(0.0, 0.0, 0.0, bg_alpha), true)
+		draw_rect(bg_rect, Color(1.0, 1.0, 1.0, alpha * 0.3), false, 1.0)
+		draw_string(font, hint_pos - text_size / 2.0 + Vector2(0, font_size * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1, 1, 1, alpha))
 
 ## Provides state data to the minimap_rect child node.
 func _get_state_for_minimap() -> Dictionary:

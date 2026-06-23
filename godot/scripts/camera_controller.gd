@@ -26,6 +26,27 @@ signal zoom_changed(zoom: Vector2)
 @export var map_height: float = 64.0
 @export var cell_size: float = 1.0
 
+# ── Config ───────────────────────────────────────────────────────────────────
+var _config: Dictionary = {}
+
+func _load_config() -> Dictionary:
+	var path: String = "res://resources/feel/control_feel_config.json"
+	if not ResourceLoader.exists(path):
+		push_error("control_feel_config.json not found at " + path)
+		return {}
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		push_error("Failed to open control_feel_config.json")
+		return {}
+	var text: String = f.get_as_text()
+	f.close()
+	var json: JSON = JSON.new()
+	var err: int = json.parse(text)
+	if err != OK:
+		push_error("JSON parse error in control_feel_config.json: " + json.get_error_message())
+		return {}
+	return json.data
+
 # ── Internal State ───────────────────────────────────────────────────────────
 var _camera: Camera2D
 var _target_zoom: Vector2 = Vector2.ONE
@@ -37,6 +58,16 @@ var _follow_entity_ids: Array = []
 var _entity_data_provider: Callable
 
 func _ready() -> void:
+	_config = _load_config()
+	if _config.has("camera"):
+		var c: Dictionary = _config["camera"]
+		keyboard_speed = float(c.get("keyboard_speed", keyboard_speed))
+		edge_scroll_margin = float(c.get("edge_scroll_margin", edge_scroll_margin))
+		edge_scroll_speed = float(c.get("edge_scroll_speed", edge_scroll_speed))
+		min_zoom = float(c.get("min_zoom", min_zoom))
+		max_zoom = float(c.get("max_zoom", max_zoom))
+		zoom_step = float(c.get("zoom_step", zoom_step))
+		zoom_lerp_speed = float(c.get("zoom_lerp_speed", zoom_lerp_speed))
 	set_process(true)
 	set_process_input(true)
 

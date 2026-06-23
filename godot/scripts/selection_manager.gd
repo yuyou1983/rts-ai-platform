@@ -15,8 +15,80 @@ signal control_group_created(index: int, ids: Array)
 signal control_group_selected(index: int, ids: Array)
 signal camera_focus_requested(center: Vector2)
 
-# ── Constants ───────────────────────────────────────────────────────────────────
-const MAX_SELECTION_SIZE := 12  ## SC1-style selection cap
+# ── Lifecycle ───────────────────────────────────────────────────────────────────
+
+func _ready() -> void:
+	_apply_config(_load_config())
+
+
+# ── Config loading ──────────────────────────────────────────────────────────────
+
+func _load_config() -> Dictionary:
+	var path: String = "res://resources/feel/control_feel_config.json"
+	if not ResourceLoader.exists(path):
+		return {}
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return {}
+	var text: String = f.get_as_text()
+	f.close()
+	var json: JSON = JSON.new()
+	var err: int = json.parse(text)
+	if err != OK:
+		push_warning("[SelectionManager] Failed to parse control_feel_config.json: %s" % json.get_error_message())
+		return {}
+	return json.data
+
+
+func _apply_config(data: Dictionary) -> void:
+	if data.is_empty():
+		return
+	var sel: Dictionary = data.get("selection", {})
+	if sel.is_empty():
+		return
+	if sel.has("max_selection_size"):
+		max_selection_size = int(sel["max_selection_size"])
+	if sel.has("double_click_interval"):
+		double_click_interval = float(sel["double_click_interval"])
+	if sel.has("drag_threshold_px"):
+		drag_threshold_px = float(sel["drag_threshold_px"])
+	if sel.has("click_slop_px"):
+		click_slop_px = float(sel["click_slop_px"])
+	if sel.has("building_priority"):
+		building_priority = bool(sel["building_priority"])
+	if sel.has("ctrl_behavior"):
+		ctrl_behavior = str(sel["ctrl_behavior"])
+	if sel.has("shift_behavior"):
+		shift_behavior = str(sel["shift_behavior"])
+	if sel.has("formation_spacing"):
+		formation_spacing = float(sel["formation_spacing"])
+	_config = data
+	print("[SelectionManager] Applied selection config: max=%d dbl_click=%.2fs drag_px=%.1f slop_px=%.1f bld_priority=%s ctrl=%s shift=%s spacing=%.2f" % [
+		max_selection_size, double_click_interval, drag_threshold_px,
+		click_slop_px, building_priority, ctrl_behavior, shift_behavior,
+		formation_spacing
+	])
+
+# ── Config-driven parameters (fallback defaults) ────────────────────────────────
+## SC1-style selection cap (overridden by control_feel_config.json)
+var max_selection_size: int = 12
+## Seconds between clicks to count as double-click (overridden by config)
+var double_click_interval: float = 0.4
+## Pixel distance to start a drag-select (overridden by config)
+var drag_threshold_px: float = 5.0
+## Pixel radius for click hit-testing (overridden by config)
+var click_slop_px: float = 6.0
+## Whether buildings have higher priority than units for highest_selected (SC1 style)
+var building_priority: bool = true
+## Ctrl+click behavior name: "select_all_same_type" or "toggle_add"
+var ctrl_behavior: String = "select_all_same_type"
+## Shift+click behavior name: "toggle_add" or "add_only"
+var shift_behavior: String = "toggle_add"
+## Formation grid spacing (overridden by config)
+var formation_spacing: float = 0.8
+
+# ── Internal config state ───────────────────────────────────────────────────────
+var _config: Dictionary = {}
 
 # ── State ───────────────────────────────────────────────────────────────────────
 ## Currently selected entity IDs: {entity_id: true}
@@ -45,13 +117,9 @@ var entity_data_provider: Callable
 ## Signature: func(entity_id: String) -> String
 var entity_type_provider: Callable
 
-## Whether buildings have higher priority than units for highest_selected (SC1 style).
-var building_priority: bool = true
-
 ## Double-click detection
 var _last_click_time: float = 0.0
 var _last_clicked_id: String = ""
-const DOUBLE_CLICK_INTERVAL := 0.4  ## seconds
 
 # ── Selection Methods ───────────────────────────────────────────────────────────
 
@@ -62,7 +130,7 @@ func add_to_selection_bulk(ids: Array) -> void:
 		var key: String = str(eid)
 		if selection.has(key):
 			continue
-		if selection.size() >= MAX_SELECTION_SIZE:
+		if selection.size() >= max_selection_size:
 			break
 		selection[key] = true
 		actually_added.append(key)
@@ -113,7 +181,7 @@ func remove_all_selection() -> void:
 ## Replace the current selection with a new set of entity_ids.
 func set_selection(ids: Array) -> void:
 	# Enforce cap
-	var capped_ids := ids.slice(0, MAX_SELECTION_SIZE)
+	var capped_ids: Array = ids.slice(0, max_selection_size)
 	var removed: Array = selection.keys()
 	var added: Array = []
 	selection.clear()
@@ -234,7 +302,7 @@ func select_all_similar_on_screen(entity_id: String) -> void:
 		if not _is_own_entity(eid):
 			continue
 		similar_ids.append(eid)
-		if similar_ids.size() >= MAX_SELECTION_SIZE:
+		if similar_ids.size() >= max_selection_size:
 			break
 
 	set_selection(similar_ids)
@@ -246,7 +314,7 @@ func handle_click_with_double_select(entity_id: String) -> bool:
 	var now := Time.get_ticks_msec() / 1000.0
 	var is_double := false
 
-	if entity_id == _last_clicked_id and (now - _last_click_time) < DOUBLE_CLICK_INTERVAL:
+	if entity_id == _last_clicked_id and (now - _last_click_time) < double_click_interval:
 		# Double-click detected: select all same-type on screen
 		select_all_similar_on_screen(entity_id)
 		is_double = true
@@ -262,8 +330,18 @@ func handle_click_with_double_select(entity_id: String) -> bool:
 # ── Formation Helpers ─────────────────────────────────────────────────────────
 
 ## Calculate formation positions for a group of units moving to a target.
+## Uses formation_spacing from config; falls back to provided spacing param.
 ## Returns an Array of Vector2 positions in a grid formation.
-static func calculate_formation_positions(center: Vector2, count: int, spacing: float = 0.8) -> Array:
+func calculate_formation_positions(center: Vector2, count: int, spacing: float = -1.0) -> Array:
+	var actual_spacing: float = spacing
+	if actual_spacing < 0.0:
+		actual_spacing = formation_spacing
+	return _calc_formation_grid(center, count, actual_spacing)
+
+
+## Static helper that performs the actual grid calculation.
+## Kept static so external callers can use it with any spacing value.
+static func _calc_formation_grid(center: Vector2, count: int, spacing: float) -> Array:
 	var positions: Array = []
 	if count == 0:
 		return positions
@@ -294,7 +372,7 @@ func get_selection_size() -> int:
 	return selection.size()
 
 func get_max_selection_size() -> int:
-	return MAX_SELECTION_SIZE
+	return max_selection_size
 
 
 # ── Highest Selected ───────────────────────────────────────────────────────────
