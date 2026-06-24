@@ -54,21 +54,11 @@ var _feel_config: Dictionary = {}
 var _ents: Array = []
 var _prev_hp: Dictionary = {}
 var _prev_entities: Dictionary = {}
-var _dmg_floats: Array = []
 
-# ─── Combat visual feedback ───────────────────────────────
-var _attack_flash_timers: Dictionary = {}  # entity_id → remaining flash seconds
-var _dead_effects: Array = []  # [{pos: Vector2, age: float, lifetime: float, color: Color, owner: int, entity_type: String}]
-var _hovered_entity_id: String = ""  # ID of entity currently under mouse cursor
-var _hover_check_timer: float = 0.0  # throttle hover detection
-var _game_time: float = 0.0  # accumulated time for sin-based animations
-var _prev_attack_targets: Dictionary = {}  # entity_id → previous attack_target_id
-const ATTACK_FLASH_DURATION: float = 0.1
-const DEATH_EFFECT_DURATION: float = 0.5
-const HOVER_CHECK_INTERVAL: float = 0.05  # check hover every 50ms
-const SELECTION_BREATHE_SPEED: float = 3.0  # radians/sec for selection ring pulse
-const SELECTION_BREATHE_MIN: float = 0.55  # min alpha for breathing
-const SELECTION_BREATHE_MAX: float = 1.0  # max alpha for breathing
+# ─── Time tracking (shared: APM + overlay sin animations) ──
+var _game_time: float = 0.0
+# ─── Attack flash detection (compares previous target IDs) ──
+var _prev_attack_targets: Dictionary = {}
 
 # ─── Drag-select ───────────────────────────────────────────
 var _dragging := false
@@ -76,18 +66,6 @@ var _drag_start := Vector2.ZERO
 var _drag_end := Vector2.ZERO
 const SELECT_RADIUS := 1.5
 const PYLON_POWER_RADIUS: float = 8.0
-
-# ─── Command ping feedback ──────────────────────────────────
-var _command_pings: Array = []  # [{pos: Vector2, age: float, duration: float, color: Color, type: String}]
-var _control_group_hints: Array = []  # [{text: String, age: float, duration: float}]
-var _ground_ping_duration: float = 0.32
-var _ground_ping_color: Color = Color(0.267, 1.0, 0.533)  # #44ff88
-var _attack_ping_duration: float = 0.38
-var _attack_ping_color: Color = Color(1.0, 0.267, 0.267)  # #ff4444
-var _invalid_ping_duration: float = 0.22
-var _invalid_ping_color: Color = Color(0.667, 0.4, 0.4)  # #aa6666
-var _assign_flash_duration: float = 0.5
-var _empty_group_hint_duration: float = 0.8
 var _test_gallery: TestModeGallery = null
 var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
@@ -169,6 +147,8 @@ var _hud: Control = null    # HUD
 var _ui_layer: CanvasLayer = null  # UI layer for HUD, minimap, replay overlay
 var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
 
+var _hud_overlay: HUDOverlayRenderer = null  # Delegated HUD overlay renderer
+
 # ─── Entity Data Provider ──────────────────────────────────
 var _entity_cache_by_id: Dictionary = {}
 
@@ -224,18 +204,6 @@ func _ready() -> void:
 	_bridge.enable_elevation = true
 	add_child(_bridge)
 	_feel_config = _load_feel_config()
-	if _feel_config.has("command_feedback"):
-		var cf: Dictionary = _feel_config["command_feedback"]
-		_ground_ping_duration = float(cf.get("ground_ping_duration", _ground_ping_duration))
-		_ground_ping_color = Color.from_string(str(cf.get("ground_ping_color", "#44ff88")), _ground_ping_color)
-		_attack_ping_duration = float(cf.get("attack_ping_duration", _attack_ping_duration))
-		_attack_ping_color = Color.from_string(str(cf.get("attack_ping_color", "#ff4444")), _attack_ping_color)
-		_invalid_ping_duration = float(cf.get("invalid_ping_duration", _invalid_ping_duration))
-		_invalid_ping_color = Color.from_string(str(cf.get("invalid_ping_color", "#aa6666")), _invalid_ping_color)
-	if _feel_config.has("control_group_feedback"):
-		var cg: Dictionary = _feel_config["control_group_feedback"]
-		_assign_flash_duration = float(cg.get("assign_flash_duration", _assign_flash_duration))
-		_empty_group_hint_duration = float(cg.get("empty_group_hint_duration", _empty_group_hint_duration))
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
@@ -394,6 +362,33 @@ func _ready() -> void:
 	_hud.offset_right = 0
 	_hud.offset_top = 0
 	_hud.offset_bottom = HUD_FULL_HEIGHT
+
+	# ─── HUDOverlayRenderer delegation wire-up ───
+	_hud_overlay = HUDOverlayRenderer.new()
+	_hud_overlay.name = "HUDOverlayRenderer"
+	add_child(_hud_overlay)
+	_hud_overlay.setup(_camera, _default_font)
+	_hud_overlay.set_visual_helpers(
+		_visual_radius, _visual_scale, _resolve_visual_id,
+		_is_building_entity_visual, _screen_to_world, _world_to_screen, _is_in_fog
+	)
+	_hud_overlay.pings_updated.connect(func(): queue_redraw())
+	# ─── Forward feel_config ping settings to HUDOverlayRenderer ───
+	if _feel_config.has("command_feedback"):
+		var cf: Dictionary = _feel_config["command_feedback"]
+		_hud_overlay.update_ping_config(
+			float(cf.get("ground_ping_duration", 0.32)),
+			Color.from_string(str(cf.get("ground_ping_color", "#44ff88")), Color(0.267, 1.0, 0.533)),
+			float(cf.get("attack_ping_duration", 0.38)),
+			Color.from_string(str(cf.get("attack_ping_color", "#ff4444")), Color(1.0, 0.267, 0.267)),
+			float(cf.get("invalid_ping_duration", 0.22)),
+			Color.from_string(str(cf.get("invalid_ping_color", "#aa6666")), Color(0.667, 0.4, 0.4)),
+			0.5, 0.8
+		)
+	if _feel_config.has("control_group_feedback"):
+		var cg: Dictionary = _feel_config["control_group_feedback"]
+		_hud_overlay._assign_flash_duration = float(cg.get("assign_flash_duration", 0.5))
+		_hud_overlay._empty_group_hint_duration = float(cg.get("empty_group_hint_duration", 0.8))
 
 	# ─── Test Mode Gallery ───
 	_test_gallery = TestModeGallery.new()
@@ -566,35 +561,10 @@ func _process(delta: float) -> void:
 		_test_gallery.advance_animation(delta)
 	# CameraController handles all camera movement now
 
-	# Decay damage floaters
-	for f in _dmg_floats:
-		f.ttl -= 1
-		f.y -= 0.5
-	_dmg_floats = _dmg_floats.filter(func(f): return f.ttl > 0)
-
-	# Decay attack flash timers
-	var flash_ids: Array = _attack_flash_timers.keys()
-	for eid in flash_ids:
-		var remaining: float = float(_attack_flash_timers[eid]) - delta
-		if remaining <= 0.0:
-			_attack_flash_timers.erase(eid)
-		else:
-			_attack_flash_timers[eid] = remaining
-
-	# Age and prune death explosion effects
-	for effect in _dead_effects:
-		effect["age"] = float(effect.get("age", 0.0)) + delta
-	_dead_effects = _dead_effects.filter(func(eff): return float(eff.get("age", 0.0)) < float(eff.get("lifetime", DEATH_EFFECT_DURATION)))
-
-	# Age and prune command pings
-	for ping in _command_pings:
-		ping["age"] = float(ping.get("age", 0.0)) + delta
-	_command_pings = _command_pings.filter(func(p): return float(p.get("age", 0.0)) < float(p.get("duration", 0.32)))
-
-	# Age and prune control group hints
-	for hint in _control_group_hints:
-		hint["age"] = float(hint.get("age", 0.0)) + delta
-	_control_group_hints = _control_group_hints.filter(func(h): return float(h.get("age", 0.0)) < float(h.get("duration", 0.5)))
+	# ── Delegation: push entity data + advance timers into HUDOverlayRenderer ──
+	if _hud_overlay:
+		_hud_overlay.provide_entity_data(_ents, _selected, _entity_cache_by_id)
+		_hud_overlay.advance_timers(delta)
 
 	# Hover detection (throttled)
 	_hover_check_timer -= delta
@@ -711,10 +681,12 @@ func _input(event: InputEvent) -> void:
 			if _selection:
 				if event.ctrl_pressed:
 					_selection.create_hotkey_group(group_idx)
-					_control_group_hints.append({"text": "Ctrl+%d → Group %d" % [group_idx, group_idx], "age": 0.0, "duration": _assign_flash_duration})
+					if _hud_overlay:
+						_hud_overlay.add_control_group_hint("Ctrl+%d → Group %d" % [group_idx, group_idx], _hud_overlay._assign_flash_duration)
 				elif event.shift_pressed:
 					_selection.add_to_hotkey_group(group_idx)
-					_control_group_hints.append({"text": "Shift+%d → Added to Group %d" % [group_idx, group_idx], "age": 0.0, "duration": _assign_flash_duration})
+					if _hud_overlay:
+						_hud_overlay.add_control_group_hint("Shift+%d → Added to Group %d" % [group_idx, group_idx], _hud_overlay._assign_flash_duration)
 				else:
 					# Double-tap detection: same key within 0.3s → jump camera
 					var now: float = Time.get_ticks_msec() / 1000.0
@@ -725,8 +697,9 @@ func _input(event: InputEvent) -> void:
 					else:
 						_selection.select_hotkey_group(group_idx)
 						var recalled_ids: Array = _selection.get_selected_ids() if _selection else []
-						if recalled_ids.is_empty():
-							_control_group_hints.append({"text": "Group %d (empty)" % group_idx, "age": 0.0, "duration": _empty_group_hint_duration})
+					if recalled_ids.is_empty():
+						if _hud_overlay:
+							_hud_overlay.add_control_group_hint("Group %d (empty)" % group_idx, _hud_overlay._empty_group_hint_duration)
 						_last_group_key = key
 						_last_group_time = now
 			return
@@ -894,14 +867,16 @@ func _handle_right_click() -> void:
 				continue
 			if e.type == "building" and e.owner == 1:
 				_set_rally_point(uid, world_pos)
-				_spawn_command_ping(world_pos, "move")
+				if _hud_overlay:
+					_hud_overlay.add_ground_ping(world_pos)
 				return
 
 	# Smart context
 	if not clicked_ent.is_empty():
 		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
 			action = "attack"
-			_spawn_command_ping(Vector2(clicked_ent.px, clicked_ent.py), "attack")
+			if _hud_overlay:
+				_hud_overlay.add_attack_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
 		elif clicked_ent.type == "resource" and workers_selected:
 			# Gas geyser without refinery → auto-build refinery on it
 			if clicked_ent.resource_type == "gas" and not _has_refinery_on_geyser(clicked_ent.id):
@@ -910,7 +885,8 @@ func _handle_right_click() -> void:
 				_build_mode = true
 			else:
 				action = "gather"
-				_spawn_command_ping(Vector2(clicked_ent.px, clicked_ent.py), "move")
+				if _hud_overlay:
+					_hud_overlay.add_ground_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
 		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
 			action = "move"
 	elif combat_selected and not workers_selected:
@@ -942,7 +918,8 @@ func _handle_right_click() -> void:
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
 					if not nearest_enemy.is_empty():
-						_spawn_command_ping(Vector2(nearest_enemy.px, nearest_enemy.py), "attack")
+						if _hud_overlay:
+							_hud_overlay.add_attack_ping(Vector2(float(nearest_enemy.px), float(nearest_enemy.py)))
 						cmds.append({
 							"action": "attack",
 							"attacker_id": uid,
@@ -970,7 +947,8 @@ func _handle_right_click() -> void:
 					if _build_type == "refinery" and not clicked_ent.is_empty() and clicked_ent.resource_type == "gas":
 						build_x = clicked_ent.px
 						build_y = clicked_ent.py
-					_spawn_command_ping(Vector2(build_x, build_y), "move")
+						if _hud_overlay:
+					_hud_overlay.add_ground_ping(Vector2(float(build_x), float(build_y)))
 					cmds.append({
 						"action": "build",
 						"builder_id": uid,
@@ -985,7 +963,8 @@ func _handle_right_click() -> void:
 
 	# Formation-based move commands
 	if not moving_ids.is_empty():
-		_spawn_command_ping(world_pos, "move")
+		if _hud_overlay:
+			_hud_overlay.add_ground_ping(world_pos)
 		var formation: Array = _selection.calculate_formation_positions(world_pos, moving_ids.size()) if _selection \
 			else _calc_formation_fallback(world_pos, moving_ids.size())
 		for i in range(moving_ids.size()):
@@ -1010,7 +989,8 @@ func _handle_right_click() -> void:
 
 	# Invalid command feedback — selected units but no valid action
 	if cmds.is_empty() and not selected_ids.is_empty():
-		_spawn_command_ping(world_pos, "invalid")
+		if _hud_overlay:
+			_hud_overlay.add_command_ping(world_pos, "invalid", _hud_overlay._invalid_ping_duration, _hud_overlay._invalid_ping_color)
 
 	# Hide build panel after placing
 	if _build_mode and _hud:
@@ -1246,25 +1226,6 @@ func _load_feel_config() -> Dictionary:
 		return {}
 	return json.data
 
-# ─── Command ping spawning ────────────────────────────────
-func _spawn_command_ping(world_pos: Vector2, ping_type: String) -> void:
-	var duration: float = _ground_ping_duration
-	var color: Color = _ground_ping_color
-	match ping_type:
-		"attack":
-			duration = _attack_ping_duration
-			color = _attack_ping_color
-		"invalid":
-			duration = _invalid_ping_duration
-			color = _invalid_ping_color
-	_command_pings.append({
-		"pos": world_pos,
-		"age": 0.0,
-		"duration": duration,
-		"color": color,
-		"type": ping_type,
-	})
-
 # ─── Formation Fallback ────────────────────────────────────
 static func _calc_formation_fallback(center: Vector2, count: int, spacing: float = 0.8) -> Array:
 	var positions: Array = []
@@ -1377,8 +1338,8 @@ func _restart_game() -> void:
 	_prev_hp.clear()
 	_prev_entities.clear()
 	_prev_attack_targets.clear()
-	_attack_flash_timers.clear()
-	_dead_effects.clear()
+	if _hud_overlay:
+		_hud_overlay.clear_all_effects()
 	if _vfx_manager:
 		_vfx_manager.clear()
 	# Clear rally indicators
@@ -1632,30 +1593,24 @@ func _parse(state: Dictionary) -> void:
 			var prev: float = _prev_hp[eid_str]
 			if hp < prev and prev > 0:
 				var dmg: float = prev - hp
-				_dmg_floats.append({
-					"id": eid_str,
-					"x": e.px,
-					"y": e.py - 1.2,
-					"amount": dmg,
-					"ttl": 30,
-			})
+				if _hud_overlay:
+					_hud_overlay.add_damage_float("-%d" % int(dmg), Vector2(e.px, e.py - 1.2), int(e.owner))
 				if _vfx_manager:
 					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
 					_emit_attack_indicator(Vector2(e.px, e.py))
 
-	# ─── Attack flash detection: detect when a unit starts attacking or switches target ───
-	for e in _ents:
-		var eid_str: String = e.id
-		var cur_target: String = str(e.get("attack_target_id", ""))
-		var prev_target: String = str(_prev_attack_targets.get(eid_str, ""))
-		# Flash when unit begins attacking (empty → non-empty) or switches targets
-		if cur_target != "" and cur_target != prev_target:
-			_attack_flash_timers[eid_str] = ATTACK_FLASH_DURATION
-		# Also flash if attack_cooldown just started (shot just fired)
-		var cooldown: float = _to_f(e.get("attack_cooldown"), 0.0)
-		var prev_cooldown: float = _to_f(_prev_hp.get(eid_str + "_cd", 0.0), 0.0)
-		if cooldown > 0.0 and prev_cooldown <= 0.0 and cur_target != "":
-			_attack_flash_timers[eid_str] = ATTACK_FLASH_DURATION
+	# ─── Attack flash detection: delegate to HUD overlay ───
+	if _hud_overlay:
+		for e in _ents:
+			var eid_str: String = e.id
+			var cur_target: String = str(e.get("attack_target_id", ""))
+			var prev_target: String = str(_prev_attack_targets.get(eid_str, ""))
+			if cur_target != "" and cur_target != prev_target:
+				_hud_overlay.add_attack_flash(eid_str)
+			var cooldown: float = _to_f(e.get("attack_cooldown"), 0.0)
+			var prev_cooldown: float = _to_f(_prev_hp.get(eid_str + "_cd", 0.0), 0.0)
+			if cooldown > 0.0 and prev_cooldown <= 0.0 and cur_target != "":
+				_hud_overlay.add_attack_flash(eid_str)
 
 	for old_id in old_entities:
 		if not _entity_cache_by_id.has(old_id):
@@ -1673,16 +1628,9 @@ func _parse(state: Dictionary) -> void:
 						death_pos,
 						_vfx_profile_for(old_e)
 					)
-				# Also add to local death explosion effects for canvas drawing
-				var death_color: Color = _team_color(death_owner)
-				_dead_effects.append({
-					"pos": death_pos,
-					"age": 0.0,
-					"lifetime": DEATH_EFFECT_DURATION,
-					"color": death_color,
-					"owner": death_owner,
-					"entity_type": death_type,
-				})
+				# Also add death explosion effect to HUD overlay for canvas drawing
+				if _hud_overlay:
+					_hud_overlay.add_death_effect(death_pos, death_owner, death_type, _hud_overlay._team_color(death_owner))
 
 	_prev_hp.clear()
 	_prev_entities.clear()
@@ -1719,20 +1667,8 @@ func _draw() -> void:
 	_draw_entities(co)
 	_draw_pylon_power_range(co)
 	_draw_fog_of_war(co)
-	_draw_attack_flashes(co)
-	_draw_death_explosions(co)
-	_draw_hover_highlight(co)
-	_draw_health_bars(co)
-	_draw_build_progress_bars(co)
-	_draw_production_bars(co)
-	_draw_status_icons(co)
-	_draw_selection_rings(co)
-	_draw_rally_lines(co)
-	_draw_drag_box()
-	_draw_damage_floats(co)
-	_draw_command_pings(co)
-	_draw_control_group_hints(co)
-	_draw_game_over_overlay()
+	if _hud_overlay:
+		_hud_overlay.draw_all(self)
 	if _test_gallery:
 		_test_gallery.draw_labels(self)
 
@@ -2208,257 +2144,6 @@ func _is_in_fog(e: Dictionary) -> bool:
 		return _fog_alpha[idx] > 0.15
 	return true
 
-func _draw_attack_flashes(_co: Vector2) -> void:
-	## Draw white overlay on entities that just attacked (attack flash).
-	## game_view z_index=5 renders ABOVE sprite_container z_index=1,
-	## so this overlay appears on top of entity sprites.
-	for eid in _attack_flash_timers:
-		var remaining: float = float(_attack_flash_timers[eid])
-		var flash_alpha: float = clampf(remaining / ATTACK_FLASH_DURATION, 0.0, 1.0)
-		var e: Dictionary = _get_entity_data(str(eid))
-		if e.is_empty():
-			continue
-		if e.owner != 1 and _is_in_fog(e):
-			continue
-		var pos := Vector2(float(e.get("px", 0.0)), float(e.get("py", 0.0)))
-		var radius := _visual_radius(e)
-		# White overlay circle that fades out
-		var flash_color: Color = Color(1.0, 1.0, 1.0, flash_alpha * 0.75)
-		draw_circle(pos, radius * 1.1, flash_color)
-		# Bright white outline ring
-		var ring_color: Color = Color(1.0, 1.0, 1.0, flash_alpha * 0.9)
-		draw_arc(pos, radius * 1.15, 0.0, TAU, 20, ring_color, 0.06, true)
-
-func _draw_death_explosions(_co: Vector2) -> void:
-	## Draw expanding + fading circle explosion at entity death positions.
-	## Duration: ~0.5 seconds (DEATH_EFFECT_DURATION).
-	for effect in _dead_effects:
-		var lifetime: float = maxf(float(effect.get("lifetime", DEATH_EFFECT_DURATION)), 0.01)
-		var age: float = float(effect.get("age", 0.0))
-		var t := clampf(age / lifetime, 0.0, 1.0)
-		var alpha: float = 1.0 - t
-		var pos: Vector2 = effect.get("pos", Vector2.ZERO)
-		var base_color: Color = effect.get("color", Color.WHITE)
-		var entity_type: String = str(effect.get("entity_type", ""))
-		# Buildings have larger explosions
-		var is_building: bool = entity_type == "building"
-		var base_radius: float = 1.2 if is_building else 0.6
-		var max_radius: float = 3.0 if is_building else 1.5
-		var radius := lerpf(base_radius, max_radius, t)
-		# Outer expanding ring (team color, fading)
-		var ring_color: Color = base_color
-		ring_color.a = alpha * 0.8
-		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.08 if not is_building else 0.14, true)
-		# Inner glow fill (fading faster)
-		var fill_color: Color = Color(1.0, 0.85, 0.6, alpha * 0.35)
-		draw_circle(pos, radius * 0.6, fill_color)
-		# Secondary ring for buildings
-		if is_building:
-			var ring2_color: Color = Color(1.0, 0.4, 0.1, alpha * 0.5)
-			draw_arc(pos, radius * 0.75, 0.0, TAU, 18, ring2_color, 0.10, true)
-
-func _draw_hover_highlight(_co: Vector2) -> void:
-	## Draw a bright outline on the entity currently under the mouse cursor.
-	if _hovered_entity_id == "":
-		return
-	var e: Dictionary = _get_entity_data(_hovered_entity_id)
-	if e.is_empty():
-		return
-	if e.owner != 1 and _is_in_fog(e):
-		return
-	var pos := Vector2(float(e.get("px", 0.0)), float(e.get("py", 0.0)))
-	var radius := _visual_radius(e)
-	# Bright white ring for hover feedback
-	var hover_color: Color = Color(1.0, 1.0, 1.0, 0.65)
-	draw_arc(pos, radius * 1.08, 0.0, TAU, 24, hover_color, 0.055, true)
-	# Subtle glow fill
-	var glow_color: Color = Color(1.0, 1.0, 1.0, 0.08)
-	draw_circle(pos, radius * 1.05, glow_color)
-
-func _draw_damage_floats(co: Vector2) -> void:
-	for f in _dmg_floats:
-		var alpha: float = clampf(f.ttl / 30.0, 0.0, 1.0)
-		var pos := Vector2(f.x, f.y) 
-		var txt := "-%d" % int(f.amount)
-		draw_string(_default_font, pos, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(1.0, 0.2, 0.2, alpha))
-
-func _draw_health_bars(co: Vector2) -> void:
-	for e in _ents:
-		if e.max_health <= 0 or e.type == "resource":
-			continue
-		if e.owner != 1 and _is_in_fog(e):
-			continue
-		if not _selected.has(e.id) and e.health >= e.max_health:
-			continue
-		var pos := Vector2(e.px, e.py) 
-		var radius := _visual_radius(e)
-		var bar_w := clampf(radius * 1.45, 0.55, 2.8)
-		var bar_h := 0.15
-		var bar_y := pos.y - radius - 0.28
-		var frac: float = e.health / e.max_health
-		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.3, 0.3, 0.3, 0.8), true)
-		var hp_color := Color.GREEN if frac > 0.6 else Color.YELLOW if frac > 0.3 else Color.RED
-		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * frac, bar_h), hp_color, true)
-
-# ─── Build Progress Bar ──────────────────────────────────
-func _draw_build_progress_bars(_co: Vector2) -> void:
-	## Draw yellow/orange progress bar above buildings that are under construction.
-	## Positioned above the health bar for constructing buildings.
-	for e in _ents:
-		if e.type != "building":
-			continue
-		var is_constructing: bool = bool(e.get("is_constructing", false))
-		if not is_constructing:
-			continue
-		if e.owner != 1 and _is_in_fog(e):
-			continue
-		var pos := Vector2(e.px, e.py)
-		var radius := _visual_radius(e)
-		var bar_w := clampf(radius * 1.45, 0.55, 2.8)
-		var bar_h := 0.12
-		# Position above the health bar (which is at radius + 0.28 above center)
-		var bar_y := pos.y - radius - 0.28 - bar_h - 0.08
-		# Build progress: 0.0 to 1.0 (if unavailable, show 0)
-		var build_progress: float = clampf(_to_f(e.get("build_progress"), 0.0), 0.0, 1.0)
-		# Background bar (dark)
-		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.25, 0.2, 0.1, 0.8), true)
-		# Progress fill — yellow to orange gradient based on progress
-		var fill_color: Color = Color(1.0, 0.85, 0.15, 0.9).lerp(Color(1.0, 0.55, 0.1, 0.9), build_progress)
-		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * build_progress, bar_h), fill_color, true)
-		# Border outline
-		draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.6, 0.5, 0.3, 0.5), false, 0.03)
-
-# ─── Team Color Helper ────────────────────────────────────
-func _team_color(owner: int) -> Color:
-	## Return a team color for the given owner ID.
-	match owner:
-		1: return Color(0.2, 0.8, 0.3)   # green (player)
-		2: return Color(0.9, 0.2, 0.2)   # red (enemy AI)
-		3: return Color(0.9, 0.8, 0.2)   # yellow (Protoss)
-		_: return Color(0.6, 0.6, 0.6)   # gray (neutral)
-
-# ─── Phase B1: Production Queue Visualization ────────────────
-func _unit_letter(unit_type: String) -> String:
-	match unit_type.to_lower():
-		"marine": return "M"
-		"firebat": return "F"
-		"ghost": return "G"
-		"medic": return "D"
-		"worker", "scv": return "W"
-		"vulture": return "V"
-		"tank", "siege_tank": return "T"
-		"goliath": return "L"
-		"wraith": return "R"
-		"dropship": return "P"
-		"vessel", "science_vessel": return "S"
-		"zergling": return "Z"
-		"hydralisk": return "H"
-		"ultralisk": return "U"
-		"overlord": return "O"
-		"queen": return "Q"
-		"mutalisk": return "Mu"
-		_: return unit_type.left(1).to_upper()
-
-func _draw_production_bars(_co: Vector2) -> void:
-	for e in _ents:
-		if e.type != "building":
-			continue
-		var queue: Array = e.get("production_queue", [])
-		if queue.is_empty():
-			continue
-		if e.owner != 1 and _is_in_fog(e):
-			continue
-		var pos := Vector2(e.px, e.py)
-		var radius := _visual_radius(e)
-		var bar_w := radius * 1.4
-		var bar_h := 0.12
-		var base_y := pos.y - radius - 0.48
-		var timers: Array = e.get("production_timers", [])
-		for i in range(queue.size()):
-			var bar_y := base_y - i * (bar_h + 0.04)
-			var unit_type: String = str(queue[i])
-			var letter := _unit_letter(unit_type)
-			# Background bar
-			draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.2, 0.2, 0.2, 0.8), true)
-			if i == 0 and timers.size() > 0:
-				# First item: green progress bar
-				var timer_val: float = _to_f(timers[0], 0.0)
-				var max_timer: float = 20.0  # approximate if unknown
-				var progress: float = clampf(1.0 - timer_val / max_timer, 0.0, 1.0)
-				draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w * progress, bar_h), Color(0.2, 0.85, 0.2, 0.9), true)
-			# Unit type letter above the bar
-			var letter_y := bar_y - 0.14
-			draw_string(_default_font, Vector2(pos.x - 0.1, letter_y), letter, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(0.9, 0.9, 0.9, 0.9))
-
-# ─── Phase B5: Unit Status Icons ────────────────────────────
-func _draw_status_icons(_co: Vector2) -> void:
-	for e in _ents:
-		if e.type == "resource" or e.type == "building":
-			continue
-		if e.owner != 1 and _is_in_fog(e):
-			continue
-		var pos := Vector2(e.px, e.py)
-		var radius := _visual_radius(e)
-		var icon_y := pos.y - radius - 0.50
-		var icon_x := pos.x
-		var has_target: bool = str(e.get("attack_target_id", "")) != ""
-		var is_idle: bool = bool(e.get("is_idle", true))
-		var speed: float = _to_f(e.get("speed", 0.0), 0.0)
-		var is_moving: bool = not is_idle and not has_target and speed > 0.0
-		var carry_amount: float = _to_f(e.get("carry_amount", 0.0), 0.0)
-		var carry_cap: float = _to_f(e.get("carry_cap", 0.0), 0.0)
-		var is_gathering: bool = carry_amount > 0 and carry_cap > 0
-		if has_target:
-			# Attacking: small red triangle (sword icon)
-			var s := 0.12
-			var pts := PackedVector2Array([
-				Vector2(icon_x, icon_y + s),
-				Vector2(icon_x - s, icon_y - s * 0.6),
-				Vector2(icon_x + s, icon_y - s * 0.6),
-			])
-			draw_colored_polygon(pts, Color(1.0, 0.2, 0.2, 0.9))
-		elif is_gathering:
-			# Gathering: small yellow diamond (crystal icon)
-			var s := 0.10
-			var pts := PackedVector2Array([
-				Vector2(icon_x, icon_y + s),
-				Vector2(icon_x - s, icon_y),
-				Vector2(icon_x, icon_y - s),
-				Vector2(icon_x + s, icon_y),
-			])
-			draw_colored_polygon(pts, Color(1.0, 0.9, 0.2, 0.9))
-		elif is_moving:
-			# Moving: small blue chevron
-			var s := 0.12
-			var pts := PackedVector2Array([
-				Vector2(icon_x - s, icon_y + s * 0.5),
-				Vector2(icon_x, icon_y - s * 0.5),
-				Vector2(icon_x + s, icon_y + s * 0.5),
-			])
-			draw_colored_polygon(pts, Color(0.3, 0.6, 1.0, 0.9))
-		elif is_idle:
-			# Idle: small white dot
-			draw_circle(Vector2(icon_x, icon_y), 0.08, Color(1.0, 1.0, 1.0, 0.6))
-
-func _draw_selection_rings(_co: Vector2) -> void:
-	## Selected units: green ring with breathing (sinusoidal) glow pulse.
-	var breathe_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED)
-	var breathe_alpha: float = lerpf(SELECTION_BREATHE_MIN, SELECTION_BREATHE_MAX, 0.5 + 0.5 * breathe_phase)
-	for uid in _selected:
-		var e := _get_ent_by_id(uid)
-		if e.is_empty():
-			continue
-		var pos := Vector2(e.px, e.py)
-		var radius := _visual_radius(e)
-		# Main selection ring with breathing alpha
-		var ring_color: Color = Color(0.2, 1.0, 0.2, breathe_alpha)
-		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.055, true)
-		# Outer glow ring (subtler, also breathing but offset phase)
-		var glow_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED + PI * 0.5)
-		var glow_alpha: float = lerpf(0.0, 0.25, 0.5 + 0.5 * glow_phase)
-		var glow_color: Color = Color(0.4, 1.0, 0.4, glow_alpha)
-		draw_arc(pos, radius * 1.12, 0.0, TAU, 24, glow_color, 0.04, true)
-
 # ─── Pylon Power Range Visualization ───────────────────────
 func _draw_pylon_power_range(_co: Vector2) -> void:
 	"""Render semi-transparent blue circles for Pylon power range.
@@ -2495,66 +2180,6 @@ func _draw_pylon_power_range(_co: Vector2) -> void:
 		# Blue ring outline
 		draw_arc(pos, PYLON_POWER_RADIUS, 0.0, TAU, 64, ring_color, ring_width, true)
 
-# ─── Sprint 4: Draw Rally Point Lines ──────────────────────
-func _draw_rally_lines(co: Vector2) -> void:
-	for bid in _rally_indicators:
-		var indicator = _rally_indicators[bid]
-		if not indicator.has_rally():
-			continue
-		# Only draw if building is selected
-		if _selection and not _selection.is_selected(bid):
-			continue
-		var bpos: Vector2 = indicator._building_pos 
-		var rpos: Vector2 = indicator._rally_pos 
-
-		# Dashed line
-		var direction: Vector2 = rpos - bpos
-		var length: float = direction.length()
-		if length < 1.0:
-			continue
-		var dir_norm: Vector2 = direction / length
-		var drawn: float = 0.0
-		var is_dash: bool = true
-		const DASH_LEN := 0.5
-		const GAP_LEN := 0.4
-
-		while drawn < length:
-			var seg_len: float = DASH_LEN if is_dash else GAP_LEN
-			var remaining: float = length - drawn
-			seg_len = minf(seg_len, remaining)
-			if is_dash:
-				var start: Vector2 = bpos + dir_norm * drawn
-				var end: Vector2 = bpos + dir_norm * (drawn + seg_len)
-				draw_line(start, end, Color(0.2, 1.0, 0.2, 0.7), 0.06, true)
-			drawn += seg_len
-			is_dash = not is_dash
-
-		# Flag at rally point — compact tile-space flag
-		var pole_top: Vector2 = rpos - Vector2(0, 0.4)
-		draw_line(rpos, pole_top, Color(1.0, 0.9, 0.2, 0.8), 0.04, true)
-		var flag_pts := PackedVector2Array([
-			pole_top,
-			pole_top + Vector2(0.2, 0.07),
-			pole_top + Vector2(0, 0.14)
-		])
-		draw_colored_polygon(flag_pts, Color(1.0, 0.9, 0.2, 0.7))
-
-func _draw_drag_box() -> void:
-	if not _dragging:
-		return
-	if _drag_start.distance_to(_drag_end) < 5.0:
-		return
-	# Convert screen-space drag coords to world space for drawing
-	var ws := _screen_to_world(_drag_start)
-	var we := _screen_to_world(_drag_end)
-	var rect := Rect2(ws, we - ws).abs()
-	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.15), true)
-	draw_rect(rect, Color(0.3, 1.0, 0.3, 0.7), false, 0.06)
-
-func _draw_game_over_overlay() -> void:
-	# Game over overlay is now handled by _victory_screen in CanvasLayer
-	pass
-
 # ─── Minimap ──────────────────────────────────────────────
 # Minimap is now drawn by the MinimapRect child node.
 func _minimap_rect() -> Rect2:
@@ -2578,48 +2203,6 @@ func _handle_minimap_click(screen_pos: Vector2) -> void:
 		_cam_ctrl.move_to_world_position(target_pos)
 	else:
 		_camera.position = target_pos
-
-func _draw_command_pings(_co: Vector2) -> void:
-	for ping in _command_pings:
-		var age: float = float(ping.get("age", 0.0))
-		var duration: float = float(ping.get("duration", 0.32))
-		var progress: float = clampf(age / duration, 0.0, 1.0)
-		var alpha: float = 1.0 - progress
-		var base_color: Color = Color(ping.get("color", _ground_ping_color))
-		var pos: Vector2 = Vector2(ping.get("pos", Vector2.ZERO))
-		var ping_type: String = str(ping.get("type", "move"))
-		
-		# Expanding ring
-		var max_radius: float = 0.6 if ping_type != "invalid" else 0.35
-		var radius: float = progress * max_radius
-		var ring_color: Color = Color(base_color.r, base_color.g, base_color.b, alpha * 0.9)
-		draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.06, true)
-		
-		# Center dot (only for first 40% of duration)
-		if progress < 0.4:
-			var dot_alpha: float = alpha * (1.0 - progress / 0.4)
-			var dot_color: Color = Color(base_color.r, base_color.g, base_color.b, dot_alpha)
-			draw_circle(pos, 0.1, dot_color)
-
-func _draw_control_group_hints(_co: Vector2) -> void:
-	for hint in _control_group_hints:
-		var age: float = float(hint.get("age", 0.0))
-		var duration: float = float(hint.get("duration", 0.5))
-		var progress: float = clampf(age / duration, 0.0, 1.0)
-		var alpha: float = 1.0 - progress
-		var text: String = str(hint.get("text", ""))
-		
-		var screen_center := get_viewport().get_visible_rect().size / 2.0
-		var hint_pos := _screen_to_world(screen_center) + Vector2(0, _map_h * 0.4)
-		var font_size: int = 16
-		var font: Font = _default_font if _default_font else ThemeDB.fallback_font
-		var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-		var bg_rect := Rect2(hint_pos - text_size / 2.0 - Vector2(6, 3), text_size + Vector2(12, 6))
-		
-		var bg_alpha: float = alpha * 0.6
-		draw_rect(bg_rect, Color(0.0, 0.0, 0.0, bg_alpha), true)
-		draw_rect(bg_rect, Color(1.0, 1.0, 1.0, alpha * 0.3), false, 1.0)
-		draw_string(font, hint_pos - text_size / 2.0 + Vector2(0, font_size * 0.35), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1, 1, 1, alpha))
 
 ## Provides state data to the minimap_rect child node.
 func _get_state_for_minimap() -> Dictionary:
