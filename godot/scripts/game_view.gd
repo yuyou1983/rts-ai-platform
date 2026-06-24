@@ -34,6 +34,7 @@ const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.g
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
 const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
 const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
+const UNIT_TYPE_CATALOG_PATH := "res://resources/unit_type_catalog.json"
 const HUD_FULL_HEIGHT := 480
 
 # ─── Config ────────────────────────────────────────────────
@@ -91,8 +92,14 @@ var _test_mode: bool = false
 var _test_ents: Array = []
 var _test_btn: Button = null
 var _test_filter_panel: PanelContainer = null
-var _test_race_filter: OptionButton = null
-var _test_kind_filter: OptionButton = null
+var _test_race_filter: OptionButton = null  # Kept for batch compat
+var _test_kind_filter: OptionButton = null  # Kept for batch compat
+var _race_buttons: Dictionary = {}  # { value: Button } for race filter
+var _kind_buttons: Dictionary = {}  # { value: Button } for kind filter
+var _domain_buttons: Dictionary = {}  # { value: Button } for domain filter
+var _role_buttons: Dictionary = {}  # { value: Button } for role filter
+var _tier_buttons: Dictionary = {}  # { value: Button } for tier filter
+var _preview_buttons: Dictionary = {}  # { value: Button } for preview mode
 var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
 var _zoom_out_btn: Button = null
@@ -101,11 +108,16 @@ var _saved_player_races: Dictionary = {}
 var _saved_fog_tiles: PackedInt32Array = []
 var _saved_fog_w: int = 0
 var _saved_fog_h: int = 0
-var _test_filter_race: String = "all"
-var _test_filter_kind: String = "all"
+var _test_filter_race: String = ""  # "" = all, "terran"/"zerg"/"protoss"
+var _test_filter_kind: String = ""  # "" = all, "unit"/"building"
+var _test_filter_domain: String = ""  # "" = all, "ground"/"air"
+var _test_filter_role: String = ""  # "" = all
+var _test_filter_tier: String = ""  # "" = all
+var _test_preview_mode: String = "idle"  # "idle"/"move"/"attack"
 var _test_filter_batch: String = "all"
 var _test_section_headers: Array = []
 var _test_batch_filter: OptionButton = null
+var _unit_type_catalog: Dictionary = {}  # Loaded from unit_type_catalog.json
 # Animation state
 var _anim_frame: int = 0
 var _anim_tick: float = 0.0
@@ -312,6 +324,7 @@ func _ready() -> void:
 	add_child(_sprite_container)
 	_sprite_loader = SpriteLoaderScript.new()
 	_load_presentation_manifest()
+	_load_unit_type_catalog()
 
 	# ─── Combat VFX layer ───
 	_vfx_manager = VFXManagerScript.new()
@@ -363,7 +376,7 @@ func _ready() -> void:
 	# ─── Minimap: floating panel at bottom-right ───
 	var mm_size := Vector2(160, 160)
 	var mm_margin := 8
-	var _mm_panel := Panel.new()
+	var _mm_panel := PanelContainer.new()
 	_mm_panel.anchor_left = 1.0
 	_mm_panel.anchor_top = 1.0
 	_mm_panel.anchor_right = 1.0
@@ -481,40 +494,67 @@ func _create_test_filter_panel() -> void:
 	_test_filter_panel.anchor_bottom = 0.0
 	_test_filter_panel.offset_left = 132
 	_test_filter_panel.offset_top = 8
-	_test_filter_panel.offset_right = 600
-	_test_filter_panel.offset_bottom = 42
+	_test_filter_panel.offset_right = 900
+	_test_filter_panel.offset_bottom = 175
 	_ui_layer.add_child(_test_filter_panel)
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	_test_filter_panel.add_child(row)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	_test_filter_panel.add_child(vbox)
 
-	var race_label := Label.new()
-	race_label.text = "Race"
-	row.add_child(race_label)
-	_test_race_filter = OptionButton.new()
-	_add_filter_item(_test_race_filter, "All", "all")
-	_add_filter_item(_test_race_filter, "Terran", "terran")
-	_add_filter_item(_test_race_filter, "Zerg", "zerg")
-	_add_filter_item(_test_race_filter, "Protoss", "protoss")
-	_add_filter_item(_test_race_filter, "Neutral", "neutral")
-	_test_race_filter.item_selected.connect(_on_test_race_filter_selected)
-	row.add_child(_test_race_filter)
+	# Row 1: Race filter
+	var row1 := HBoxContainer.new()
+	row1.add_theme_constant_override("separation", 4)
+	vbox.add_child(row1)
+	_add_row_label(row1, "Race:")
+	_race_buttons = _make_toggle_group(row1, ["All", "Terran", "Zerg", "Protoss"],
+		["", "terran", "zerg", "protoss"], _test_filter_race, "_on_race_filter_btn")
 
-	var kind_label := Label.new()
-	kind_label.text = "Type"
-	row.add_child(kind_label)
-	_test_kind_filter = OptionButton.new()
-	_add_filter_item(_test_kind_filter, "All", "all")
-	_add_filter_item(_test_kind_filter, "Buildings", "building")
-	_add_filter_item(_test_kind_filter, "Units", "unit")
-	_add_filter_item(_test_kind_filter, "Resources", "resource")
-	_test_kind_filter.item_selected.connect(_on_test_kind_filter_selected)
-	row.add_child(_test_kind_filter)
+	# Row 2: Kind filter
+	var row2 := HBoxContainer.new()
+	row2.add_theme_constant_override("separation", 4)
+	vbox.add_child(row2)
+	_add_row_label(row2, "Type:")
+	_kind_buttons = _make_toggle_group(row2, ["All", "Units", "Buildings"],
+		["", "unit", "building"], _test_filter_kind, "_on_kind_filter_btn")
 
-	var batch_label := Label.new()
-	batch_label.text = "Batch"
-	row.add_child(batch_label)
+	# Row 3: Domain filter
+	var row3 := HBoxContainer.new()
+	row3.add_theme_constant_override("separation", 4)
+	vbox.add_child(row3)
+	_add_row_label(row3, "Domain:")
+	_domain_buttons = _make_toggle_group(row3, ["All", "Ground", "Air"],
+		["", "ground", "air"], _test_filter_domain, "_on_domain_filter_btn")
+
+	# Row 4: Role filter
+	var row4 := HBoxContainer.new()
+	row4.add_theme_constant_override("separation", 4)
+	vbox.add_child(row4)
+	_add_row_label(row4, "Role:")
+	_role_buttons = _make_toggle_group(row4, ["All", "Worker", "Infantry", "Vehicle", "Air", "Caster", "Siege", "Support"],
+		["", "worker", "infantry", "vehicle", "air", "caster", "siege", "support"], _test_filter_role, "_on_role_filter_btn")
+
+	# Row 5: Tier filter
+	var row5 := HBoxContainer.new()
+	row5.add_theme_constant_override("separation", 4)
+	vbox.add_child(row5)
+	_add_row_label(row5, "Tier:")
+	_tier_buttons = _make_toggle_group(row5, ["All", "Basic", "Advanced", "Tech"],
+		["", "basic", "advanced", "tech"], _test_filter_tier, "_on_tier_filter_btn")
+
+	# Row 6: Preview mode
+	var row6 := HBoxContainer.new()
+	row6.add_theme_constant_override("separation", 4)
+	vbox.add_child(row6)
+	_add_row_label(row6, "Preview:")
+	_preview_buttons = _make_toggle_group(row6, ["Idle", "Move", "Attack"],
+		["idle", "move", "attack"], _test_preview_mode, "_on_preview_mode_btn")
+
+	# Keep batch filter as OptionButton (it has dynamic content)
+	var batch_row := HBoxContainer.new()
+	batch_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(batch_row)
+	_add_row_label(batch_row, "Batch:")
 	_test_batch_filter = OptionButton.new()
 	_add_filter_item(_test_batch_filter, "All", "all")
 	if _sprite_loader:
@@ -523,7 +563,90 @@ func _create_test_filter_panel() -> void:
 			var b_str = str(b)
 			_add_filter_item(_test_batch_filter, b_str.to_upper(), b_str.to_lower())
 	_test_batch_filter.item_selected.connect(_on_test_batch_filter_selected)
-	row.add_child(_test_batch_filter)
+	batch_row.add_child(_test_batch_filter)
+
+
+func _add_row_label(row: HBoxContainer, text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.custom_minimum_size.x = 60
+	row.add_child(lbl)
+
+
+func _make_toggle_group(
+	row: HBoxContainer,
+	labels: Array,
+	values: Array,
+	current: String,
+	callback: String
+) -> Dictionary:
+	# Returns { value: Button } dictionary for highlight management
+	var buttons: Dictionary = {}
+	for i in range(labels.size()):
+		var btn := Button.new()
+		btn.text = labels[i]
+		btn.toggle_mode = true
+		# Highlight active button
+		var val: String = values[i]
+		if val == current:
+			btn.button_pressed = true
+			btn.modulate = Color(0.5, 1.0, 0.5)
+		else:
+			btn.modulate = Color(0.85, 0.85, 0.85)
+		btn.pressed.connect(_on_filter_btn_pressed.bind(val, callback, buttons))
+		row.add_child(btn)
+		buttons[val] = btn
+	return buttons
+
+
+func _on_filter_btn_pressed(value: String, callback: String, buttons: Dictionary) -> void:
+	# Update button highlights
+	for btn_val in buttons:
+		var btn: Button = buttons[btn_val]
+		if btn_val == value:
+			btn.button_pressed = true
+			btn.modulate = Color(0.5, 1.0, 0.5)
+		else:
+			btn.button_pressed = false
+			btn.modulate = Color(0.85, 0.85, 0.85)
+	# Dispatch to specific handler
+	call(callback, value)
+
+
+func _on_race_filter_btn(value: String) -> void:
+	_test_filter_race = value
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_kind_filter_btn(value: String) -> void:
+	_test_filter_kind = value
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_domain_filter_btn(value: String) -> void:
+	_test_filter_domain = value
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_role_filter_btn(value: String) -> void:
+	_test_filter_role = value
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_tier_filter_btn(value: String) -> void:
+	_test_filter_tier = value
+	if _test_mode:
+		_build_test_entities()
+
+
+func _on_preview_mode_btn(value: String) -> void:
+	_test_preview_mode = value
+	if _test_mode:
+		_build_test_entities()
 
 
 func _add_filter_item(option: OptionButton, label: String, value: String) -> void:
@@ -531,28 +654,12 @@ func _add_filter_item(option: OptionButton, label: String, value: String) -> voi
 	option.set_item_metadata(option.item_count - 1, value)
 
 
-func _on_test_race_filter_selected(index: int) -> void:
-	if _test_race_filter == null:
-		return
-	_test_filter_race = str(_test_race_filter.get_item_metadata(index))
-	if _test_mode:
-		_build_test_entities()
-
-
-func _on_test_kind_filter_selected(index: int) -> void:
-	if _test_kind_filter == null:
-		return
-	_test_filter_kind = str(_test_kind_filter.get_item_metadata(index))
-	if _test_mode:
-		_build_test_entities()
-
 func _on_test_batch_filter_selected(index: int) -> void:
 	if _test_batch_filter == null:
 		return
 	_test_filter_batch = str(_test_batch_filter.get_item_metadata(index))
 	if _test_mode:
 		_build_test_entities()
-
 # ─── Bridge between old _selected and new SelectionManager ──
 var _selected: Dictionary = {}
 
@@ -1041,8 +1148,8 @@ func _handle_right_click() -> void:
 						"target_id": clicked_ent.id,
 						"issuer": 1,
 					})
-					if _vfx_manager:
-						_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py))
+				if _vfx_manager:
+					_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py), _vfx_profile_for(e))
 					_emit_attack_indicator(Vector2(e.px, e.py))
 			"attack_nearest":
 				if _is_own_combat(e):
@@ -1056,7 +1163,7 @@ func _handle_right_click() -> void:
 							"issuer": 1,
 						})
 						if _vfx_manager:
-							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py))
+						_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py), _vfx_profile_for(e))
 						_emit_attack_indicator(Vector2(e.px, e.py))
 					else:
 						moving_ids.append(uid)
@@ -1266,6 +1373,18 @@ func _visual_unit_name(e: Dictionary) -> String:
 	if entity_type == "building":
 		return "building"
 	return _resolve_visual_id(e)
+
+
+func _vfx_profile_for(e: Dictionary) -> String:
+	"""Look up vfx_profile from presentation manifest for a given entity."""
+	var visual_id := _visual_unit_name(e)
+	var is_building := str(e.get("type", e.get("entity_type", ""))) == "building"
+	var section_name := "building_visuals" if is_building else "unit_visuals"
+	var section: Dictionary = _presentation_manifest.get(section_name, {})
+	var entry: Dictionary = section.get(visual_id, {})
+	if entry.has("vfx_profile"):
+		return str(entry["vfx_profile"])
+	return ""
 
 # ─── Sprint 4: Rally Point System ──────────────────────────
 func _set_rally_point(building_id: String, world_pos: Vector2) -> void:
@@ -1516,6 +1635,69 @@ func _load_presentation_manifest() -> void:
 		push_warning("[GameView] Invalid presentation manifest: %s" % PRESENTATION_MANIFEST_PATH)
 		_presentation_manifest = {}
 
+
+func _load_unit_type_catalog() -> void:
+	if not FileAccess.file_exists(UNIT_TYPE_CATALOG_PATH):
+		push_warning("[GameView] Missing unit type catalog: %s — falling back to unfiltered test mode" % UNIT_TYPE_CATALOG_PATH)
+		_unit_type_catalog = {}
+		return
+	var raw_text: String = FileAccess.get_file_as_string(UNIT_TYPE_CATALOG_PATH)
+	var parsed = JSON.parse_string(raw_text)
+	if parsed is Dictionary:
+		# Strip _meta key — it's not a unit entry
+		_unit_type_catalog = {}
+		for key in parsed.keys():
+			if key.nocasecmp_to("_meta") != 0:
+				var entry: Dictionary = parsed[key]
+				if entry is Dictionary:
+					_unit_type_catalog[key] = entry
+		if _unit_type_catalog.size() > 0:
+			print("[GameView] Unit type catalog loaded: %d entries" % _unit_type_catalog.size())
+		else:
+			push_warning("[GameView] Unit type catalog was empty after stripping _meta")
+			_unit_type_catalog = {}
+	else:
+		push_warning("[GameView] Invalid unit type catalog: %s" % UNIT_TYPE_CATALOG_PATH)
+		_unit_type_catalog = {}
+
+
+## Check whether a unit_type passes all current filter state using the catalog.
+## Returns true if the unit should be shown, false if filtered out.
+## When catalog is empty (failed to load), always returns true (backward compat).
+func _catalog_passes_filters(unit_id: String) -> bool:
+	if _unit_type_catalog.is_empty():
+		return true  # Backward compatibility: show all if no catalog
+	var entry: Dictionary = _unit_type_catalog.get(unit_id, {})
+	if entry.is_empty():
+		# Unit not in catalog — still show it (backward compat)
+		return true
+	# Race filter
+	if _test_filter_race != "":
+		var race: String = str(entry.get("race", "")).to_lower()
+		if race != _test_filter_race:
+			return false
+	# Kind filter
+	if _test_filter_kind != "":
+		var kind: String = str(entry.get("kind", "")).to_lower()
+		if kind != _test_filter_kind:
+			return false
+	# Domain filter
+	if _test_filter_domain != "":
+		var domain: String = str(entry.get("domain", "")).to_lower()
+		if domain != _test_filter_domain:
+			return false
+	# Role filter
+	if _test_filter_role != "":
+		var role: String = str(entry.get("role", "")).to_lower()
+		if role != _test_filter_role:
+			return false
+	# Tier filter
+	if _test_filter_tier != "":
+		var tier: String = str(entry.get("tier", "")).to_lower()
+		if tier != _test_filter_tier:
+			return false
+	return true
+
 func _resolve_visual_id(e: Dictionary) -> String:
 	var etype := str(e.get("type", e.get("entity_type", "")))
 	var owner_key := str(int(e.get("owner", 0)))
@@ -1733,7 +1915,7 @@ func _parse(state: Dictionary) -> void:
 					"ttl": 30,
 			})
 				if _vfx_manager:
-					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg)
+					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
 					_emit_attack_indicator(Vector2(e.px, e.py))
 
 	# ─── Attack flash detection: detect when a unit starts attacking or switches target ───
@@ -1763,7 +1945,8 @@ func _parse(state: Dictionary) -> void:
 						_visual_unit_name(old_e),
 						death_type,
 						death_owner,
-						death_pos
+						death_pos,
+						_vfx_profile_for(old_e)
 					)
 				# Also add to local death explosion effects for canvas drawing
 				var death_color: Color = _team_color(death_owner)
@@ -2881,18 +3064,27 @@ func _build_test_entities() -> void:
 	var kind_order: Array = ["building", "unit", "resource"]
 
 	for kind in kind_order:
-		if _test_filter_kind != "all" and _test_filter_kind != kind:
+		# Kind filter: if catalog is loaded, filter uses "" for "all"
+		var kind_filter_val: String = _test_filter_kind if _unit_type_catalog.is_empty() else _test_filter_kind
+		if kind_filter_val != "" and kind_filter_val != kind:
+			continue
+		# Legacy compat: old filter used "all" for all
+		if _unit_type_catalog.is_empty() and _test_filter_kind != "" and _test_filter_kind != kind:
 			continue
 		var x: float = float(kind_x[kind])
 		var y: float = 4.0
 		_add_test_header(kind_title[kind], Vector2(x, 2.5), Color(0.75, 0.9, 1.0))
 		for race in race_order:
-			if _test_filter_race != "all" and _test_filter_race != race:
+			var race_filter_val: String = _test_filter_race
+			if race_filter_val != "" and race_filter_val != race:
 				continue
 			var ids: Array = []
 			for asset_id in assets.keys():
 				var entry: Dictionary = assets[asset_id]
 				if str(entry.get("kind", "")) != kind:
+					continue
+				# Use catalog for additional filtering (domain, role, tier)
+				if not _catalog_passes_filters(str(asset_id)):
 					continue
 				if _test_asset_race(str(asset_id), entry) != race:
 					continue
@@ -2933,8 +3125,21 @@ func _build_test_entities() -> void:
 			for asset_id in ids:
 				var entry: Dictionary = assets[asset_id]
 				if kind == "unit":
-					_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
-					y += 3.2
+					# Preview mode controls which unit poses are shown
+					match _test_preview_mode:
+						"idle":
+							_test_ents.append(_make_test_asset_entity(asset_id, entry, race, "unit", Vector2(x, y), ""))
+							y += 3.2
+						"move":
+							_test_ents.append(_make_test_asset_entity(asset_id, entry, race, "unit", Vector2(x, y), "moving"))
+							y += 3.2
+						"attack":
+							_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
+							y += 3.2
+						_:
+							# Fallback: show all three (legacy behavior)
+							_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
+							y += 3.2
 				else:
 					_test_ents.append(_make_test_asset_entity(asset_id, entry, race, kind, Vector2(x, y)))
 					y += 4.6 if kind == "building" else 3.0

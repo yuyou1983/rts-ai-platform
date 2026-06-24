@@ -5,63 +5,152 @@ extends Node2D
 ## Effects are intentionally short and high-contrast, matching RTS readability.
 
 const CATALOG_PATH := "res://resources/vfx/vfx_catalog.json"
+const FEEL_CONFIG_PATH := "res://resources/feel/control_feel_config.json"
+const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 var _catalog: Dictionary = {}
 var _effects: Array[Dictionary] = []
+var _projectiles: Array[Dictionary] = []
 var _textures: Dictionary = {}
+var _max_active_effects: int = 64
+var _max_death_effects: int = 16
+var _max_projectiles: int = 32
+var _profiles: Dictionary = {}
+var _unit_profiles: Dictionary = {}  # Maps unit_name → profile name (loaded from presentation manifest)
+var _death_count: int = 0
 
 
 func _ready() -> void:
 	z_index = 20
 	_load_catalog()
+	_load_feel_config()
+	_load_unit_profiles()
 
 
 func _process(delta: float) -> void:
+	# Age and cull point effects
 	for i in range(_effects.size() - 1, -1, -1):
 		var effect: Dictionary = _effects[i]
 		effect["age"] = float(effect.get("age", 0.0)) + delta
 		if float(effect.get("age", 0.0)) >= float(effect.get("lifetime", 0.2)):
+			if effect.get("is_death", false):
+				_death_count = maxi(_death_count - 1, 0)
 			_effects.remove_at(i)
 		else:
 			_effects[i] = effect
-	if not _effects.is_empty():
+
+	# Age and cull projectile tracers
+	for i in range(_projectiles.size() - 1, -1, -1):
+		var tracer: Dictionary = _projectiles[i]
+		tracer["age"] = float(tracer.get("age", 0.0)) + delta
+		var lifetime: float = float(tracer.get("lifetime", 0.08))
+		if float(tracer["age"]) >= lifetime:
+			_projectiles.remove_at(i)
+		else:
+			tracer["progress"] = float(tracer["age"]) / lifetime
+			_projectiles[i] = tracer
+
+	if (not _effects.is_empty()) or (not _projectiles.is_empty()):
 		queue_redraw()
 
 
 func _draw() -> void:
 	for effect in _effects:
 		_draw_effect(effect)
+	for projectile in _projectiles:
+		_draw_tracer(projectile)
 
 
-func spawn_attack(unit_name: String, owner: int, from_pos: Vector2, target_pos: Vector2 = Vector2.INF) -> void:
-	var effect_name := _lookup_unit_effect(unit_name, "attack", "muzzle_flash_small")
+func spawn_attack(unit_name: String, owner: int, from_pos: Vector2, target_pos: Vector2 = Vector2.INF, vfx_profile: String = "") -> void:
+	var effect_name: String = ""
+	if vfx_profile != "":
+		effect_name = _lookup_profile_effect(vfx_profile, "attack", "muzzle_flash_small")
+	else:
+		effect_name = _lookup_unit_effect(unit_name, "attack", "muzzle_flash_small")
 	var pos := from_pos
+	var tracer_from := from_pos
 	if target_pos != Vector2.INF:
 		var dir := target_pos - from_pos
 		if dir.length_squared() > 0.001:
 			pos = from_pos + dir.normalized() * 0.55
-	_spawn_effect(effect_name, pos, owner)
+			tracer_from = from_pos + dir.normalized() * 0.55
+	_spawn_effect(effect_name, pos, owner, false)
+	# Spawn tracer after muzzle flash
+	spawn_tracer(vfx_profile if vfx_profile != "" else _unit_profiles.get(unit_name, ""), owner, tracer_from, target_pos)
 
 
-func spawn_hit(unit_name: String, owner: int, pos: Vector2, damage: float = 0.0) -> void:
+func spawn_hit(unit_name: String, owner: int, pos: Vector2, damage: float = 0.0, vfx_profile: String = "") -> void:
 	var fallback := "shield_hit" if _is_protoss_like(unit_name) else "acid_hit" if _is_zerg_like(unit_name) else "hit_spark"
-	var effect_name := _lookup_unit_effect(unit_name, "hit", fallback)
-	var effect := _make_effect(effect_name, pos, owner)
+	var effect_name: String = ""
+	if vfx_profile != "":
+		effect_name = _lookup_profile_effect(vfx_profile, "hit", fallback)
+	else:
+		effect_name = _lookup_unit_effect(unit_name, "hit", fallback)
+	var is_death := false
 	if damage >= 18.0 and effect_name == "hit_spark":
-		effect = _make_effect("shell_impact", pos, owner)
+		effect_name = "shell_impact"
+	var effect := _make_effect(effect_name, pos, owner, is_death)
+	_enforce_cap(effect)
 	_effects.append(effect)
 	queue_redraw()
 
 
-func spawn_death(unit_name: String, entity_type: String, owner: int, pos: Vector2) -> void:
+func spawn_death(unit_name: String, entity_type: String, owner: int, pos: Vector2, vfx_profile: String = "") -> void:
 	var key := "building" if entity_type == "building" else unit_name
 	var fallback := "building_burst" if entity_type == "building" else "hit_spark"
-	var effect_name := _lookup_unit_effect(key, "death", fallback)
-	_spawn_effect(effect_name, pos, owner)
+	var effect_name: String = ""
+	if vfx_profile != "":
+		effect_name = _lookup_profile_effect(vfx_profile, "death", fallback)
+	else:
+		effect_name = _lookup_unit_effect(key, "death", fallback)
+	var is_death := true
+	if effect_name.to_lower().find("burst") >= 0 or effect_name.to_lower().find("death") >= 0:
+		is_death = true
+	_spawn_effect(effect_name, pos, owner, is_death)
+
+
+func spawn_tracer(vfx_profile: String, owner: int, from_pos: Vector2, to_pos: Vector2) -> void:
+	var profiles: Dictionary = _catalog.get("profiles", {})
+	if not profiles.has(vfx_profile):
+		return
+	var profile: Dictionary = profiles[vfx_profile]
+	var tracer_style: String = str(profile.get("tracer_style", "none"))
+	if tracer_style.nocasecmp_to("none") == 0:
+		return
+	var tracer_color = profile.get("tracer_color", [1.0, 1.0, 1.0, 1.0])
+
+	# Determine lifetime based on style
+	var lifetime: float = 0.08
+	if tracer_style.nocasecmp_to("arc") == 0 or tracer_style.nocasecmp_to("beam") == 0:
+		lifetime = 0.25
+	elif tracer_style.nocasecmp_to("cone") == 0:
+		lifetime = 0.15
+
+	var tracer: Dictionary = {
+		"from": from_pos,
+		"to": to_pos,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"style": tracer_style,
+		"color": _array_to_color(tracer_color),
+		"owner": owner,
+		"progress": 0.0,
+	}
+	_projectiles.append(tracer)
+	# Enforce projectile cap
+	if _projectiles.size() >= _max_projectiles:
+		_projectiles.remove_at(0)
 
 
 func clear() -> void:
 	_effects.clear()
+	_projectiles.clear()
+	_death_count = 0
+	queue_redraw()
+
+
+func clear_projectiles() -> void:
+	_projectiles.clear()
 	queue_redraw()
 
 
@@ -79,40 +168,114 @@ func _load_catalog() -> void:
 		_catalog = {}
 
 
+func _load_feel_config() -> void:
+	if not FileAccess.file_exists(FEEL_CONFIG_PATH):
+		_max_active_effects = 64
+		_max_death_effects = 16
+		_max_projectiles = 32
+		return
+	var text := FileAccess.get_file_as_string(FEEL_CONFIG_PATH)
+	var parsed = JSON.parse_string(text)
+	if not parsed is Dictionary:
+		_max_active_effects = 64
+		_max_death_effects = 16
+		_max_projectiles = 32
+		return
+	var limits: Dictionary = parsed.get("vfx_limits", {})
+	_max_active_effects = int(limits.get("max_active_effects", 64))
+	_max_death_effects = int(limits.get("max_death_effects", 16))
+	_max_projectiles = int(limits.get("max_projectiles", 32))
+
+
+func _load_unit_profiles() -> void:
+	if not FileAccess.file_exists(PRESENTATION_MANIFEST_PATH):
+		_unit_profiles = {}
+		return
+	var text := FileAccess.get_file_as_string(PRESENTATION_MANIFEST_PATH)
+	var parsed = JSON.parse_string(text)
+	if not parsed is Dictionary:
+		_unit_profiles = {}
+		return
+	# Extract from unit_visuals
+	var unit_visuals: Dictionary = parsed.get("unit_visuals", {})
+	for unit_name in unit_visuals:
+		var entry: Dictionary = unit_visuals[unit_name]
+		if entry.has("vfx_profile"):
+			_unit_profiles[unit_name] = str(entry["vfx_profile"])
+	# Extract from building_visuals
+	var building_visuals: Dictionary = parsed.get("building_visuals", {})
+	for building_name in building_visuals:
+		var entry: Dictionary = building_visuals[building_name]
+		if entry.has("vfx_profile"):
+			_unit_profiles[building_name] = str(entry["vfx_profile"])
+
+
 func _lookup_unit_effect(unit_name: String, action: String, fallback: String) -> String:
 	var unit_effects: Dictionary = _catalog.get("unit_effects", {})
-	var key := unit_name
-	if not unit_effects.has(key):
-		key = _normalize_unit_key(unit_name)
-	var mapping: Dictionary = unit_effects.get(key, {})
+	var mapping: Dictionary = unit_effects.get(unit_name, {})
 	return str(mapping.get(action, fallback))
 
 
-func _normalize_unit_key(unit_name: String) -> String:
-	var lower := unit_name.to_lower()
-	if lower.find("marine") >= 0 or lower == "soldier":
-		return "Marine"
-	if lower.find("ghost") >= 0 or lower == "scout":
-		return "Ghost"
-	if lower.find("tank") >= 0:
-		return "Tank"
-	if lower.find("zerg") >= 0:
-		return "Zergling"
-	if lower.find("hydra") >= 0:
-		return "Hydralisk"
-	if lower.find("zealot") >= 0:
-		return "Zealot"
-	if lower == "building" or lower.find("building") >= 0:
-		return "building"
-	return unit_name
+func _lookup_profile_effect(profile_name: String, action: String, fallback: String) -> String:
+	var profiles: Dictionary = _catalog.get("profiles", {})
+	if not profiles.has(profile_name):
+		return fallback
+	var profile: Dictionary = profiles[profile_name]
+	if not profile.has(action):
+		return fallback
+	return str(profile[action])
 
 
-func _spawn_effect(effect_name: String, pos: Vector2, owner: int) -> void:
-	_effects.append(_make_effect(effect_name, pos, owner))
+func _spawn_effect(effect_name: String, pos: Vector2, owner: int, is_death: bool = false) -> void:
+	var effect := _make_effect(effect_name, pos, owner, is_death)
+	_enforce_cap(effect)
+	_effects.append(effect)
 	queue_redraw()
 
 
-func _make_effect(effect_name: String, pos: Vector2, owner: int) -> Dictionary:
+func _enforce_cap(effect: Dictionary) -> void:
+	# Check death cap
+	if effect.get("is_death", false):
+		_death_count += 1
+		while _death_count > _max_death_effects and _effects.size() > 0:
+			var oldest_death_idx := -1
+			var oldest_death_age := -1.0
+			for i in range(_effects.size()):
+				if _effects[i].get("is_death", false):
+					var age := float(_effects[i].get("age", 0.0))
+					if oldest_death_idx == -1 or age > oldest_death_age:
+						oldest_death_idx = i
+						oldest_death_age = age
+			if oldest_death_idx == -1:
+				break
+			_effects.remove_at(oldest_death_idx)
+			_death_count -= 1
+	# Check active cap
+	while _effects.size() >= _max_active_effects:
+		# Find oldest lowest-priority effect
+		var lowest_priority: int = int(_effects[0].get("priority", 1))
+		for e in _effects:
+			var p: int = int(e.get("priority", 1))
+			if p < lowest_priority:
+				lowest_priority = p
+		# Among lowest priority, find oldest
+		var remove_idx := -1
+		var oldest_age := -1.0
+		for i in range(_effects.size()):
+			var e: Dictionary = _effects[i]
+			if int(e.get("priority", 1)) == lowest_priority:
+				var age := float(e.get("age", 0.0))
+				if age > oldest_age:
+					oldest_age = age
+					remove_idx = i
+		if remove_idx == -1:
+			remove_idx = 0
+		if _effects[remove_idx].get("is_death", false):
+			_death_count = maxi(_death_count - 1, 0)
+		_effects.remove_at(remove_idx)
+
+
+func _make_effect(effect_name: String, pos: Vector2, owner: int, is_death: bool = false) -> Dictionary:
 	var defaults: Dictionary = _catalog.get("defaults", {})
 	var effects: Dictionary = _catalog.get("effects", {})
 	var spec: Dictionary = defaults.duplicate()
@@ -131,6 +294,8 @@ func _make_effect(effect_name: String, pos: Vector2, owner: int) -> Dictionary:
 		"texture": str(spec.get("texture", "")),
 		"color": _array_to_color(spec.get("color", [1.0, 1.0, 1.0, 1.0])),
 		"secondary_color": _array_to_color(spec.get("secondary_color", [1.0, 0.2, 0.1, 0.7])),
+		"priority": int(spec.get("priority", 1)),
+		"is_death": is_death,
 	}
 
 
@@ -159,6 +324,52 @@ func _draw_effect(effect: Dictionary) -> void:
 		var ring_color := secondary if ring % 2 == 1 else color
 		ring_color.a *= ring_alpha
 		draw_arc(pos, radius * (1.0 + ring_t + float(ring) * 0.25), 0.0, TAU, 18, ring_color, 0.045, true)
+
+
+func _draw_tracer(tracer: Dictionary) -> void:
+	var lifetime := maxf(float(tracer.get("lifetime", 0.08)), 0.001)
+	var t := clampf(float(tracer.get("progress", 0.0)), 0.0, 1.0)
+	var alpha := 1.0 - t
+	var from_pos: Vector2 = tracer.get("from", Vector2.ZERO)
+	var to_pos: Vector2 = tracer.get("to", Vector2.ZERO)
+	var color: Color = tracer.get("color", Color.WHITE)
+	color.a *= alpha
+	var style: String = str(tracer.get("style", "none"))
+
+	if style.nocasecmp_to("flicker") == 0:
+		# Instant hit-scan line
+		draw_line(from_pos, to_pos, color, 2.0, true)
+	elif style.nocasecmp_to("slash") == 0:
+		# Melee arc
+		draw_arc(from_pos, 0.4, 0.0, PI * 0.7, 8, color, 2.5, true)
+	elif style.nocasecmp_to("flash") == 0:
+		# Psi flash — expanding circle at midpoint
+		var mid := from_pos + (to_pos - from_pos) * 0.5
+		draw_circle(mid, 0.3 * alpha, color)
+	elif style.nocasecmp_to("arc") == 0:
+		# 3-segment polyline with upward arc
+		var mid := (from_pos + to_pos) * 0.5 + Vector2(0, -0.5)
+		var points := PackedVector2Array([from_pos, mid, to_pos])
+		draw_polyline(points, color, 1.5, true)
+	elif style.nocasecmp_to("beam") == 0:
+		# Phase beam — thick line
+		draw_line(from_pos, to_pos, color, 3.0, true)
+	elif style.nocasecmp_to("cone") == 0:
+		# Shotgun cone — 3 short lines fanning from from_pos
+		var dir := (to_pos - from_pos).normalized()
+		var base_angle := dir.angle()
+		var length := 0.6
+		# Center line
+		draw_line(from_pos, from_pos + dir * length, color, 2.0, true)
+		# +15°
+		var dir_plus := Vector2.RIGHT.rotated(base_angle + deg_to_rad(15.0))
+		draw_line(from_pos, from_pos + dir_plus * length, color, 2.0, true)
+		# -15°
+		var dir_minus := Vector2.RIGHT.rotated(base_angle - deg_to_rad(15.0))
+		draw_line(from_pos, from_pos + dir_minus * length, color, 2.0, true)
+	elif style.nocasecmp_to("none") == 0:
+		pass
+	# Unknown styles silently ignored
 
 
 func _get_texture(path: String) -> Texture2D:
