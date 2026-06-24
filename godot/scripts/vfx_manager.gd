@@ -19,6 +19,26 @@ var _profiles: Dictionary = {}
 var _unit_profiles: Dictionary = {}  # Maps unit_name → profile name (loaded from presentation manifest)
 var _death_count: int = 0
 
+# ── Effect defaults (loaded from feel config) ──
+var _eff_lifetime: float = 0.2
+var _eff_radius: float = 0.5
+var _eff_scale: float = 1.0
+var _eff_rings: int = 1
+var _eff_color: Array = [1.0, 1.0, 1.0, 1.0]
+var _eff_secondary_color: Array = [1.0, 0.2, 0.1, 0.7]
+var _eff_priority: int = 1
+
+# ── Tracer defaults (loaded from feel config) ──
+var _tr_default_lifetime: float = 0.08
+var _tr_arc_lifetime: float = 0.25
+var _tr_beam_lifetime: float = 0.25
+var _tr_cone_lifetime: float = 0.15
+var _tr_default_color: Array = [1.0, 1.0, 1.0, 1.0]
+
+# ── Other tunables ──
+var _muzzle_offset: float = 0.55
+var _shell_impact_dmg_threshold: float = 18.0
+
 
 func _ready() -> void:
 	z_index = 20
@@ -32,7 +52,7 @@ func _process(delta: float) -> void:
 	for i in range(_effects.size() - 1, -1, -1):
 		var effect: Dictionary = _effects[i]
 		effect["age"] = float(effect.get("age", 0.0)) + delta
-		if float(effect.get("age", 0.0)) >= float(effect.get("lifetime", 0.2)):
+		if float(effect.get("age", 0.0)) >= float(effect.get("lifetime", _eff_lifetime)):
 			if effect.get("is_death", false):
 				_death_count = maxi(_death_count - 1, 0)
 			_effects.remove_at(i)
@@ -43,7 +63,7 @@ func _process(delta: float) -> void:
 	for i in range(_projectiles.size() - 1, -1, -1):
 		var tracer: Dictionary = _projectiles[i]
 		tracer["age"] = float(tracer.get("age", 0.0)) + delta
-		var lifetime: float = float(tracer.get("lifetime", 0.08))
+		var lifetime: float = float(tracer.get("lifetime", _tr_default_lifetime))
 		if float(tracer["age"]) >= lifetime:
 			_projectiles.remove_at(i)
 		else:
@@ -72,8 +92,8 @@ func spawn_attack(unit_name: String, owner: int, from_pos: Vector2, target_pos: 
 	if target_pos != Vector2.INF:
 		var dir := target_pos - from_pos
 		if dir.length_squared() > 0.001:
-			pos = from_pos + dir.normalized() * 0.55
-			tracer_from = from_pos + dir.normalized() * 0.55
+			pos = from_pos + dir.normalized() * _muzzle_offset
+			tracer_from = from_pos + dir.normalized() * _muzzle_offset
 	_spawn_effect(effect_name, pos, owner, false)
 	# Spawn tracer after muzzle flash
 	spawn_tracer(vfx_profile if vfx_profile != "" else _unit_profiles.get(unit_name, ""), owner, tracer_from, target_pos)
@@ -87,7 +107,7 @@ func spawn_hit(unit_name: String, owner: int, pos: Vector2, damage: float = 0.0,
 	else:
 		effect_name = _lookup_unit_effect(unit_name, "hit", fallback)
 	var is_death := false
-	if damage >= 18.0 and effect_name == "hit_spark":
+	if damage >= _shell_impact_dmg_threshold and effect_name == "hit_spark":
 		effect_name = "shell_impact"
 	var effect := _make_effect(effect_name, pos, owner, is_death)
 	_enforce_cap(effect)
@@ -117,14 +137,16 @@ func spawn_tracer(vfx_profile: String, owner: int, from_pos: Vector2, to_pos: Ve
 	var tracer_style: String = str(profile.get("tracer_style", "none"))
 	if tracer_style.nocasecmp_to("none") == 0:
 		return
-	var tracer_color = profile.get("tracer_color", [1.0, 1.0, 1.0, 1.0])
+	var tracer_color = profile.get("tracer_color", _tr_default_color)
 
 	# Determine lifetime based on style
-	var lifetime: float = 0.08
-	if tracer_style.nocasecmp_to("arc") == 0 or tracer_style.nocasecmp_to("beam") == 0:
-		lifetime = 0.25
+	var lifetime: float = _tr_default_lifetime
+	if tracer_style.nocasecmp_to("arc") == 0:
+		lifetime = _tr_arc_lifetime
+	elif tracer_style.nocasecmp_to("beam") == 0:
+		lifetime = _tr_beam_lifetime
 	elif tracer_style.nocasecmp_to("cone") == 0:
-		lifetime = 0.15
+		lifetime = _tr_cone_lifetime
 
 	var tracer: Dictionary = {
 		"from": from_pos,
@@ -169,22 +191,42 @@ func _load_catalog() -> void:
 
 
 func _load_feel_config() -> void:
+	# Defaults are already set on the member vars; we only override when
+	# the config file is present and valid.
 	if not FileAccess.file_exists(FEEL_CONFIG_PATH):
-		_max_active_effects = 64
-		_max_death_effects = 16
-		_max_projectiles = 32
 		return
 	var text := FileAccess.get_file_as_string(FEEL_CONFIG_PATH)
 	var parsed = JSON.parse_string(text)
 	if not parsed is Dictionary:
-		_max_active_effects = 64
-		_max_death_effects = 16
-		_max_projectiles = 32
 		return
+
+	# ── vfx_limits ──
 	var limits: Dictionary = parsed.get("vfx_limits", {})
-	_max_active_effects = int(limits.get("max_active_effects", 64))
-	_max_death_effects = int(limits.get("max_death_effects", 16))
-	_max_projectiles = int(limits.get("max_projectiles", 32))
+	_max_active_effects = int(limits.get("max_active_effects", _max_active_effects))
+	_max_death_effects = int(limits.get("max_death_effects", _max_death_effects))
+	_max_projectiles = int(limits.get("max_projectiles", _max_projectiles))
+
+	# ── vfx_defaults ──
+	var defaults: Dictionary = parsed.get("vfx_defaults", {})
+
+	var effect: Dictionary = defaults.get("effect", {})
+	_eff_lifetime = float(effect.get("lifetime", _eff_lifetime))
+	_eff_radius = float(effect.get("radius", _eff_radius))
+	_eff_scale = float(effect.get("scale", _eff_scale))
+	_eff_rings = int(effect.get("rings", _eff_rings))
+	_eff_color = effect.get("color", _eff_color)
+	_eff_secondary_color = effect.get("secondary_color", _eff_secondary_color)
+	_eff_priority = int(effect.get("priority", _eff_priority))
+
+	var tracer: Dictionary = defaults.get("tracer", {})
+	_tr_default_lifetime = float(tracer.get("default_lifetime", _tr_default_lifetime))
+	_tr_arc_lifetime = float(tracer.get("arc_lifetime", _tr_arc_lifetime))
+	_tr_beam_lifetime = float(tracer.get("beam_lifetime", _tr_beam_lifetime))
+	_tr_cone_lifetime = float(tracer.get("cone_lifetime", _tr_cone_lifetime))
+	_tr_default_color = tracer.get("default_color", _tr_default_color)
+
+	_muzzle_offset = float(defaults.get("muzzle_offset", _muzzle_offset))
+	_shell_impact_dmg_threshold = float(defaults.get("shell_impact_damage_threshold", _shell_impact_dmg_threshold))
 
 
 func _load_unit_profiles() -> void:
@@ -253,9 +295,9 @@ func _enforce_cap(effect: Dictionary) -> void:
 	# Check active cap
 	while _effects.size() >= _max_active_effects:
 		# Find oldest lowest-priority effect
-		var lowest_priority: int = int(_effects[0].get("priority", 1))
+		var lowest_priority: int = int(_effects[0].get("priority", _eff_priority))
 		for e in _effects:
-			var p: int = int(e.get("priority", 1))
+			var p: int = int(e.get("priority", _eff_priority))
 			if p < lowest_priority:
 				lowest_priority = p
 		# Among lowest priority, find oldest
@@ -263,7 +305,7 @@ func _enforce_cap(effect: Dictionary) -> void:
 		var oldest_age := -1.0
 		for i in range(_effects.size()):
 			var e: Dictionary = _effects[i]
-			if int(e.get("priority", 1)) == lowest_priority:
+			if int(e.get("priority", _eff_priority)) == lowest_priority:
 				var age := float(e.get("age", 0.0))
 				if age > oldest_age:
 					oldest_age = age
@@ -287,20 +329,20 @@ func _make_effect(effect_name: String, pos: Vector2, owner: int, is_death: bool 
 		"pos": pos,
 		"owner": owner,
 		"age": 0.0,
-		"lifetime": float(spec.get("lifetime", 0.2)),
-		"radius": float(spec.get("radius", 0.5)),
-		"scale": float(spec.get("scale", 1.0)),
-		"rings": int(spec.get("rings", 1)),
+		"lifetime": float(spec.get("lifetime", _eff_lifetime)),
+		"radius": float(spec.get("radius", _eff_radius)),
+		"scale": float(spec.get("scale", _eff_scale)),
+		"rings": int(spec.get("rings", _eff_rings)),
 		"texture": str(spec.get("texture", "")),
-		"color": _array_to_color(spec.get("color", [1.0, 1.0, 1.0, 1.0])),
-		"secondary_color": _array_to_color(spec.get("secondary_color", [1.0, 0.2, 0.1, 0.7])),
-		"priority": int(spec.get("priority", 1)),
+		"color": _array_to_color(spec.get("color", _eff_color)),
+		"secondary_color": _array_to_color(spec.get("secondary_color", _eff_secondary_color)),
+		"priority": int(spec.get("priority", _eff_priority)),
 		"is_death": is_death,
 	}
 
 
 func _draw_effect(effect: Dictionary) -> void:
-	var lifetime := maxf(float(effect.get("lifetime", 0.2)), 0.01)
+	var lifetime := maxf(float(effect.get("lifetime", _eff_lifetime)), 0.01)
 	var t := clampf(float(effect.get("age", 0.0)) / lifetime, 0.0, 1.0)
 	var alpha := 1.0 - t
 	var pos: Vector2 = effect.get("pos", Vector2.ZERO)
@@ -327,7 +369,7 @@ func _draw_effect(effect: Dictionary) -> void:
 
 
 func _draw_tracer(tracer: Dictionary) -> void:
-	var lifetime := maxf(float(tracer.get("lifetime", 0.08)), 0.001)
+	var lifetime := maxf(float(tracer.get("lifetime", _tr_default_lifetime)), 0.001)
 	var t := clampf(float(tracer.get("progress", 0.0)), 0.0, 1.0)
 	var alpha := 1.0 - t
 	var from_pos: Vector2 = tracer.get("from", Vector2.ZERO)
