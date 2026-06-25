@@ -141,7 +141,147 @@ _UNIT_TYPE_MAP = {
     "scout_unit": "Probe",  # internal type → real name
 }
 
+# ─── Unit Stats Loader (JSON-backed) ─────────────────────────
+
+_UNIT_STATS_CACHE: dict[str, dict] | None = None
+
+
+def _load_unit_stats() -> dict[str, dict]:
+    """Load unit stats from simcore/data/unit_stats.json with caching.
+
+    Same pattern as _load_building_data() in economy.py.
+    """
+    global _UNIT_STATS_CACHE
+    if _UNIT_STATS_CACHE is None:
+        path = Path(__file__).resolve().parent / "data" / "unit_stats.json"
+        with open(path) as f:
+            raw = json.load(f)
+        _UNIT_STATS_CACHE = {}
+        for key, val in raw.items():
+            if key == "_meta":
+                continue
+            if isinstance(val, dict) and "health" in val:
+                _UNIT_STATS_CACHE[key] = val
+    return _UNIT_STATS_CACHE
+
+
+def _resolve_unit_stats(utype: str) -> dict[str, Any]:
+    """Resolve unit stats: prefer unit_stats.json, fall back to _DEFAULT_UNIT_STATS."""
+    json_stats = _load_unit_stats().get(utype, {})
+    if json_stats:
+        # JSON is authoritative; carry_capacity is an engine field not in JSON
+        stats = dict(json_stats)
+        # Add engine-only fields with defaults if absent
+        if "carry_capacity" not in stats:
+            stats["carry_capacity"] = _DEFAULT_UNIT_STATS.get(utype, {}).get(
+                "carry_capacity", 0
+            )
+        return stats
+    # Fallback to legacy dict for units absent from JSON
+    return dict(_DEFAULT_UNIT_STATS.get(utype, _DEFAULT_UNIT_STATS["SCV"]))
+
+
+def _build_unit_entity(
+    uid: str,
+    utype: str,
+    owner: int,
+    simplified_etype: str,
+    pos_x: float,
+    pos_y: float,
+    *,
+    stats: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a unit entity dict from resolved stats, including all new fields.
+
+    New fields from unit_stats.json:
+      shields / max_shields, armor,
+      attack_ground / attack_air (replaces 'attack'),
+      attack_range_ground / attack_range_air (replaces 'attack_range'),
+      weapon_type_ground / weapon_type_air,
+      cooldown_ground / cooldown_air,
+      cooldown_timer (init 0),
+      domain, supply_cost, is_spellcaster, energy
+    Backward compat: legacy 'attack' and 'attack_range' are populated
+    from attack_ground / attack_range_ground when present.
+    """
+    if stats is None:
+        stats = _resolve_unit_stats(utype)
+
+    # Map JSON keys → entity keys
+    health = stats.get("health", stats.get("max_health", 60))
+    max_health = stats.get("max_health", health)
+    speed = stats.get("speed", 2.5)
+    shields = stats.get("shields", 0)
+    max_shields = shields  # same source value
+    armor = stats.get("armor", 0)
+    attack_ground = stats.get("attack_ground", stats.get("attack", 0))
+    attack_air = stats.get("attack_air", 0)
+    attack_range_ground = stats.get("attack_range_ground", stats.get("attack_range", 1.5))
+    attack_range_air = stats.get("attack_range_air", 0)
+    weapon_type_ground = stats.get("weapon_type_ground", "normal")
+    weapon_type_air = stats.get("weapon_type_air", "none")
+    cooldown_ground = stats.get("cooldown_ground", stats.get("cooldown", 10))
+    cooldown_air = stats.get("cooldown_air", 0)
+    domain = stats.get("domain", "ground")
+    supply_cost = stats.get("supply_cost", 1)
+    is_spellcaster = stats.get("is_spellcaster", False)
+    energy = stats.get("energy", 0)
+    carry_capacity = stats.get("carry_capacity", 0)
+
+    # Protoss: shields come from JSON, max_shields == shields for init
+    # But if the old _load_unit_data() path provides "sp", prefer that
+    # for shield initial value (same number anyway).
+    unit: dict[str, Any] = {
+        "id": uid,
+        "owner": owner,
+        "entity_type": simplified_etype,
+        "unit_type": utype,
+        "pos_x": pos_x,
+        "pos_y": pos_y,
+        "health": health,
+        "max_health": max_health,
+        "speed": speed,
+        # Legacy fields (backward compat)
+        "attack": attack_ground,
+        "attack_range": attack_range_ground,
+        # New split attack fields
+        "attack_ground": attack_ground,
+        "attack_air": attack_air,
+        "attack_range_ground": attack_range_ground,
+        "attack_range_air": attack_range_air,
+        "weapon_type_ground": weapon_type_ground,
+        "weapon_type_air": weapon_type_air,
+        "cooldown_ground": cooldown_ground,
+        "cooldown_air": cooldown_air,
+        "cooldown_timer": cooldown_ground,  # ready to fire on first tick
+        # Defense fields
+        "shields": shields,
+        "max_shields": max_shields,
+        "armor": armor,
+        # Domain & supply
+        "domain": domain,
+        "supply_cost": supply_cost,
+        # Spellcaster
+        "is_spellcaster": is_spellcaster,
+        "energy": energy,
+        # Common unit fields
+        "is_idle": True,
+        "carry_amount": 0,
+        "carry_capacity": carry_capacity,
+        "target_x": None,
+        "target_y": None,
+        "returning_to_base": False,
+        "attack_target_id": "",
+        "deposit_pending": False,
+        "is_flying": domain == "air",
+    }
+
+    return unit
+
+
 # Default unit stats for spawning
+# DEPRECATED: Prefer _load_unit_stats() / unit_stats.json for unit creation.
+# Kept as fallback for units not yet in the JSON and for carry_capacity defaults.
 _DEFAULT_UNIT_STATS = {
     # Workers — melee
     "SCV":      {"health": 60,  "max_health": 60,  "speed": 2.5, "attack": 5,  "attack_range": 1.5, "carry_capacity": 10.0},
@@ -716,8 +856,6 @@ def process_construction(
         if timers[0] <= 0:
             utype = queue.pop(0)
             timers.pop(0)
-            uid = f"{utype}_{tick}_{eid}"
-            stats = _DEFAULT_UNIT_STATS.get(utype, _DEFAULT_UNIT_STATS["SCV"])
             owner = e["owner"]
             race = get_race(owner)
 
@@ -732,34 +870,13 @@ def process_construction(
             if utype in ("worker", "soldier", "scout"):
                 simplified_etype = utype
 
-            unit = {
-                "id": uid,
-                "owner": owner,
-                "entity_type": simplified_etype,
-                "unit_type": utype,
-                "pos_x": e["pos_x"] + 1.0,
-                "pos_y": e["pos_y"] + 1.0,
-                "health": stats["health"],
-                "max_health": stats["max_health"],
-                "speed": stats["speed"],
-                "attack": stats["attack"],
-                "attack_range": stats["attack_range"],
-                "is_idle": True,
-                "carry_amount": 0,
-                "carry_capacity": stats["carry_capacity"],
-                "target_x": None,
-                "target_y": None,
-                "returning_to_base": False,
-                "attack_target_id": "",
-                "deposit_pending": False,
-                "is_flying": False,
-            }
-
-            if race == "protoss":
-                udata = _load_unit_data().get(utype, {})
-                sp = udata.get("sp", 0) if udata else 0
-                unit["shield"] = sp
-                unit["max_shield"] = sp
+            uid = f"{utype}_{tick}_{eid}"
+            stats = _resolve_unit_stats(utype)
+            unit = _build_unit_entity(
+                uid, utype, owner, simplified_etype,
+                e["pos_x"] + 1.0, e["pos_y"] + 1.0,
+                stats=stats,
+            )
 
             spawn_entities[uid] = unit
 
@@ -789,32 +906,14 @@ def process_construction(
         if timer <= 0:
             # Morph complete — spawn the unit, remove larva
             utype = e["morph_target"]
-            uid = f"{utype}_{tick}_{eid}"
-            stats = _DEFAULT_UNIT_STATS.get(utype, _DEFAULT_UNIT_STATS["Zergling"])
             simplified_etype = json_to_simplified_unit.get(utype, "unit")
-
-            unit = {
-                "id": uid,
-                "owner": e["owner"],
-                "entity_type": simplified_etype,
-                "unit_type": utype,
-                "pos_x": e["pos_x"],
-                "pos_y": e["pos_y"],
-                "health": stats["health"],
-                "max_health": stats["max_health"],
-                "speed": stats["speed"],
-                "attack": stats["attack"],
-                "attack_range": stats["attack_range"],
-                "is_idle": True,
-                "carry_amount": 0,
-                "carry_capacity": stats["carry_capacity"],
-                "target_x": None,
-                "target_y": None,
-                "returning_to_base": False,
-                "attack_target_id": "",
-                "deposit_pending": False,
-                "is_flying": False,
-            }
+            uid = f"{utype}_{tick}_{eid}"
+            stats = _resolve_unit_stats(utype)
+            unit = _build_unit_entity(
+                uid, utype, e["owner"], simplified_etype,
+                e["pos_x"], e["pos_y"],
+                stats=stats,
+            )
             morph_entities[uid] = unit
 
             # Zerg: Zergling spawns as a pair (2 for 50 minerals)

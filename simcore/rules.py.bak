@@ -466,13 +466,13 @@ def resolve_combat(
         tid = e.get("attack_target_id", "")
         if not tid or tid not in fought:
             # Tick cooldown even if target gone (prevents instant re-target)
-            fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
+            fought[uid] = {**e, "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
             continue
         target = fought[tid]
         # Don't attack buildings under construction
         if target.get("is_constructing"):
             # Still tick cooldown
-            fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
+            fought[uid] = {**e, "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
             continue
 
         # Pick weapon based on target domain
@@ -480,7 +480,7 @@ def resolve_combat(
         if base_dmg <= 0:
             # Unit cannot attack this target (e.g. ground-only vs air)
             # Tick cooldown and skip
-            fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
+            fought[uid] = {**e, "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
             continue
 
         dx = e["pos_x"] - target["pos_x"]
@@ -495,7 +495,7 @@ def resolve_combat(
         cd_timer = int(e.get("cooldown_timer", 0))
         if cd_timer < cd_required:
             # Not ready to fire yet — tick cooldown
-            fought[uid] = {**fought.get(uid, e), "cooldown_timer": cd_timer + 1}
+            fought[uid] = {**e, "cooldown_timer": cd_timer + 1}
             continue
         # Reset timer after firing (set below after damage resolves)
 
@@ -539,7 +539,7 @@ def resolve_combat(
             fought[uid] = {**fought[uid], "cooldown_timer": 0}
         else:
             # Out of range — tick cooldown (will reset when in range and fires)
-            fought[uid] = {**fought.get(uid, e), "cooldown_timer": cd_timer + 1}
+            fought[uid] = {**e, "cooldown_timer": cd_timer + 1}
 
     # 3. Auto-attack: idle units in range of enemy → pick best target by priority
     entity_list = list(fought.items())
@@ -567,7 +567,7 @@ def resolve_combat(
             cd_timer = int(e.get("cooldown_timer", 0))
             if cd_timer < cd_min:
                 # Not ready to fire — tick cooldown, skip targeting
-                fought[eid] = {**fought.get(eid, e), "cooldown_timer": cd_timer + 1}
+                fought[eid] = {**e, "cooldown_timer": cd_timer + 1}
                 continue
 
             best_target = None

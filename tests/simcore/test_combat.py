@@ -10,12 +10,21 @@ from agents.script_ai import ScriptAI
 
 def _soldier(sid: str, owner: int, px: float, py: float, **kw: float) -> dict:
     """Create a soldier entity dict."""
+    attack = kw.get("attack", 15)
+    attack_range = kw.get("attack_range", 1.0)
+    cooldown_ground = kw.get("cooldown_ground", 10)
     return {
         "id": sid, "owner": owner, "entity_type": "soldier",
         "pos_x": px, "pos_y": py,
         "health": kw.get("health", 80), "max_health": kw.get("max_health", 80),
-        "speed": kw.get("speed", 3.0), "attack": kw.get("attack", 15),
-        "attack_range": kw.get("attack_range", 1.0),
+        "speed": kw.get("speed", 3.0), "attack": attack,
+        "attack_ground": attack, "attack_air": 0,
+        "attack_range": attack_range,
+        "attack_range_ground": attack_range, "attack_range_air": 0,
+        "weapon_type_ground": "normal", "weapon_type_air": "none",
+        "cooldown_ground": cooldown_ground, "cooldown_air": 0,
+        "cooldown_timer": cooldown_ground,  # ready to fire
+        "domain": "ground", "armor": 0, "armor_type": "light",
         "is_idle": True, "carry_amount": 0, "carry_capacity": 0,
         "target_x": None, "target_y": None,
         "returning_to_base": False, "attack_target_id": "",

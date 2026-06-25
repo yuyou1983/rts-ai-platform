@@ -33,6 +33,12 @@ def _soldier(sid: str, owner: int, px: float, py: float, **kw) -> dict:
         "pos_x": px, "pos_y": py,
         "health": kw.get("health", 80), "max_health": kw.get("max_health", 80),
         "speed": kw.get("speed", 3.0), "attack": 15, "attack_range": 1.0,
+        "attack_ground": 15, "attack_air": 0,
+        "attack_range_ground": 1.0, "attack_range_air": 0,
+        "weapon_type_ground": "normal", "weapon_type_air": "none",
+        "cooldown_ground": 10, "cooldown_air": 0,
+        "cooldown_timer": 10,  # ready to fire
+        "domain": "ground", "armor": 0, "armor_type": "light",
         "is_idle": True, "carry_amount": 0, "carry_capacity": 0,
         "target_x": None, "target_y": None, "path": [],
         "returning_to_base": False, "attack_target_id": "",
