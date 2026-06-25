@@ -395,31 +395,17 @@ def check_train_prerequisites(
     json_name = _BUILDING_TYPE_MAP.get(bt, bt)
     bdata = _load_building_data().get(json_name)
 
-# Simplified building types: base can train workers, barracks trains soldiers/scouts
+# Simplified building types: restricted to correct unit routing per buildings.json
     simplified_train = {
-        "base": ["worker", "soldier", "scout",
-                  # Zerg from base/Hatchery
-                  "Drone", "Overlord", "Zergling", "Hydralisk", "Lurker",
-                  "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian",
-                  "Devourer", "Scourge", "Broodling", "InfestedTerran",
-                  # Protoss from base/Nexus
-                  "Probe", "Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
-                  "Reaver", "Shuttle", "Observer", "Arbiter", "Scout_ship",
-                  "Carrier", "Corsair", "Archon", "DarkArchon",
-                  # Terran from base/CommandCenter
-                  "SCV", "Marine", "Firebat", "Ghost", "Medic",
-                  "Vulture", "Tank", "Goliath", "Wraith", "Dropship",
-                  "Vessel", "BattleCruiser", "Valkyrie"],
-        "barracks": ["soldier", "scout", "worker",
-                     "Marine", "Firebat", "Ghost", "Medic",
-                     "Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
-                     "Zergling", "Hydralisk", "Drone", "Overlord"],
-        "factory": ["soldier", "scout"],
+        # Simplified types (for backward compat with simplified mode)
+        "base": ["worker"],
+        "barracks": ["soldier"],
+        "factory": [],
         "starport": ["scout"],
-        # Zerg buildings (JSON names)
-        "Hatchery": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
-        "Lair": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
-        "Hive": ["Drone", "Overlord", "Zergling", "Hydralisk", "Lurker", "Ultralisk", "Queen", "Defiler", "Mutalisk", "Guardian", "Devourer", "Scourge", "Broodling", "InfestedTerran"],
+        # Zerg buildings — bases only train Drone/Overlord, others via larva morph
+        "Hatchery": ["Drone", "Overlord"],
+        "Lair": ["Drone", "Overlord"],
+        "Hive": ["Drone", "Overlord"],
         "SpawningPool": ["ZerglingSpeed", "ZerglingAdrenalGlands"],
         "EvolutionChamber": ["MeleeAttacks", "MissileAttacks", "Carapace"],
         "HydraliskDen": ["Hydralisk", "GroovedSpines", "HydraliskSpeed", "LurkerAspect"],
@@ -431,32 +417,32 @@ def check_train_prerequisites(
         "SunkenColony": [],
         "SporeColony": [],
         "Extractor": [],
-        # Protoss buildings (JSON names)
-        "Nexus": ["Probe", "Zealot", "Dragoon", "HighTemplar", "DarkTemplar", "Reaver", "Shuttle", "Observer", "Arbiter", "Scout", "Carrier", "Corsair", "Archon", "DarkArchon"],
-        "Gateway": ["Zealot", "Dragoon", "HighTemplar", "DarkTemplar"],
+        # Protoss buildings — Nexus only trains Probe
+        "Nexus": ["Probe"],
+        "Gateway": ["Zealot", "Dragoon", "Templar", "DarkTemplar"],
         "CyberneticsCore": ["SingularityCharge", "AirWeapons", "AirArmor"],
         "Forge": ["GroundWeapons", "GroundArmor", "PlasmaShields"],
-        "RoboticsFacility": ["Reaver", "Shuttle"],
+        "RoboticsFacility": ["Shuttle", "Reaver", "Observer"],
         "Stargate": ["Scout", "Carrier", "Corsair", "Arbiter"],
         "CitadelOfAdun": ["LegEnhancement"],
         "TemplarArchives": ["HighTemplar", "PsionicStorm", "Hallucination", "KhaydarinAmulet"],
-        "RoboticsSupportBay": ["Reaver", "ScarabDamage"],
-        "FleetBeacon": ["Carrier", "CarrierCapacity", "ScoutSpeed", "CorsairDisruptionWeb"],
-        "Observatory": ["Observer", "ObserverSpeed", "ObserverSight"],
-        "ArbiterTribunal": ["Arbiter", "StasisField", "Recall"],
+        "RoboticsSupportBay": ["ScarabDamage"],
+        "FleetBeacon": ["CarrierCapacity", "ScoutSpeed", "CorsairDisruptionWeb"],
+        "Observatory": ["ObserverSpeed", "ObserverSight"],
+        "ArbiterTribunal": ["StasisField", "Recall"],
         "Pylon": [],
         "Assimilator": [],
         "PhotonCannon": [],
         "ShieldBattery": [],
-        # Terran buildings (JSON names)
-        "CommandCenter": ["SCV", "Marine", "Firebat", "Ghost", "Medic", "Vulture", "Tank", "Goliath", "Wraith", "Dropship", "Vessel", "BattleCruiser", "Valkyrie"],
+        # Terran buildings — CommandCenter only trains SCV
+        "CommandCenter": ["SCV"],
         "Barracks": ["Marine", "Firebat", "Ghost", "Medic"],
         "Factory": ["Vulture", "Tank", "Goliath"],
         "Starport": ["Wraith", "Dropship", "Vessel", "BattleCruiser", "Valkyrie"],
         "Academy": ["StimPack", "U238Shells", "Medic"],
         "EngineeringBay": ["InfantryWeapons", "InfantryArmor"],
         "Armory": ["VehicleWeapons", "VehiclePlating", "ShipWeapons", "ShipPlating"],
-        "ScienceFacility": ["Vessel", "EMPShockwave", "Irradiate", "TitanReactor", "ApolloReactor"],
+        "ScienceFacility": ["EMPShockwave", "Irradiate", "TitanReactor", "ApolloReactor"],
         "SupplyDepot": [],
         "Refinery": [],
         "MissileTurret": [],
@@ -466,13 +452,14 @@ def check_train_prerequisites(
         "NuclearSilo": ["NuclearStrike"],
     }
 
-    if bt in simplified_train:
-        if unit_type not in simplified_train[bt]:
-            return False
-    elif bdata and "train" in bdata:
+    # Route: JSON data (authoritative) first, simplified fallback second
+    if bdata and "train" in bdata:
         trainable = bdata["train"]
         json_unit = _UNIT_TYPE_MAP.get(unit_type, unit_type)
         if json_unit not in trainable and unit_type not in trainable:
+            return False
+    elif bt in simplified_train:
+        if unit_type not in simplified_train[bt]:
             return False
 
     return True
@@ -485,9 +472,7 @@ def check_supply(
 ) -> bool:
     """Check if training this unit would exceed supply cap.
 
-    Supply enforcement is lenient for backward compatibility:
-    - If no dedicated supply buildings exist (supply from base only), don't block
-    - Only enforce when player has built supply structures (SupplyDepot, Pylon, Overlord)
+    Enforces supply strictly: no unit may be trained if supply_used + cost > cap.
     """
     json_unit = _UNIT_TYPE_MAP.get(unit_type, unit_type)
     udata = _load_unit_data().get(json_unit)
@@ -503,19 +488,10 @@ def check_supply(
     supply_used = resources.get(f"p{owner}_supply_used", 0)
     supply_cap = resources.get(f"p{owner}_supply_cap", 0)
 
-    # If supply cap hasn't been calculated (0) or only comes from bases (10),
-    # allow training for backward compatibility with simplified mode
     if supply_cap <= 0:
-        return True
+        return True  # No supply system active — don't block
 
-    # Check if the player has any dedicated supply buildings beyond the base
-    # The base provides 10 supply. If supply_cap > 10, they have supply structures.
-    # In simplified mode, base provides 10, so only enforce when cap > 10
-    base_supply = 10  # starting supply from base
-    if supply_cap <= base_supply:
-        return True  # No dedicated supply buildings — don't block
-
-    return supply_used + supply_cost <= supply_cap or supply_used >= supply_cap
+    return supply_used + supply_cost <= supply_cap
 
 
 # ─── Race Detection ─────────────────────────────────────────
