@@ -1,10 +1,6 @@
-"""Command system — validates and applies player commands to entities.
+"""Command validation and application for SimCore entities.
 
-Command types: MOVE, STOP, ATTACK, PATROL, HOLD, GATHER, BUILD, TRAIN
-
-Each command is a dict with at minimum:
-  - action: str — one of the command type names
-  - issuer: int — player ID issuing the command
+Supports: move, stop, attack, patrol, hold, gather, build, train, research.
 """
 from __future__ import annotations
 
@@ -12,7 +8,6 @@ from typing import Any
 
 from simcore.map import TileMap
 from simcore.pathfinder import find_path
-
 
 # ─── Command Type Constants ────────────────────────────────
 
@@ -24,8 +19,9 @@ HOLD = "hold"
 GATHER = "gather"
 BUILD = "build"
 TRAIN = "train"
+RESEARCH = "research"
 
-ALL_COMMANDS = {MOVE, STOP, ATTACK, PATROL, HOLD, GATHER, BUILD, TRAIN}
+ALL_COMMANDS = {MOVE, STOP, ATTACK, PATROL, HOLD, GATHER, BUILD, TRAIN, RESEARCH}
 
 
 def validate_command(cmd: dict, entity: dict, state: Any) -> bool:
@@ -118,6 +114,16 @@ def validate_command(cmd: dict, entity: dict, state: Any) -> bool:
             return False
         return True
 
+    if action == RESEARCH:
+        if entity.get("entity_type") != "building":
+            return False
+        if entity.get("is_constructing", False):
+            return False
+        upgrade_name = cmd.get("upgrade_name", "")
+        if not upgrade_name:
+            return False
+        return True
+
     return False
 
 
@@ -148,7 +154,7 @@ def apply_command(
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
             path = find_path(start, end, tile_map, is_flying=is_flying,
-                              enable_elevation=enable_elevation)
+                             enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,
@@ -190,7 +196,7 @@ def apply_command(
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
             path = find_path(start, end, tile_map, is_flying=is_flying,
-                              enable_elevation=enable_elevation)
+                             enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,
@@ -239,7 +245,7 @@ def apply_command(
             end = tile_map.world_to_tile(tx, ty)
             is_flying = entity.get("is_flying", False)
             path = find_path(start, end, tile_map, is_flying=is_flying,
-                              enable_elevation=enable_elevation)
+                             enable_elevation=enable_elevation)
         return {
             **entity,
             "target_x": tx,
@@ -264,6 +270,20 @@ def apply_command(
             **entity,
             "production_queue": queue,
             "production_timers": timers,
+        }
+
+    if action == RESEARCH:
+        queue = list(entity.get("upgrade_queue", []))
+        timers = list(entity.get("upgrade_timers", []))
+        upgrade_name = cmd.get("upgrade_name", "")
+        from simcore.rules import RESEARCH_TICKS
+        ticks = RESEARCH_TICKS.get(upgrade_name, 80)
+        queue.append(upgrade_name)
+        timers.append(ticks)
+        return {
+            **entity,
+            "upgrade_queue": queue,
+            "upgrade_timers": timers,
         }
 
     # Unknown action — return unchanged

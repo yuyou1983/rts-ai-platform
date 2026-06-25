@@ -67,6 +67,49 @@ PRODUCTION_TICKS = {
     "Carrier": 30,
 }
 
+# Research/upgrade duration in sim ticks (SC1 time / 10, minimum 8)
+RESEARCH_TICKS: dict[str, int] = {
+    # Terran upgrades
+    "Infantry Weapons 1": 80, "Infantry Weapons 2": 100, "Infantry Weapons 3": 120,
+    "Infantry Armor 1": 80, "Infantry Armor 2": 100, "Infantry Armor 3": 120,
+    "Vehicle Weapons 1": 80, "Vehicle Weapons 2": 100, "Vehicle Weapons 3": 120,
+    "Vehicle Armor 1": 80, "Vehicle Armor 2": 100, "Vehicle Armor 3": 120,
+    "Ship Weapons 1": 80, "Ship Weapons 2": 100, "Ship Weapons 3": 120,
+    "Ship Armor 1": 80, "Ship Armor 2": 100, "Ship Armor 3": 120,
+    # Terran research
+    "U-238 Shells": 30, "StimPack Tech": 20, "Restoration": 30,
+    "Optical Flare": 20, "Caduceus Reactor": 20,
+    "Ion Thrusters": 20, "Spider Mines": 20, "Siege Tech": 20,
+    "Charon Boosters": 20,
+    "Cloaking Field": 20, "Apollo Reactor": 20,
+    "EMP Shockwave": 20, "Irradiate": 20, "Titan Reactor": 20,
+    "Lockdown": 20, "Personal Cloaking": 20, "Ocular Implants": 20,
+    "Moebius Reactor": 20, "Yamato Gun": 20, "Colossus Reactor": 20,
+    # Zerg upgrades
+    "Melee Attacks 1": 80, "Melee Attacks 2": 100, "Melee Attacks 3": 120,
+    "Missile Attacks 1": 80, "Missile Attacks 2": 100, "Missile Attacks 3": 120,
+    "Carapace 1": 80, "Carapace 2": 100, "Carapace 3": 120,
+    # Zerg research
+    "Burrow": 15, "Ventral Sacs": 20, "Antennas": 20,
+    "Pneumatized Carapace": 20, "Metabolic Boost": 20,
+    "Adrenal Glands": 20, "Muscular Augments": 20,
+    "Grooved Spines": 20, "Lurker Aspect": 20,
+    "Chitinous Plating": 20, "Anabolic Synthesis": 20,
+    "Gamete Meiosis": 20, "Metasynaptic Node": 20,
+    # Protoss upgrades
+    "Ground Weapons 1": 80, "Ground Weapons 2": 100, "Ground Weapons 3": 120,
+    "Ground Armor 1": 80, "Ground Armor 2": 100, "Ground Armor 3": 120,
+    "Plasma Shields 1": 80, "Plasma Shields 2": 100, "Plasma Shields 3": 120,
+    # Protoss research
+    "Singularity Charge": 20, "Leg Enhancements": 20,
+    "Gravitic Drive": 20, "Scarab Damage": 20,
+    "Gravitic Boosters": 20, "Sensor Array": 20,
+    "Gravitic Catapult": 20, "Apial Sensors": 20,
+    "Argus Jewel": 20, "Argus Talisman": 20,
+    "Khaydarin Amulet": 20, "Khaydarin Core": 20,
+    "Khaydarin Shield": 20,
+}
+
 # SC1 unit name → internal unit type
 UNIT_TYPE_ALIASES: dict[str, str] = {
     "SCV": "worker", "Drone": "worker", "Probe": "worker",

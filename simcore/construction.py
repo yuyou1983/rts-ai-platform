@@ -564,6 +564,10 @@ def process_construction(
                 race_cache[owner] = _detect_race(built, owner)
         return race_cache[owner]
 
+    # ─── Extract and remove transient meta-keys before processing ────
+    _saved_completed_ups = built.pop("__completed_upgrades__", None)
+    _saved_events = built.pop("__events__", None)
+
     # ─── 1. Process BUILD commands ──────────────────────────
     for cmd in commands:
         if cmd.get("action") != "build":
@@ -904,9 +908,10 @@ def process_construction(
 
     built.update(morph_entities)
 
-    # ─── 6. Process UPGRADE commands ─────────────────────────
+    # ─── 6. Process UPGRADE/RESEARCH commands ─────────────────────
     for cmd in commands:
-        if cmd.get("action") != "upgrade":
+        action = cmd.get("action", "")
+        if action not in ("upgrade", "research"):
             continue
         building_id = cmd.get("building_id", "") or cmd.get("entity_id", "")
         if building_id not in built:
@@ -978,7 +983,25 @@ def process_construction(
             # Apply upgrade globally: tag all relevant entities
             _apply_upgrade(built, owner, completed_upgrade)
 
-            built[eid] = {**e, "upgrade_queue": upgrade_queue, "upgrade_timers": upgrade_timers}
+            # Record completed upgrade in _saved_completed_ups
+            if _saved_completed_ups is None:
+                _saved_completed_ups = {}
+            owner_ups = list(_saved_completed_ups.get(str(owner), []))
+            owner_ups.append(completed_upgrade)
+            _saved_completed_ups[str(owner)] = owner_ups
+
+            # Emit RESEARCH_COMPLETED event
+            from simcore.events import make_event, RESEARCH_COMPLETED
+            if _saved_events is None:
+                _saved_events = []
+            _saved_events.append(
+                make_event(RESEARCH_COMPLETED, tick,
+                           upgrade_name=completed_upgrade,
+                           owner=owner,
+                           building_id=eid)
+            )
+
+            built[eid] = {**built.get(eid, e), "upgrade_queue": upgrade_queue, "upgrade_timers": upgrade_timers}
         else:
             built[eid] = {**e, "upgrade_timers": upgrade_timers}
 
@@ -1103,6 +1126,12 @@ def process_construction(
         else:
             built[eid] = {**e, "powered": True}
 
+    # ─── Restore meta-keys into built dict before returning ────
+    if _saved_completed_ups is not None:
+        built["__completed_upgrades__"] = _saved_completed_ups
+    if _saved_events is not None:
+        built["__events__"] = _saved_events
+
     return built, res
 
 
@@ -1132,7 +1161,13 @@ def _get_upgrade_level(entities: dict[str, Any], owner: int, upgrade_name: str) 
 
 
 def _apply_upgrade(entities: dict[str, Any], owner: int, upgrade_name: str) -> None:
-    """Apply an upgrade globally to all relevant entities of the player."""
+    """Apply an upgrade globally to all relevant entities of the player.
+
+    Handles three categories:
+    1. Weapon/armor upgrades: +1 per level to attack/armor stats
+    2. Research — property mods: range, speed, cooldown, etc.
+    3. Research — ability unlocks: tagged on entities for future use
+    """
     upgrade_data = _load_upgrade_data()
     udata = None
     for u in upgrade_data:
@@ -1145,50 +1180,249 @@ def _apply_upgrade(entities: dict[str, Any], owner: int, upgrade_name: str) -> N
     level = udata.get("level", 1)
     name = udata["name"]
 
-    # Apply weapon/armor upgrades
+    # ── Weapon/armor stat upgrades ──────────────────────────
+    # Terran
     if "Infantry Weapons" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit", "worker", "soldier", "scout"):
-                utype = e.get("unit_type", e.get("entity_type", ""))
-                if utype in ("Marine", "Ghost", "Firebat", "soldier", "Medic"):
-                    entities[eid] = {**e, "attack": e.get("attack", 0) + 1}
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Marine", "Ghost", "Firebat", "Medic"))
     elif "Infantry Armor" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit", "worker", "soldier", "scout"):
-                utype = e.get("unit_type", e.get("entity_type", ""))
-                if utype in ("Marine", "Ghost", "Firebat", "soldier", "Medic", "worker", "SCV"):
-                    entities[eid] = {**e, "armor": e.get("armor", 0) + 1}
+        _apply_stat(entities, owner, "armor", +1,
+                    unit_types=("Marine", "Ghost", "Firebat", "Medic", "SCV"))
     elif "Vehicle Weapons" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit",):
-                utype = e.get("unit_type", "")
-                if utype in ("Vulture", "Tank", "Goliath"):
-                    entities[eid] = {**e, "attack": e.get("attack", 0) + 1}
-    elif "Vehicle Armor" in name or "Vehicle Plating" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit",):
-                utype = e.get("unit_type", "")
-                if utype in ("Vulture", "Tank", "Goliath"):
-                    entities[eid] = {**e, "armor": e.get("armor", 0) + 1}
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Vulture", "Goliath", "Tank"))
+    elif "Vehicle Armor" in name:
+        _apply_stat(entities, owner, "armor", +1,
+                    unit_types=("Vulture", "Goliath", "Tank"))
     elif "Ship Weapons" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit",):
-                utype = e.get("unit_type", "")
-                if utype in ("Wraith", "BattleCruiser", "Valkyrie"):
-                    entities[eid] = {**e, "attack": e.get("attack", 0) + 1}
-    elif "Ship Armor" in name or "Ship Plating" in name:
-        for eid, e in entities.items():
-            if e.get("owner") == owner and e.get("entity_type") in ("unit",):
-                utype = e.get("unit_type", "")
-                if utype in ("Wraith", "BattleCruiser", "Valkyrie"):
-                    entities[eid] = {**e, "armor": e.get("armor", 0) + 1}
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Wraith", "BattleCruiser", "Valkyrie", "Vessel"))
+    elif "Ship Armor" in name:
+        _apply_stat(entities, owner, "armor", +1,
+                    unit_types=("Wraith", "BattleCruiser", "Valkyrie", "Vessel", "Dropship"))
 
-    # Tag the upgrade on all owned entities
+    # Zerg
+    elif "Melee Attacks" in name:
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Zergling", "Ultralisk", "Broodling"))
+    elif "Missile Attacks" in name:
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Hydralisk", "Mutalisk", "Guardian", "Devourer",
+                                "Queen", "Defiler", "Scourge", "InfestedTerran"))
+    elif "Carapace" in name and "Pneumatized" not in name:
+        _apply_stat(entities, owner, "armor", +1,
+                    unit_types=("Zergling", "Hydralisk", "Ultralisk", "Queen",
+                                "Defiler", "Mutalisk", "Guardian", "Devourer",
+                                "Scourge", "Broodling", "InfestedTerran", "Drone"))
+
+    # Protoss
+    elif "Ground Weapons" in name:
+        _apply_stat(entities, owner, "attack", +1,
+                    unit_types=("Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
+                                "Reaver", "Archon", "DarkArchon"))
+    elif "Ground Armor" in name:
+        _apply_stat(entities, owner, "armor", +1,
+                    unit_types=("Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
+                                "Reaver", "Shuttle", "Archon", "DarkArchon", "Probe"))
+    elif "Plasma Shields" in name:
+        # Shields affect ALL Protoss units and buildings
+        for eid, e in entities.items():
+            if e.get("owner") == owner:
+                if e.get("race") == "protoss" or e.get("unit_type", "") in (
+                    "Zealot", "Dragoon", "HighTemplar", "DarkTemplar",
+                    "Reaver", "Shuttle", "Observer", "Corsair", "Scout",
+                    "Carrier", "Arbiter", "Archon", "DarkArchon", "Probe",
+                ):
+                    entities[eid] = {**e, "shields": e.get("shields", 0) + 5}
+
+    # ── Research — property modifications ───────────────────
+    elif name == "U-238 Shells":
+        _apply_stat(entities, owner, "attack_range", 32,
+                    unit_types=("Marine",))
+    elif name == "StimPack Tech":
+        _apply_ability(entities, owner, "stimpack",
+                       unit_types=("Marine", "Firebat"))
+    elif name == "Siege Tech":
+        _apply_ability(entities, owner, "siege_mode",
+                       unit_types=("Tank",))
+    elif name == "Spider Mines":
+        _apply_stat(entities, owner, "spider_mines", 4,
+                    unit_types=("Vulture",))
+    elif name == "Ion Thrusters":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Vulture",))
+    elif name == "Charon Boosters":
+        _apply_stat(entities, owner, "attack_range", 64,
+                    unit_types=("Goliath",))
+    elif name == "Cloaking Field":
+        _apply_ability(entities, owner, "cloaking",
+                       unit_types=("Wraith",))
+    elif name == "Personal Cloaking":
+        _apply_ability(entities, owner, "cloaking",
+                       unit_types=("Ghost",))
+    elif name == "Yamato Gun":
+        _apply_ability(entities, owner, "yamato_gun",
+                       unit_types=("BattleCruiser",))
+    elif name == "EMP Shockwave":
+        _apply_ability(entities, owner, "emp",
+                       unit_types=("Vessel",))
+    elif name == "Irradiate":
+        _apply_ability(entities, owner, "irradiate",
+                       unit_types=("Vessel",))
+    elif name == "Lockdown":
+        _apply_ability(entities, owner, "lockdown",
+                       unit_types=("Ghost",))
+    elif name == "Restoration":
+        _apply_ability(entities, owner, "restoration",
+                       unit_types=("Medic",))
+    elif name == "Optical Flare":
+        _apply_ability(entities, owner, "optical_flare",
+                       unit_types=("Medic",))
+    elif name == "Caduceus Reactor":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Medic",))
+    elif name == "Moebius Reactor":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Ghost",))
+    elif name == "Apollo Reactor":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Vessel",))
+    elif name == "Titan Reactor":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Vessel",))
+    elif name == "Colossus Reactor":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("BattleCruiser",))
+    elif name == "Ocular Implants":
+        _apply_stat(entities, owner, "sight", 32,
+                    unit_types=("Ghost",))
+    # Zerg research
+    elif name == "Burrow":
+        _apply_ability(entities, owner, "burrow",
+                       unit_types=("Drone", "Zergling", "Hydralisk", "Ultralisk",
+                                    "Defiler", "Queen"))
+    elif name == "Ventral Sacs":
+        _apply_ability(entities, owner, "transport",
+                       unit_types=("Overlord",))
+    elif name == "Antennas":
+        _apply_stat(entities, owner, "sight", 32,
+                    unit_types=("Overlord",))
+    elif name == "Pneumatized Carapace":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Overlord",))
+    elif name == "Metabolic Boost":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Zergling",))
+    elif name == "Adrenal Glands":
+        _apply_stat(entities, owner, "attack_speed", -2,
+                    unit_types=("Zergling",))
+    elif name == "Muscular Augments":
+        _apply_stat(entities, owner, "speed", 0.3,
+                    unit_types=("Hydralisk",))
+    elif name == "Grooved Spines":
+        _apply_stat(entities, owner, "attack_range", 32,
+                    unit_types=("Hydralisk",))
+    elif name == "Lurker Aspect":
+        _apply_ability(entities, owner, "lurker_morph",
+                       unit_types=("Hydralisk",))
+    elif name == "Chitinous Plating":
+        _apply_stat(entities, owner, "armor", 2,
+                    unit_types=("Ultralisk",))
+    elif name == "Anabolic Synthesis":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Ultralisk",))
+    elif name == "Gamete Meiosis":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Queen",))
+    elif name == "Metasynaptic Node":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Defiler",))
+    # Protoss research
+    elif name == "Singularity Charge":
+        _apply_stat(entities, owner, "attack_range", 64,
+                    unit_types=("Dragoon",))
+    elif name == "Leg Enhancements":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Zealot",))
+    elif name == "Gravitic Drive":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Shuttle",))
+    elif name == "Scarab Damage":
+        _apply_stat(entities, owner, "attack", 25,
+                    unit_types=("Reaver",))
+    elif name == "Gravitic Boosters":
+        _apply_stat(entities, owner, "speed", 0.5,
+                    unit_types=("Observer",))
+    elif name == "Sensor Array":
+        _apply_stat(entities, owner, "sight", 40,
+                    unit_types=("Observer",))
+    elif name == "Gravitic Catapult":
+        _apply_stat(entities, owner, "attack_range", 64,
+                    unit_types=("Carrier",))
+    elif name == "Apial Sensors":
+        _apply_stat(entities, owner, "sight", 32,
+                    unit_types=("Scout",))
+    elif name == "Argus Jewel":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Corsair",))
+    elif name == "Argus Talisman":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("DarkTemplar",))
+    elif name == "Khaydarin Amulet":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("HighTemplar",))
+    elif name == "Khaydarin Core":
+        _apply_stat(entities, owner, "energy_bonus", 50,
+                    unit_types=("Arbiter",))
+    elif name == "Khaydarin Shield":
+        _apply_stat(entities, owner, "shield_regen", 1,
+                    unit_types=("Arbiter",))
+
+    # Tag the upgrade on all owned entities (for prerequisite tracking)
     for eid, e in entities.items():
         if e.get("owner") == owner:
             ups = dict(e.get("upgrades", {}))
             ups[name] = ups.get(name, 0) + 1
             entities[eid] = {**e, "upgrades": ups}
+
+
+def _apply_stat(
+    entities: dict[str, Any],
+    owner: int,
+    stat: str,
+    value: int | float,
+    *,
+    unit_types: tuple[str, ...],
+) -> None:
+    """Add *value* to *stat* on all owned units matching *unit_types*."""
+    for eid, e in entities.items():
+        if e.get("owner") != owner:
+            continue
+        utype = e.get("unit_type", e.get("entity_type", ""))
+        if utype not in unit_types:
+            continue
+        old = e.get(stat, 0)
+        entities[eid] = {**e, stat: old + value}
+
+
+def _apply_ability(
+    entities: dict[str, Any],
+    owner: int,
+    ability: str,
+    *,
+    unit_types: tuple[str, ...],
+) -> None:
+    """Tag *ability* as unlocked on all owned units matching *unit_types*."""
+    for eid, e in entities.items():
+        if e.get("owner") != owner:
+            continue
+        utype = e.get("unit_type", e.get("entity_type", ""))
+        if utype not in unit_types:
+            continue
+        abils = list(e.get("abilities", []))
+        if ability not in abils:
+            abils.append(ability)
+        entities[eid] = {**e, "abilities": abils}
 
 
 # ─── Convenience: Full Construction Pipeline ──────────────────

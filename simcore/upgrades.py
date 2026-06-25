@@ -7,6 +7,7 @@ Upgrade groups:
   - Zerg Melee/Missile/Carapace
   - Protoss Ground Weapons/Armor/Shields
   - Protoss Air Weapons/Armor/Shields
+  - Research upgrades: stat mods (range, speed, cooldown) and ability unlocks
 """
 from __future__ import annotations
 
@@ -131,6 +132,62 @@ _UPGRADE_EFFECTS: list[dict[str, Any]] = [
     },
 ]
 
+# ─── Research Effects: stat modifications and ability unlocks ─
+
+# Maps research name → list of {stat, value, units} or {ability, units}
+_RESEARCH_EFFECTS: dict[str, list[dict[str, Any]]] = {
+    # Terran
+    "U-238 Shells": [{"stat": "attack_range", "value": 32, "units": ["Marine"]}],
+    "StimPack Tech": [{"ability": "stimpack", "units": ["Marine", "Firebat"]}],
+    "Siege Tech": [{"ability": "siege_mode", "units": ["Tank"]}],
+    "Spider Mines": [{"stat": "spider_mines", "value": 4, "units": ["Vulture"]}],
+    "Ion Thrusters": [{"stat": "speed", "value": 0.5, "units": ["Vulture"]}],
+    "Charon Boosters": [{"stat": "attack_range", "value": 64, "units": ["Goliath"]}],
+    "Cloaking Field": [{"ability": "cloaking", "units": ["Wraith"]}],
+    "Personal Cloaking": [{"ability": "cloaking", "units": ["Ghost"]}],
+    "Yamato Gun": [{"ability": "yamato_gun", "units": ["BattleCruiser"]}],
+    "EMP Shockwave": [{"ability": "emp", "units": ["Vessel"]}],
+    "Irradiate": [{"ability": "irradiate", "units": ["Vessel"]}],
+    "Lockdown": [{"ability": "lockdown", "units": ["Ghost"]}],
+    "Restoration": [{"ability": "restoration", "units": ["Medic"]}],
+    "Optical Flare": [{"ability": "optical_flare", "units": ["Medic"]}],
+    "Caduceus Reactor": [{"stat": "energy_bonus", "value": 50, "units": ["Medic"]}],
+    "Moebius Reactor": [{"stat": "energy_bonus", "value": 50, "units": ["Ghost"]}],
+    "Apollo Reactor": [{"stat": "energy_bonus", "value": 50, "units": ["Vessel"]}],
+    "Titan Reactor": [{"stat": "energy_bonus", "value": 50, "units": ["Vessel"]}],
+    "Colossus Reactor": [{"stat": "energy_bonus", "value": 50, "units": ["BattleCruiser"]}],
+    "Ocular Implants": [{"stat": "sight", "value": 32, "units": ["Ghost"]}],
+    # Zerg
+    "Burrow": [{"ability": "burrow", "units": ["Drone", "Zergling", "Hydralisk",
+                                                  "Ultralisk", "Defiler", "Queen"]}],
+    "Ventral Sacs": [{"ability": "transport", "units": ["Overlord"]}],
+    "Antennas": [{"stat": "sight", "value": 32, "units": ["Overlord"]}],
+    "Pneumatized Carapace": [{"stat": "speed", "value": 0.5, "units": ["Overlord"]}],
+    "Metabolic Boost": [{"stat": "speed", "value": 0.5, "units": ["Zergling"]}],
+    "Adrenal Glands": [{"stat": "attack_speed", "value": -2, "units": ["Zergling"]}],
+    "Muscular Augments": [{"stat": "speed", "value": 0.3, "units": ["Hydralisk"]}],
+    "Grooved Spines": [{"stat": "attack_range", "value": 32, "units": ["Hydralisk"]}],
+    "Lurker Aspect": [{"ability": "lurker_morph", "units": ["Hydralisk"]}],
+    "Chitinous Plating": [{"stat": "armor", "value": 2, "units": ["Ultralisk"]}],
+    "Anabolic Synthesis": [{"stat": "speed", "value": 0.5, "units": ["Ultralisk"]}],
+    "Gamete Meiosis": [{"stat": "energy_bonus", "value": 50, "units": ["Queen"]}],
+    "Metasynaptic Node": [{"stat": "energy_bonus", "value": 50, "units": ["Defiler"]}],
+    # Protoss
+    "Singularity Charge": [{"stat": "attack_range", "value": 64, "units": ["Dragoon"]}],
+    "Leg Enhancements": [{"stat": "speed", "value": 0.5, "units": ["Zealot"]}],
+    "Gravitic Drive": [{"stat": "speed", "value": 0.5, "units": ["Shuttle"]}],
+    "Scarab Damage": [{"stat": "attack", "value": 25, "units": ["Reaver"]}],
+    "Gravitic Boosters": [{"stat": "speed", "value": 0.5, "units": ["Observer"]}],
+    "Sensor Array": [{"stat": "sight", "value": 40, "units": ["Observer"]}],
+    "Gravitic Catapult": [{"stat": "attack_range", "value": 64, "units": ["Carrier"]}],
+    "Apial Sensors": [{"stat": "sight", "value": 32, "units": ["Scout"]}],
+    "Argus Jewel": [{"stat": "energy_bonus", "value": 50, "units": ["Corsair"]}],
+    "Argus Talisman": [{"stat": "energy_bonus", "value": 50, "units": ["DarkTemplar"]}],
+    "Khaydarin Amulet": [{"stat": "energy_bonus", "value": 50, "units": ["HighTemplar"]}],
+    "Khaydarin Core": [{"stat": "energy_bonus", "value": 50, "units": ["Arbiter"]}],
+    "Khaydarin Shield": [{"stat": "shield_regen", "value": 1, "units": ["Arbiter"]}],
+}
+
 
 def _get_upgrade_levels(completed_upgrades: list[str]) -> dict[str, int]:
     """Parse completed upgrade names into a dict of {upgrade_base_name: level}."""
@@ -171,6 +228,11 @@ def apply_upgrade_effects(
 ) -> dict[str, Any]:
     """Modify unit stats based on completed upgrades.
 
+    Handles three categories:
+    1. Weapon/armor upgrades: +1 per level to attack/armor stats
+    2. Research — property mods: range, speed, cooldown, etc.
+    3. Research — ability unlocks: tagged on entities for future use
+
     Args:
         entities: Current game entities dict.
         completed_upgrades: List of completed upgrade names.
@@ -185,6 +247,9 @@ def apply_upgrade_effects(
     levels = _get_upgrade_levels(completed_upgrades)
 
     for eid, e in list(result.items()):
+        # Skip meta-entries
+        if eid.startswith("__"):
+            continue
         # Only apply to units (not buildings, resources, effects)
         etype = e.get("entity_type", "")
         if etype not in ("worker", "soldier", "scout", "unit"):
@@ -193,6 +258,7 @@ def apply_upgrade_effects(
         updates: dict[str, Any] = {}
         utype = e.get("unit_type", etype)
 
+        # ── 1. Weapon/armor stat upgrades ──
         for effect in _UPGRADE_EFFECTS:
             pattern = effect["pattern"]
             level = levels.get(pattern, 0)
@@ -230,12 +296,30 @@ def apply_upgrade_effects(
             elif stat == "shield_armor":
                 updates["shield_armor_bonus"] = total_bonus
 
+        # ── 2. Research property modifications and ability unlocks ──
+        # Check each completed upgrade against _RESEARCH_EFFECTS
+        for upgrade_name in completed_upgrades:
+            effects = _RESEARCH_EFFECTS.get(upgrade_name, [])
+            for rfx in effects:
+                if utype not in rfx.get("units", []):
+                    continue
+                if "stat" in rfx:
+                    stat = rfx["stat"]
+                    old_val = updates.get(stat, e.get(stat, 0))
+                    updates[stat] = old_val + rfx["value"]
+                if "ability" in rfx:
+                    abils = list(updates.get("abilities", e.get("abilities", [])))
+                    ability = rfx["ability"]
+                    if ability not in abils:
+                        abils.append(ability)
+                    updates["abilities"] = abils
+
         if updates:
             # Store base stats if not already stored
             if "base_attack" not in e:
-                updates["base_attack"] = e.get("attack", 0)
+                updates.setdefault("base_attack", e.get("attack", 0))
             if "base_armor" not in e:
-                updates["base_armor"] = e.get("armor", 0)
+                updates.setdefault("base_armor", e.get("armor", 0))
             result[eid] = {**e, **updates}
 
     return result

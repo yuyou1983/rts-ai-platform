@@ -47,7 +47,7 @@ from simcore.state import GameState
 from simcore.order import Order, OrderQueue
 from simcore.events import (
     UNIT_CREATED, UNIT_DESTROYED, BUILDING_COMPLETED,
-    RESOURCE_DEPLETED, COMBAT_HIT, make_event,
+    RESOURCE_DEPLETED, COMBAT_HIT, RESEARCH_COMPLETED, make_event,
 )
 from simcore.replay import ReplayV2
 
@@ -413,10 +413,16 @@ class SimCore:
                                    resource_id=eid)
                     )
 
-        # ── 8. Construction (detect BUILDING_COMPLETED) ───────
+        # ── 8. Construction (detect BUILDING_COMPLETED + RESEARCH_COMPLETED) ───────
         pre_construction_entities = {eid: dict(e) for eid, e in entities.items()}
         entities, resources = new_process_construction(entities, resources, other_cmds, self._tick, player_races=self._player_races)
+        # Always clean up transient pipeline meta-keys
+        pipeline_events = entities.pop("__events__", [])
         if self.enable_event_log:
+            for ev in pipeline_events:
+                if ev.get("type") == RESEARCH_COMPLETED:
+                    events_this_tick.append(ev)
+
             for eid, post_e in entities.items():
                 pre_e = pre_construction_entities.get(eid)
                 if pre_e is None:
@@ -434,7 +440,9 @@ class SimCore:
         entities = process_projectiles(entities, self._tick)
 
         # 11. Apply upgrade effects (from completed upgrades)
-        completed_upgrades = self._state.entities.get("__completed_upgrades__", {})
+        # Read __completed_upgrades__ that may have been written by construction.py section 7
+        completed_upgrades = entities.get("__completed_upgrades__",
+                         self._state.entities.get("__completed_upgrades__", {}))
         upgrade_list = []
         if isinstance(completed_upgrades, dict):
             for owner, upg_list in completed_upgrades.items():

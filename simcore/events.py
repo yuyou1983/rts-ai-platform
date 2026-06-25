@@ -13,6 +13,7 @@ BUILDING_COMPLETED = "building_completed"
 RESOURCE_DEPLETED = "resource_depleted"
 COMBAT_HIT = "combat_hit"
 ORDER_COMPLETED = "order_completed"
+RESEARCH_COMPLETED = "research_completed"
 
 
 def make_event(event_type: str, tick: int, **data) -> dict:
