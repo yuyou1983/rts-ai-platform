@@ -142,6 +142,30 @@ _WEAPON_TYPE_MAP: dict[str, int] = {
     "melee": 2,       # WAVE → 100% to all (melee does full damage)
 }
 
+# ─── Splash Damage Profiles (SC1 rules) ──────────────────────
+# Each profile defines: inner/mid/outer radius (game units) and damage fraction.
+# Siege Tank: 100%/50%/25% at 0.5/0.8/1.2 map-tile radii
+# Firebat:    100%/50%/25% at 0.5/1.0/1.5 (flame cone, approximated as radial)
+# Lurker:    100%/50%/25% at 0.5/1.0/2.0 (line attack, approximated as radial)
+# Reaver:    100%/50%/25% at 0.5/1.0/1.5 (scarab explosion)
+_SPLASH_PROFILES: dict[str, dict] = {
+    "SiegeTank": {"inner_r": 0.5, "mid_r": 0.8, "outer_r": 1.2,
+                  "inner_frac": 1.0, "mid_frac": 0.5, "outer_frac": 0.25,
+                  "friendly_fire": True, "shape": "radial"},
+    "Firebat": {"inner_r": 0.5, "mid_r": 1.0, "outer_r": 1.5,
+                "inner_frac": 1.0, "mid_frac": 0.5, "outer_frac": 0.25,
+                "friendly_fire": True, "shape": "radial"},
+    "Lurker": {"inner_r": 0.5, "mid_r": 1.0, "outer_r": 2.0,
+               "inner_frac": 1.0, "mid_frac": 0.5, "outer_frac": 0.25,
+               "friendly_fire": False, "shape": "line"},
+    "Reaver": {"inner_r": 0.5, "mid_r": 1.0, "outer_r": 1.5,
+               "inner_frac": 1.0, "mid_frac": 0.5, "outer_frac": 0.25,
+               "friendly_fire": True, "shape": "radial"},
+}
+
+# Map tile size in game units (for splash radius conversion)
+_MAP_TILE_SIZE = 32.0
+
 # Armor type to unit type index mapping (from data/combat.json unitTypes)
 _ARMOR_TYPE_MAP: dict[str, int] = {
     "light": 0,   # SMALL
@@ -241,6 +265,116 @@ def get_armor_type(entity: dict[str, Any]) -> str:
         return "light"
 
     return "medium"
+
+
+def _get_splash_profile(entity: dict[str, Any]) -> dict | None:
+    """Return splash profile for entity if it has splash capability."""
+    ut = entity.get("unit_type", "")
+    # Siege Tank only splashes in siege mode
+    if ut == "SiegeTank" and entity.get("siege_mode"):
+        return _SPLASH_PROFILES.get("SiegeTank")
+    # Others always splash when they fire
+    if ut in ("Firebat", "Lurker", "Reaver"):
+        return _SPLASH_PROFILES.get(ut)
+    # Also check lowercase aliases from units.json
+    ut_lower = ut.lower() if ut else ""
+    if ut_lower == "firebat":
+        return _SPLASH_PROFILES.get("Firebat")
+    if ut_lower == "lurker":
+        return _SPLASH_PROFILES.get("Lurker")
+    if ut_lower == "reaver":
+        return _SPLASH_PROFILES.get("Reaver")
+    return None
+
+
+def _apply_splash(
+    fought: dict[str, Any],
+    attacker_id: str,
+    attacker: dict[str, Any],
+    target_id: str,
+    base_dmg: float,
+    weapon_type: str,
+    tick: int,
+    to_remove: set[str],
+    kill_feed: "KillFeed",
+) -> None:
+    """Apply splash damage to entities near the primary target.
+
+    SC1 splash rules:
+    - Siege Tank/Reaver/Firebat: 100% inner, 50% mid, 25% outer, friendly fire ON
+    - Lurker: 100%/50%/25% but NO friendly fire (allies immune)
+    """
+    profile = _get_splash_profile(attacker)
+    if profile is None:
+        return
+
+    # Splash center is the primary target's position
+    cx = fought[target_id].get("pos_x", 0)
+    cy = fought[target_id].get("pos_y", 0)
+    attacker_owner = attacker.get("owner", 0)
+
+    for eid, ent in list(fought.items()):
+        # Skip primary target (already damaged), dead, and resources
+        if eid == target_id or eid in to_remove:
+            continue
+        if ent.get("entity_type") == "resource":
+            continue
+        if ent.get("health", 0) <= 0:
+            continue
+
+        # Friendly fire check
+        ent_owner = ent.get("owner", 0)
+        if ent_owner == attacker_owner and not profile["friendly_fire"]:
+            continue
+
+        # Distance from splash center
+        ex = ent.get("pos_x", 0)
+        ey = ent.get("pos_y", 0)
+        dist = math.hypot(ex - cx, ey - cy)
+        # Convert tile-based radius to game-unit distance
+        inner_r = profile["inner_r"] * _MAP_TILE_SIZE
+        mid_r = profile["mid_r"] * _MAP_TILE_SIZE
+        outer_r = profile["outer_r"] * _MAP_TILE_SIZE
+
+        if dist > outer_r:
+            continue
+
+        # Determine damage fraction based on distance zone
+        if dist <= inner_r:
+            frac = profile["inner_frac"]
+        elif dist <= mid_r:
+            frac = profile["mid_frac"]
+        else:
+            frac = profile["outer_frac"]
+
+        splash_dmg = base_dmg * frac
+        # Recalculate for each target's armor
+        target_armor = ent.get("armor", 0)
+        target_armor_type = get_armor_type(ent)
+        splash_dmg = calculate_damage(splash_dmg, weapon_type, target_armor, target_armor_type)
+
+        # Apply shield-then-health
+        ent_latest = fought.get(eid, ent)
+        shield = ent_latest.get("shields", ent_latest.get("shield", 0))
+        if shield > 0:
+            shield_dmg = min(shield, splash_dmg)
+            health_dmg = splash_dmg - shield_dmg
+            new_shield = shield - shield_dmg
+            new_health = ent_latest["health"] - health_dmg
+            fought[eid] = {**ent_latest, "health": new_health, "shields": new_shield,
+                           "last_hit_tick": tick}
+        else:
+            new_health = ent_latest["health"] - splash_dmg
+            fought[eid] = {**ent_latest, "health": new_health}
+
+        kill_feed.record_damage(attacker_owner, splash_dmg)
+        if new_health <= 0:
+            to_remove.add(eid)
+            kill_feed.record_kill(attacker_owner, ent_owner)
+            # Clear units targeting the newly dead entity
+            for uid2, e2 in list(fought.items()):
+                if e2.get("attack_target_id") == eid:
+                    fought[uid2] = {**fought.get(uid2, e2), "attack_target_id": "", "is_idle": True}
 
 
 # ─── Combat Kill Tracking ───────────────────────────────────
@@ -578,6 +712,10 @@ def resolve_combat(
                         if e2.get("attack_target_id") == tid:
                             fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
 
+                # ── Splash damage ──
+                _apply_splash(fought, uid, e, tid, base_dmg, weapon_type,
+                              tick, to_remove, kill_feed)
+
             # Reset cooldown timer after attack attempt (hit or miss)
             fought[uid] = {**fought[uid], "cooldown_timer": 0}
         else:
@@ -689,6 +827,10 @@ def resolve_combat(
                     if new_health <= 0:
                         to_remove.add(best_target)
                         kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+
+                    # ── Splash damage ──
+                    _apply_splash(fought, eid, e, best_target, base_dmg, weapon_type,
+                                  tick, to_remove, kill_feed)
 
                 # Reset cooldown after auto-attack attempt
                 fought[eid] = {**fought.get(eid, e), "cooldown_timer": 0}
