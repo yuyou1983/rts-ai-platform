@@ -274,6 +274,11 @@ def _build_unit_entity(
         "attack_target_id": "",
         "deposit_pending": False,
         "is_flying": domain == "air",
+        # Transport fields (for Dropship, Shuttle, Overlord, Bunker)
+        "is_transport": utype in ("Dropship", "Shuttle", "Overlord"),
+        "loaded_units": [],
+        "cargo_capacity": 8 if utype in ("Dropship", "Shuttle", "Overlord") else 0,
+        "cargo_used": 0,
     }
 
     return unit

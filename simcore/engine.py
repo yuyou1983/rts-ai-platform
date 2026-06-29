@@ -42,6 +42,7 @@ from simcore.construction import (
 )
 from simcore.projectile import process_projectiles
 from simcore.spells import process_spells, regen_energy
+from simcore.transport import process_transport
 from simcore.upgrades import apply_upgrade_effects
 from simcore.state import GameState
 from simcore.order import Order, OrderQueue
@@ -382,6 +383,18 @@ class SimCore:
                             make_event(UNIT_DESTROYED, self._tick,
                                        unit_id=eid, killer_id=attacker_id)
                         )
+
+        # ── 6b. Transport load/unload ──────────────────────
+        transport_cmds = [c for c in valid if c.get("action") in ("load", "unload")]
+        if transport_cmds:
+            entities, resources = process_transport(
+                entities, resources, transport_cmds, self._tick)
+
+        # ── 6c. Process spells ─────────────────────────────
+        spell_cmds = [c for c in valid if c.get("action") == "spell"]
+        if spell_cmds:
+            entities, resources = process_spells(
+                entities, resources, spell_cmds, self._tick)
 
         # ── 7. Gathering (detect RESOURCE_DEPLETED) ────────────
         pre_gather_entities = {eid: dict(e) for eid, e in entities.items()}

@@ -13,6 +13,7 @@ from simcore.commands import (
 )
 from simcore.projectile import process_projectiles, create_projectile
 from simcore.spells import process_spells, regen_energy
+from simcore.transport import process_transport
 from simcore.upgrades import apply_upgrade_effects
 
 from simcore.order import Order, OrderQueue
@@ -49,6 +50,7 @@ __all__ = [
     "create_projectile",
     "process_spells",
     "regen_energy",
+    "process_transport",
     "apply_upgrade_effects",
     "fnv1a_64",
     "Order",
