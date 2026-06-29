@@ -21,6 +21,40 @@ from simcore.state import GameState
 # ─── Constants ───────────────────────────────────────────────
 
 ENERGY_REGEN_RATE = 0.75  # per tick
+_MAP_TILE_SIZE = 32.0      # game-units per tile
+
+
+def _find_merge_partner(
+    entities: dict[str, Any],
+    caster_id: str,
+    owner: int,
+    unit_type: str,
+    radius: float,
+    *,
+    exclude: set[str] | None = None,
+) -> str | None:
+    """Find nearest same-owner unit of *unit_type* within *radius* of caster."""
+    if exclude is None:
+        exclude = set()
+    caster = entities.get(caster_id, {})
+    cx, cy = caster.get("pos_x", 0), caster.get("pos_y", 0)
+    best_id: str | None = None
+    best_dist = radius + 1
+    for eid, e in entities.items():
+        if eid == caster_id or eid in exclude:
+            continue
+        if e.get("owner") != owner:
+            continue
+        ut = e.get("unit_type", "")
+        if ut.lower().replace(" ", "") != unit_type.lower().replace(" ", ""):
+            continue
+        dx = e.get("pos_x", 0) - cx
+        dy = e.get("pos_y", 0) - cy
+        d = math.hypot(dx, dy)
+        if d <= radius and d < best_dist:
+            best_dist = d
+            best_id = eid
+    return best_id
 
 # ─── Data Loading ────────────────────────────────────────────
 
@@ -79,6 +113,13 @@ SPELL_CATEGORIES: dict[str, str] = {
     "stasisfield": "AREA",
     "archonwarp": "SUMMON",
     "disruptionweb": "AREA",
+    # Zerg morph
+    "lurker_morph": "TRANSFORM",
+    "guardian_morph": "TRANSFORM",
+    "devourer_morph": "TRANSFORM",
+    # Protoss merge
+    "meld": "SUMMON",
+    "darkmeld": "SUMMON",
 }
 
 # Spell effects configuration: cost, cooldown (ticks), duration (ticks), radius for AOE
@@ -111,6 +152,13 @@ SPELL_CONFIG: dict[str, dict] = {
     "stasisfield":     {"cost_mp": 100,"cooldown": 0,  "duration": 120, "radius": 5.0, "damage": 0},
     "archonwarp":      {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0},
     "disruptionweb":   {"cost_mp": 125,"cooldown": 0,  "duration": 90,  "radius": 5.0, "damage": 0},
+    # Zerg morph (timed transformation — morph_timer in ticks)
+    "lurker_morph":    {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0, "morph_ticks": 200},
+    "guardian_morph":  {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0, "morph_ticks": 150},
+    "devourer_morph":  {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0, "morph_ticks": 150},
+    # Protoss merge
+    "meld":           {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 3.0, "damage": 0, "merge_ticks": 120},
+    "darkmeld":       {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 3.0, "damage": 0, "merge_ticks": 120},
 }
 
 # ─── Energy Regeneration ─────────────────────────────────────
@@ -313,6 +361,24 @@ def process_spells(
                 result[caster_id] = {**caster, **updates}
             elif spell_name == "unburrow":
                 updates["burrowed"] = False
+                result[caster_id] = {**caster, **updates}
+            # ─── Zerg morph (timed) ────────────────────────────
+            elif spell_name in ("lurker_morph", "guardian_morph", "devourer_morph"):
+                morph_target = {
+                    "lurker_morph": "Lurker",
+                    "guardian_morph": "Guardian",
+                    "devourer_morph": "Devourer",
+                }[spell_name]
+                morph_ticks = config.get("morph_ticks", 150)
+                updates["morph_target"] = morph_target
+                updates["morph_timer"] = morph_ticks
+                updates["morphing"] = True
+                updates["is_idle"] = True
+                updates["attack_target_id"] = ""
+                # Freeze combat stats while morphing
+                updates["attack_ground"] = 0
+                updates["attack_air"] = 0
+                updates["speed"] = 0
                 result[caster_id] = {**caster, **updates}
 
         # ─── TARGETED ─────────────────────────────────────
@@ -561,7 +627,7 @@ def process_spells(
                 result[caster_id] = {**caster, **updates}
 
             elif spell_name == "archonwarp":
-                # Create an Archon at caster's location
+                # Create an Archon at caster's location (legacy — free Archon)
                 aid = f"archon_{tick}_{caster_id}"
                 new_entities[aid] = {
                     "id": aid,
@@ -572,11 +638,23 @@ def process_spells(
                     "pos_y": caster["pos_y"],
                     "health": 10,
                     "max_health": 10,
-                    "shield": 350,
-                    "max_shield": 350,
+                    "shields": 350,
+                    "max_shields": 350,
                     "speed": 2.0,
                     "attack": 30,
+                    "attack_ground": 30,
+                    "attack_air": 30,
+                    "weapon_type_ground": "normal",
+                    "weapon_type_air": "normal",
                     "attack_range": 2.0,
+                    "attack_range_ground": 2.0,
+                    "attack_range_air": 2.0,
+                    "cooldown_ground": 20,
+                    "cooldown_air": 20,
+                    "cooldown_timer": 20,
+                    "armor": 0,
+                    "armor_type": "heavy",
+                    "domain": "ground",
                     "is_idle": True,
                     "carry_amount": 0,
                     "carry_capacity": 0,
@@ -588,6 +666,117 @@ def process_spells(
                     "buffs": [],
                 }
                 result[caster_id] = {**caster, **updates}
+
+            elif spell_name == "meld":
+                # Merge 2 Templars into Archon: find nearby Templar of same owner
+                merge_radius = config.get("radius", 3.0) * _MAP_TILE_SIZE
+                merge_ticks = config.get("merge_ticks", 120)
+                partner_id = _find_merge_partner(result, caster_id, owner, "Templar",
+                                                  merge_radius, exclude=to_remove)
+                if partner_id:
+                    # Remove both templars, spawn morphing Archon cocoon
+                    to_remove.add(caster_id)
+                    to_remove.add(partner_id)
+                    # Combined shields = sum of both templars' HP+shields
+                    t1 = result[caster_id]
+                    t2 = result[partner_id]
+                    combined_shields = (t1.get("health", 0) + t1.get("shields", 0)
+                                       + t2.get("health", 0) + t2.get("shields", 0))
+                    combined_shields = min(combined_shields, 350)  # cap at Archon max
+                    aid = f"archon_meld_{tick}_{caster_id}"
+                    new_entities[aid] = {
+                        "id": aid,
+                        "owner": owner,
+                        "entity_type": "unit",
+                        "unit_type": "Archon",
+                        "pos_x": t1["pos_x"],
+                        "pos_y": t1["pos_y"],
+                        "health": 10,
+                        "max_health": 10,
+                        "shields": combined_shields,
+                        "max_shields": 350,
+                        "speed": 0,
+                        "attack_ground": 0,
+                        "attack_air": 0,
+                        "weapon_type_ground": "normal",
+                        "weapon_type_air": "normal",
+                        "attack_range_ground": 2.0,
+                        "attack_range_air": 2.0,
+                        "cooldown_ground": 20,
+                        "cooldown_air": 20,
+                        "cooldown_timer": 20,
+                        "armor": 0,
+                        "armor_type": "heavy",
+                        "domain": "ground",
+                        "is_idle": True,
+                        "carry_amount": 0,
+                        "carry_capacity": 0,
+                        "target_x": None,
+                        "target_y": None,
+                        "returning_to_base": False,
+                        "attack_target_id": "",
+                        "deposit_pending": False,
+                        "buffs": [],
+                        # Morph state — will be activated by construction.py morph processor
+                        "morphing": True,
+                        "morph_target": "Archon",
+                        "morph_timer": merge_ticks,
+                    }
+
+            elif spell_name == "darkmeld":
+                # Merge 2 Dark Templars into Dark Archon
+                merge_radius = config.get("radius", 3.0) * _MAP_TILE_SIZE
+                merge_ticks = config.get("merge_ticks", 120)
+                partner_id = _find_merge_partner(result, caster_id, owner, "DarkTemplar",
+                                                  merge_radius, exclude=to_remove)
+                if partner_id:
+                    to_remove.add(caster_id)
+                    to_remove.add(partner_id)
+                    t1 = result[caster_id]
+                    t2 = result[partner_id]
+                    combined_shields = (t1.get("health", 0) + t1.get("shields", 0)
+                                       + t2.get("health", 0) + t2.get("shields", 0))
+                    combined_shields = min(combined_shields, 200)
+                    daid = f"darkarchon_meld_{tick}_{caster_id}"
+                    new_entities[daid] = {
+                        "id": daid,
+                        "owner": owner,
+                        "entity_type": "unit",
+                        "unit_type": "DarkArchon",
+                        "pos_x": t1["pos_x"],
+                        "pos_y": t1["pos_y"],
+                        "health": 25,
+                        "max_health": 25,
+                        "shields": combined_shields,
+                        "max_shields": 200,
+                        "speed": 0,
+                        "attack_ground": 0,
+                        "attack_air": 0,
+                        "weapon_type_ground": "none",
+                        "weapon_type_air": "none",
+                        "attack_range_ground": 0,
+                        "attack_range_air": 0,
+                        "cooldown_ground": 0,
+                        "cooldown_air": 0,
+                        "cooldown_timer": 0,
+                        "armor": 1,
+                        "armor_type": "heavy",
+                        "domain": "ground",
+                        "is_spellcaster": True,
+                        "energy": 50,
+                        "is_idle": True,
+                        "carry_amount": 0,
+                        "carry_capacity": 0,
+                        "target_x": None,
+                        "target_y": None,
+                        "returning_to_base": False,
+                        "attack_target_id": "",
+                        "deposit_pending": False,
+                        "buffs": [],
+                        "morphing": True,
+                        "morph_target": "DarkArchon",
+                        "morph_timer": merge_ticks,
+                    }
 
     # Process active storm/darkswarm effects
     for eid, e in list(result.items()):

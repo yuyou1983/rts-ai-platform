@@ -872,34 +872,35 @@ def process_construction(
 
     built.update(spawn_entities)
 
-    # ─── 5. Process Zerg morph (larva → unit) ────────────────
+    # ─── 5. Process morph (larva→unit, unit morph, meld cocoon) ────────
     morph_entities: dict[str, Any] = {}
     for eid, e in list(built.items()):
         if e.get("entity_type") not in ("unit", "worker", "soldier", "scout"):
             continue
-        if e.get("unit_type") != "Larva":
+        if not e.get("morphing"):
             continue
-        if not e.get("morph_target"):
-            continue
-
+        # Both larva morph and unit morph use morph_target/morph_timer
+        morph_target = e.get("morph_target", "")
         timer = e.get("morph_timer", 0) - 1
         if timer <= 0:
-            # Morph complete — spawn the unit, remove larva
-            utype = e["morph_target"]
+            utype = morph_target
             simplified_etype = json_to_simplified_unit.get(utype, "unit")
             uid = f"{utype}_{tick}_{eid}"
             stats = _resolve_unit_stats(utype)
-            unit = _build_unit_entity(
+            new_unit = _build_unit_entity(
                 uid, utype, e["owner"], simplified_etype,
                 e["pos_x"], e["pos_y"],
                 stats=stats,
             )
-            morph_entities[uid] = unit
+            # Meld cocoon: preserve combined shields for Archon/DarkArchon
+            if utype in ("Archon", "DarkArchon") and e.get("shields", 0) > 0:
+                new_unit["shields"] = e["shields"]
+            morph_entities[uid] = new_unit
 
             # Zerg: Zergling spawns as a pair (2 for 50 minerals)
             if utype == "Zergling":
                 uid2 = f"{utype}_{tick+1}_{eid}"
-                unit2 = {**unit, "id": uid2, "pos_x": e["pos_x"] + 0.5, "pos_y": e["pos_y"] + 0.5}
+                unit2 = {**new_unit, "id": uid2, "pos_x": e["pos_x"] + 0.5, "pos_y": e["pos_y"] + 0.5}
                 morph_entities[uid2] = unit2
 
             built.pop(eid, None)
@@ -1053,8 +1054,10 @@ def process_construction(
             "morph_hp_target": minfo["hp"],
         }
 
-    # Advance morph timers
+    # Advance Zerg building morph timers
     for eid, e in list(built.items()):
+        if e.get("entity_type") != "building":
+            continue  # unit morphs handled in section 5
         if not e.get("morph_target"):
             continue
         timer = e.get("morph_timer", 0) - 1
