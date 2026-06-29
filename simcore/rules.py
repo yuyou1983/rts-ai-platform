@@ -452,6 +452,9 @@ def apply_movement(entities: dict[str, Any], commands: list[dict], tick: int) ->
         if uid not in moved:
             continue
         e = moved[uid]
+        # Stasis'd/frozen units cannot move
+        if e.get("stasis"):
+            continue
         if e.get("entity_type") not in ("worker", "soldier", "scout"):
             continue
         moved[uid] = {**e,
@@ -612,6 +615,9 @@ def resolve_combat(
         if attacker_id not in fought or target_id not in fought:
             continue
         attacker = fought[attacker_id]
+        # Stasis'd units cannot execute attack commands
+        if attacker.get("stasis"):
+            continue
         # Allow any unit with attack capability (not just worker/soldier/scout)
         if attacker.get("attack_ground", attacker.get("attack", 0)) <= 0 \
                 and attacker.get("attack_air", 0) <= 0:
@@ -649,6 +655,10 @@ def resolve_combat(
         # Don't attack buildings under construction
         if target.get("is_constructing"):
             # Still tick cooldown
+            fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
+            continue
+        # Don't attack stasis'd units (SC1: stasis = invulnerable)
+        if target.get("stasis"):
             fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
             continue
 
@@ -736,8 +746,9 @@ def resolve_combat(
             to_remove.add(eid)
             continue
 
-        # Only auto-attack if idle and has attack capability
+        # Only auto-attack if idle and has attack capability and not stasis'd
         if (e.get("is_idle") and not e.get("attack_target_id")
+                and not e.get("stasis")
                 and (e.get("attack_ground", e.get("attack", 0)) > 0
                      or e.get("attack_air", 0) > 0)):
 
@@ -757,13 +768,15 @@ def resolve_combat(
             for tid, t in entity_list:
                 if tid == eid or tid in to_remove:
                     continue
-                # Skip friendly, neutral (owner=0), and resources
+                # Skip friendly, neutral (owner=0), resources, and stasis'd
                 t_owner = t.get("owner", 0)
                 if t_owner == e.get("owner") or t_owner == 0:
                     continue
                 if t.get("entity_type") == "resource":
                     continue
                 if t.get("health", 0) <= 0:
+                    continue
+                if t.get("stasis"):
                     continue
 
                 # Pick weapon vs this target — skip if unit can't attack it

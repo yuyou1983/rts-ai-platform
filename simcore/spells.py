@@ -106,6 +106,7 @@ SPELL_CATEGORIES: dict[str, str] = {
     "siegemode": "TRANSFORM",
     "tankmode": "TRANSFORM",
     "spidermines": "SELF_BUFF",
+    "irradiate": "TARGETED",
     # Protoss
     "psionicstorm": "AREA",
     "hallucination": "SUMMON",
@@ -113,6 +114,9 @@ SPELL_CATEGORIES: dict[str, str] = {
     "stasisfield": "AREA",
     "archonwarp": "SUMMON",
     "disruptionweb": "AREA",
+    "feedback": "TARGETED",
+    "mindcontrol": "TARGETED",
+    "maelstrom": "AREA",
     # Zerg morph
     "lurker_morph": "TRANSFORM",
     "guardian_morph": "TRANSFORM",
@@ -152,6 +156,10 @@ SPELL_CONFIG: dict[str, dict] = {
     "stasisfield":     {"cost_mp": 100,"cooldown": 0,  "duration": 120, "radius": 5.0, "damage": 0},
     "archonwarp":      {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0},
     "disruptionweb":   {"cost_mp": 125,"cooldown": 0,  "duration": 90,  "radius": 5.0, "damage": 0},
+    "irradiate":       {"cost_mp": 75, "cooldown": 0,  "duration": 120, "radius": 0,   "damage": 0, "dot_total": 250},
+    "feedback":        {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0},
+    "mindcontrol":     {"cost_mp": 150,"cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0},
+    "maelstrom":       {"cost_mp": 100,"cooldown": 0,  "duration": 60,  "radius": 5.0, "damage": 0},
     # Zerg morph (timed transformation — morph_timer in ticks)
     "lurker_morph":    {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0, "morph_ticks": 200},
     "guardian_morph":  {"cost_mp": 0,  "cooldown": 0,  "duration": 0,   "radius": 0,   "damage": 0, "morph_ticks": 150},
@@ -200,8 +208,48 @@ def process_buffs(entities: dict[str, Any], tick: int) -> dict[str, Any]:
                 elif btype == "defensive_matrix":
                     result[eid] = {**result.get(eid, e),
                                    "bonus_shield": 0}
+                elif btype == "stasis":
+                    result[eid] = {**result.get(eid, e),
+                                   "stasis": False}
+                elif btype == "maelstrom":
+                    result[eid] = {**result.get(eid, e),
+                                   "stasis": False}
+                elif btype == "irradiate":
+                    pass  # irradiate DoT applied per-tick below
         if new_buffs != buffs:
             result[eid] = {**result.get(eid, e), "buffs": new_buffs}
+    return result
+
+
+def process_dots(entities: dict[str, Any], tick: int) -> dict[str, Any]:
+    """Process per-tick damage-over-time effects (irradiate, plague)."""
+    result = dict(entities)
+    to_remove: set[str] = set()
+    for eid, e in list(result.items()):
+        for b in e.get("buffs", []):
+            btype = b.get("type", "")
+            if btype == "irradiate":
+                # Damage the buff carrier
+                dot = b.get("dot_per_tick", 0)
+                new_h = e["health"] - dot
+                result[eid] = {**result.get(eid, e), "health": new_h}
+                if new_h <= 0:
+                    to_remove.add(eid)
+                # Also damage nearby organic enemies
+                src_owner = b.get("source_owner", 0)
+                for oid, o in list(result.items()):
+                    if oid == eid:
+                        continue
+                    if o.get("owner", 0) == src_owner:
+                        continue  # same team as caster — no friendly fire
+                    d = math.hypot(o["pos_x"] - e["pos_x"], o["pos_y"] - e["pos_y"])
+                    if d <= _MAP_TILE_SIZE and o.get("is_organic", True):
+                        new_oh = o["health"] - dot
+                        result[oid] = {**result.get(oid, o), "health": new_oh}
+                        if new_oh <= 0:
+                            to_remove.add(oid)
+    for rid in to_remove:
+        result.pop(rid, None)
     return result
 
 
@@ -227,6 +275,9 @@ def process_spells(
 
     # Process active buffs
     result = process_buffs(result, tick)
+
+    # Process per-tick DoT effects
+    result = process_dots(result, tick)
 
     for cmd in commands:
         if cmd.get("action") != "spell":
@@ -412,16 +463,46 @@ def process_spells(
                 result[target_id] = {**target, "health": new_h}
                 result[caster_id] = {**caster, **updates}
             elif spell_name == "restoration":
-                # Remove negative buffs
+                # Remove negative buffs including parasite
                 buffs = [b for b in target.get("buffs", [])
-                         if b.get("type") not in ("lockdown", "plague", "ensnare", "optical_flare")]
+                         if b.get("type") not in ("lockdown", "plague", "ensnare",
+                                                   "optical_flare", "irradiate",
+                                                   "maelstrom")]
                 result[target_id] = {**target, "buffs": buffs}
+                if "parasited_by" in target:
+                    target = {**target, "parasited_by": None}
+                    result[target_id] = target
                 result[caster_id] = {**caster, **updates}
             elif spell_name == "opticalflare":
                 duration = 99999  # permanent until restored
                 buffs = list(target.get("buffs", []))
                 buffs.append({"type": "optical_flare", "remaining": duration})
                 result[target_id] = {**target, "buffs": buffs, "sight": 1}
+                result[caster_id] = {**caster, **updates}
+            elif spell_name == "irradiate":
+                # Bio-only DoT: 250 damage over 120 ticks, also damages nearby bio
+                duration = config.get("duration", 120)
+                dot_total = config.get("dot_total", 250)
+                dot_per_tick = dot_total / duration
+                buffs = list(target.get("buffs", []))
+                buffs.append({"type": "irradiate", "remaining": duration,
+                              "dot_per_tick": dot_per_tick, "source_owner": owner})
+                result[target_id] = {**target, "buffs": buffs}
+                result[caster_id] = {**caster, **updates}
+            elif spell_name == "feedback":
+                # Drain all energy from target, deal equal damage
+                target_energy = target.get("energy", 0)
+                if target_energy > 0 and target.get("is_spellcaster", False):
+                    new_health = target["health"] - target_energy
+                    result[target_id] = {**target, "health": new_health, "energy": 0}
+                    if new_health <= 0:
+                        to_remove.add(target_id)
+                result[caster_id] = {**caster, **updates}
+            elif spell_name == "mindcontrol":
+                # Permanently change target's owner
+                if target.get("owner", 0) != owner:
+                    result[target_id] = {**target, "owner": owner,
+                                         "attack_target_id": "", "is_idle": True}
                 result[caster_id] = {**caster, **updates}
 
         # ─── AREA ─────────────────────────────────────────
@@ -545,6 +626,20 @@ def process_spells(
                     "duration": duration,
                     "radius": radius,
                 }
+                result[caster_id] = {**caster, **updates}
+
+            elif spell_name == "maelstrom":
+                # AoE stun: freezes organic units in radius for duration
+                duration = config.get("duration", 60)
+                for eid, e in list(result.items()):
+                    if e.get("owner", 0) == owner:
+                        continue  # friendly fire off
+                    d = math.hypot(e["pos_x"] - target_x, e["pos_y"] - target_y)
+                    if d <= radius and e.get("is_organic", True):
+                        buffs = list(e.get("buffs", []))
+                        buffs.append({"type": "maelstrom", "remaining": duration})
+                        result[eid] = {**e, "buffs": buffs, "stasis": True,
+                                       "speed": 0, "attack_ground": 0, "attack_air": 0}
                 result[caster_id] = {**caster, **updates}
 
             elif spell_name == "nuclearstrike":
