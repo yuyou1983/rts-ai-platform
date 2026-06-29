@@ -648,6 +648,8 @@ def process_construction(
             "production_timers": [],
             "upgrade_queue": [],
             "upgrade_timers": [],
+            # Nydus Canal partner (empty until linked)
+            "nydus_partner_id": "",
         }
 
         # Protoss: add shield

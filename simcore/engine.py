@@ -42,7 +42,7 @@ from simcore.construction import (
 )
 from simcore.projectile import process_projectiles
 from simcore.spells import process_spells, regen_energy
-from simcore.transport import process_transport
+from simcore.transport import process_transport, process_nydus
 from simcore.upgrades import apply_upgrade_effects
 from simcore.state import GameState
 from simcore.order import Order, OrderQueue
@@ -395,6 +395,12 @@ class SimCore:
         if spell_cmds:
             entities, resources = process_spells(
                 entities, resources, spell_cmds, self._tick)
+
+        # ── 6d. Nydus Canal link/enter ────────────────────
+        nydus_cmds = [c for c in valid if c.get("action") in ("nydus_link", "nydus_enter")]
+        if nydus_cmds:
+            entities, resources = process_nydus(
+                entities, resources, nydus_cmds, self._tick)
 
         # ── 7. Gathering (detect RESOURCE_DEPLETED) ────────────
         pre_gather_entities = {eid: dict(e) for eid, e in entities.items()}

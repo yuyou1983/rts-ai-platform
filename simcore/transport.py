@@ -1,4 +1,4 @@
-"""Transport system — load/unload units into Dropship, Shuttle, Overlord, Bunker.
+"""Transport system — load/unload units + Nydus Canal teleport.
 
 SC1 rules:
 - Transport has cargo_capacity slots (8 for Dropship/Shuttle/Overlord, 4 for Bunker)
@@ -7,6 +7,14 @@ SC1 rules:
 - Transport death → all loaded passengers die
 - Overlord requires "transport" ability (Ventral Sacs upgrade)
 - Bunker: only infantry (not massive), loaded units can fire out
+
+Nydus Canal:
+- Zerg building, built by Drone
+- After completion, a second Nydus Canal can be placed (the "exit")
+- nydus_link command pairs two Nydus Canals (partner_id bidirectional)
+- nydus_enter command: ground unit within 1 tile of entrance teleports to exit position
+- Both buildings must be alive and same owner
+- Flying units cannot use Nydus Canal
 """
 from __future__ import annotations
 import math
@@ -197,3 +205,118 @@ def _is_transport(entity: dict[str, Any]) -> bool:
     if entity.get("entity_type") == "building" and entity.get("unit_type", "") == "Bunker":
         return True
     return False
+
+
+# ─── Nydus Canal ──────────────────────────────────────────────
+
+_NYDUS_ENTER_RANGE = 1.5 * _MAP_TILE_SIZE  # 1.5 tiles — generous SC1 enter range
+
+
+def process_nydus(
+    entities: dict[str, Any],
+    resources: dict[str, Any],
+    commands: list[dict[str, Any]],
+    tick: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Process Nydus Canal link and enter commands.
+
+    Commands:
+      {action: "nydus_link", canal_id: "nc1", partner_id: "nc2"}
+      {action: "nydus_enter", unit_id: "u1", canal_id: "nc1"}
+
+    Link: bidirectional partner assignment.
+    Enter: teleport ground unit to partner canal's position.
+    """
+    result = dict(entities)
+    res = dict(resources)
+
+    for cmd in commands:
+        action = cmd.get("action", "")
+
+        if action == "nydus_link":
+            canal_id = cmd.get("canal_id", "")
+            partner_id = cmd.get("partner_id", "")
+            if not canal_id or not partner_id:
+                continue
+            canal = result.get(canal_id)
+            partner = result.get(partner_id)
+            if not canal or not partner:
+                continue
+            # Both must be NydusCanal buildings, same owner, alive, completed
+            if (canal.get("unit_type", "") != "NydusCanal"
+                    and canal.get("building_type", "") != "NydusCanal"):
+                continue
+            if (partner.get("unit_type", "") != "NydusCanal"
+                    and partner.get("building_type", "") != "NydusCanal"):
+                continue
+            if canal.get("owner") != partner.get("owner"):
+                continue
+            if canal.get("health", 0) <= 0 or partner.get("health", 0) <= 0:
+                continue
+            if canal.get("is_constructing", False) or partner.get("is_constructing", False):
+                continue
+            # Bidirectional link
+            result[canal_id] = {**result.get(canal_id, canal),
+                                "nydus_partner_id": partner_id}
+            result[partner_id] = {**result.get(partner_id, partner),
+                                  "nydus_partner_id": canal_id}
+
+        elif action == "nydus_enter":
+            unit_id = cmd.get("unit_id", "")
+            canal_id = cmd.get("canal_id", "")
+            if not unit_id or not canal_id:
+                continue
+            unit = result.get(unit_id)
+            canal = result.get(canal_id)
+            if not unit or not canal:
+                continue
+            # Unit must be ground, alive, not stasis'd, same owner
+            if unit.get("domain", "ground") != "ground":
+                continue
+            if unit.get("owner") != canal.get("owner"):
+                continue
+            if unit.get("health", 0) <= 0:
+                continue
+            if unit.get("stasis"):
+                continue
+            # Canal must be NydusCanal, completed, alive
+            if (canal.get("unit_type", "") != "NydusCanal"
+                    and canal.get("building_type", "") != "NydusCanal"):
+                continue
+            if canal.get("health", 0) <= 0:
+                continue
+            if canal.get("is_constructing", False):
+                continue
+            # Must have a linked partner
+            partner_id = canal.get("nydus_partner_id", "")
+            if not partner_id or partner_id not in result:
+                continue
+            partner = result[partner_id]
+            if partner.get("health", 0) <= 0:
+                continue
+            # Range check: unit must be within enter range of canal
+            dx = unit.get("pos_x", 0) - canal.get("pos_x", 0)
+            dy = unit.get("pos_y", 0) - canal.get("pos_y", 0)
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist > _NYDUS_ENTER_RANGE:
+                continue
+            # Teleport: move unit to partner's position
+            result[unit_id] = {**result.get(unit_id, unit),
+                               "pos_x": partner.get("pos_x", 0),
+                               "pos_y": partner.get("pos_y", 0),
+                               "target_x": None,
+                               "target_y": None,
+                               "is_idle": True,
+                               "attack_target_id": "",
+                               "returning_to_base": False,
+                               "deposit_pending": False}
+
+    # ─── Nydus partner cleanup: if one canal dies, clear partner ──
+    for eid, e in list(result.items()):
+        pid = e.get("nydus_partner_id", "")
+        if pid and pid not in result:
+            result[eid] = {**result.get(eid, e), "nydus_partner_id": ""}
+        elif pid and result.get(pid, {}).get("health", 0) <= 0:
+            result[eid] = {**result.get(eid, e), "nydus_partner_id": ""}
+
+    return result, res
