@@ -687,6 +687,15 @@ def resolve_combat(
         # Reset timer after firing (set below after damage resolves)
 
         if d <= attack_range:
+            # Reaver scarab consumption — cannot fire without ammo
+            if e.get("unit_type", "") == "Reaver":
+                if e.get("scarab_count", 0) <= 0:
+                    # No scarabs available — tick cooldown, skip attack
+                    fought[uid] = {**fought.get(uid, e), "cooldown_timer": int(e.get("cooldown_timer", 0)) + 1}
+                    continue
+                # Consume a scarab
+                fought[uid] = {**fought.get(uid, e), "scarab_count": e.get("scarab_count", 1) - 1}
+
             target_armor = target.get("armor", 0)
             target_armor_type = get_armor_type(target)
             dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)

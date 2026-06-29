@@ -279,6 +279,9 @@ def _build_unit_entity(
         "loaded_units": [],
         "cargo_capacity": 8 if utype in ("Dropship", "Shuttle", "Overlord") else 0,
         "cargo_used": 0,
+        # Reaver scarab ammunition
+        "scarab_count": 5 if utype == "Reaver" else 0,
+        "scarab_capacity": 10 if utype == "Reaver" else 0,
     }
 
     return unit
@@ -809,6 +812,33 @@ def process_construction(
             timers.append(train_ticks)
             built[building_id] = {**building, "production_queue": queue, "production_timers": timers}
 
+    # ─── 3b. Process BUILD_SCARAB commands (Reaver ammunition) ──
+    _SCARAB_COST_MINE = 15
+    _SCARAB_BUILD_TICKS = 70  # ~7 seconds at 10 ticks/sec
+    for cmd in commands:
+        if cmd.get("action") != "build_scarab":
+            continue
+        reaver_id = cmd.get("unit_id", "") or cmd.get("entity_id", "")
+        if reaver_id not in built:
+            continue
+        reaver = built[reaver_id]
+        if reaver.get("unit_type", "") != "Reaver":
+            continue
+        if reaver.get("health", 0) <= 0:
+            continue
+        if reaver.get("scarab_count", 0) >= reaver.get("scarab_capacity", 10):
+            continue
+        # Check if already building a scarab
+        if reaver.get("scarab_building", False):
+            continue
+        # Check mineral cost
+        owner = reaver.get("owner", 1)
+        pkey_mine = f"p{owner}_mineral"
+        if res.get(pkey_mine, 0) < _SCARAB_COST_MINE:
+            continue
+        res[pkey_mine] = res.get(pkey_mine, 0) - _SCARAB_COST_MINE
+        built[reaver_id] = {**reaver, "scarab_building": True, "scarab_timer": _SCARAB_BUILD_TICKS}
+
     # ─── 4. Advance production timers and spawn units ────────
     # Reverse mapping: JSON unit name → simplified entity_type
     json_to_simplified_unit = {
@@ -915,6 +945,19 @@ def process_construction(
             built[eid] = {**e, "morph_timer": timer}
 
     built.update(morph_entities)
+
+    # ─── 5b. Advance Reaver scarab build timers ────────────
+    for eid, e in list(built.items()):
+        if e.get("unit_type", "") != "Reaver":
+            continue
+        if not e.get("scarab_building", False):
+            continue
+        timer = e.get("scarab_timer", 0) - 1
+        if timer <= 0:
+            cnt = e.get("scarab_count", 0) + 1
+            built[eid] = {**e, "scarab_count": cnt, "scarab_building": False, "scarab_timer": 0}
+        else:
+            built[eid] = {**e, "scarab_timer": timer}
 
     # ─── 6. Process UPGRADE/RESEARCH commands ─────────────────────
     for cmd in commands:
