@@ -75,6 +75,21 @@ class GRPOConfig:
     # TRL integration
     use_trl: bool = True  # use TRLGRPOTrainer when TRL + PyTorch available
 
+    # BC pre-training
+    bc_pretrain: bool = False  # enable BC pre-training before GRPO
+    n_demos: int = 50         # number of demonstration episodes to collect
+    bc_epochs: int = 15       # BC training epochs
+
+    # GRPO v3 — catastrophic forgetting prevention
+    freeze_bc_epochs: int = 500  # freeze backbone+policy_head for first N episodes
+    kl_coef: float = 0.1        # KL(pi_new || pi_bc) penalty weight
+    grpo_lr: float = 1e-5       # learning rate for GRPO phase
+
+    # Opponent curriculum — start easy, gradually increase
+    opponent_difficulty: str = "easy"       # "easy", "medium", "hard"
+    opponent_curriculum: bool = True        # gradually increase difficulty
+    opponent_curve_steps: int = 300_000    # total steps over which to go easy→medium→hard
+
 
 # ─── Rollout Buffer ────────────────────────────────────────
 
@@ -326,6 +341,15 @@ def create_grpo_trainer(
                 log_interval=config.log_interval,
                 save_interval=config.save_interval,
                 output_dir=config.output_dir,
+                bc_pretrain=config.bc_pretrain,
+                n_demos=config.n_demos,
+                bc_epochs=config.bc_epochs,
+                freeze_bc_epochs=config.freeze_bc_epochs,
+                kl_coef=config.kl_coef,
+                grpo_lr=config.grpo_lr,
+                opponent_difficulty=config.opponent_difficulty,
+                opponent_curriculum=config.opponent_curriculum,
+                opponent_curve_steps=config.opponent_curve_steps,
             )
             logger.info(
                 "TRL %s available — using TRLGRPOTrainer", _TRL_VERSION
@@ -347,7 +371,7 @@ def create_grpo_trainer(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="GRPO Trainer for RTS AI")
-    parser.add_argument("--episodes", type=int, default=100)
+    parser.add_argument("--episodes", type=int, default=1000)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--group-size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -362,12 +386,58 @@ def main() -> None:
         "--no-trl", dest="use_trl", action="store_false",
         help="Force SimplePolicy GRPOTrainer even when TRL is available",
     )
+    parser.add_argument(
+        "--bc-pretrain", action="store_true", default=False,
+        help="BC pre-train from expert demonstrations before GRPO",
+    )
+    parser.add_argument(
+        "--n-demos", type=int, default=50,
+        help="Number of demonstration episodes for BC pre-training",
+    )
+    parser.add_argument(
+        "--bc-epochs", type=int, default=15,
+        help="Number of BC training epochs",
+    )
+    parser.add_argument(
+        "--freeze-bc-epochs", type=int, default=500,
+        help="Freeze backbone+policy_head for first N GRPO episodes (GRPO v3)",
+    )
+    parser.add_argument(
+        "--kl-coef", type=float, default=0.1,
+        help="KL(pi_new || pi_bc) penalty weight (GRPO v3)",
+    )
+    parser.add_argument(
+        "--grpo-lr", type=float, default=1e-5,
+        help="Learning rate for GRPO phase (GRPO v3, much smaller than bc_lr)",
+    )
+    parser.add_argument(
+        "--opponent-difficulty", type=str, default="easy",
+        choices=["easy", "medium", "hard"],
+        help="Starting opponent difficulty (default: easy)",
+    )
+    parser.add_argument(
+        "--opponent-curriculum", action="store_true", default=None,
+        help="Enable opponent curriculum: easy→medium→hard over training (default: True when --bc-pretrain is used)",
+    )
+    parser.add_argument(
+        "--no-opponent-curriculum", dest="opponent_curriculum", action="store_false",
+        help="Disable opponent curriculum — keep fixed difficulty",
+    )
+    parser.add_argument(
+        "--opponent-curve-steps", type=int, default=300000,
+        help="Total training steps over which to ramp easy→medium→hard (default: 300000)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
+
+    # Determine opponent_curriculum default: True when bc-pretrain used, else from CLI
+    opp_curriculum = args.opponent_curriculum
+    if opp_curriculum is None:
+        opp_curriculum = args.bc_pretrain  # default True when bc-pretrain
 
     config = GRPOConfig(
         episodes=args.episodes,
@@ -377,6 +447,15 @@ def main() -> None:
         reward_shaping=args.reward_shaping,
         output_dir=args.output_dir,
         use_trl=args.use_trl,
+        bc_pretrain=args.bc_pretrain,
+        n_demos=args.n_demos,
+        bc_epochs=args.bc_epochs,
+        freeze_bc_epochs=args.freeze_bc_epochs,
+        kl_coef=args.kl_coef,
+        grpo_lr=args.grpo_lr,
+        opponent_difficulty=args.opponent_difficulty,
+        opponent_curriculum=opp_curriculum,
+        opponent_curve_steps=args.opponent_curve_steps,
     )
 
     trainer = create_grpo_trainer(config)

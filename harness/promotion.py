@@ -334,6 +334,9 @@ class PromotionGate:
         and the challenger is deregistered.  If a previously-promoted
         challenger is being rolled back, the previous champion is
         restored in the league pool.
+
+        Promotion matchup results are still recorded to the league so
+        that ELO ratings stay accurate even for failed challenges.
         """
         logger.info(
             "ROLLBACK: keeping %s as production (challenger %s win_rate=%.3f, "
@@ -345,6 +348,9 @@ class PromotionGate:
         self._current_production = result.champion
 
         if self.league is not None:
+            # Record results to update ELO even on rollback
+            self._record_league_results(result)
+
             # Deregister the challenger
             try:
                 self.league.deregister(result.challenger)

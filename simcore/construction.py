@@ -399,9 +399,24 @@ def check_train_prerequisites(
     if building.get("owner") != owner:
         return False
 
+    # Prefer the real building name (unit_type) when available — this gives
+    # race-correct routing (e.g. "Nexus" not "CommandCenter", "Gateway" not "Barracks").
+    # Fall back to building_type when unit_type is absent.
     bt = building.get("building_type", "")
-    json_name = _BUILDING_TYPE_MAP.get(bt, bt)
+    real_name = building.get("unit_type", "")
+    if real_name:
+        json_name = _BUILDING_TYPE_MAP.get(real_name, real_name)
+    else:
+        json_name = _BUILDING_TYPE_MAP.get(bt, bt)
     bdata = _load_building_data().get(json_name)
+
+    # If the real name didn't hit, also try building_type as fallback
+    if bdata is None and real_name:
+        bt_json = _BUILDING_TYPE_MAP.get(bt, bt)
+        bt_bdata = _load_building_data().get(bt_json)
+        if bt_bdata is not None:
+            bdata = bt_bdata
+            json_name = bt_json
 
 # Simplified building types: restricted to correct unit routing per buildings.json
     simplified_train = {
@@ -655,11 +670,11 @@ def process_construction(
             "nydus_partner_id": "",
         }
 
-        # Protoss: add shield
+        # Protoss: add shields (full at construction start, same as SC1)
         if race == "protoss" and bdata:
             sp = bdata.get("sp", 0)
-            new_building["shield"] = 0
-            new_building["max_shield"] = sp
+            new_building["shields"] = sp
+            new_building["max_shields"] = sp
 
         new_entities[new_id] = new_building
 
@@ -1175,9 +1190,9 @@ def process_construction(
             continue
         # Check if building is powered
         if not check_pylon_power(built, eid):
-            built[eid] = {**e, "powered": False}
+            built[eid] = {**e, "is_powered": False}
         else:
-            built[eid] = {**e, "powered": True}
+            built[eid] = {**e, "is_powered": True}
 
     # ─── Restore meta-keys into built dict before returning ────
     if _saved_completed_ups is not None:

@@ -560,12 +560,11 @@ def process_shield_regen(
             continue
 
         # Determine if this is a Protoss entity — must have shield data
-        max_shield = e.get("max_shield", e.get("sp", 0))
-        if max_shield <= 0:
+        max_shields = e.get("max_shields", e.get("max_shield", e.get("sp", 0)))
+        if max_shields <= 0:
             continue
-
-        current_shield = e.get("shield", e.get("sp_current", max_shield))
-        if current_shield >= max_shield:
+        current_shields = e.get("shields", e.get("shield", e.get("sp_current", max_shields)))
+        if current_shields >= max_shields:
             continue
 
         last_hit_tick = e.get("last_hit_tick", 0)
@@ -576,8 +575,8 @@ def process_shield_regen(
         # Regen every SHIELD_REGEN_INTERVAL ticks
         # Use tick offset to stagger regen across entities
         if (tick - last_hit_tick - SHIELD_REGEN_DELAY_TICKS) % SHIELD_REGEN_INTERVAL == 0:
-            new_shield = min(current_shield + SHIELD_REGEN_RATE, max_shield)
-            result[eid] = {**e, "shield": new_shield}
+            new_shields = min(current_shields + SHIELD_REGEN_RATE, max_shields)
+            result[eid] = {**e, "shields": new_shields}
 
     return result
 

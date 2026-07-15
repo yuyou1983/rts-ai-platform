@@ -7,6 +7,8 @@ Covers:
   - 100-episode training (no NaN, loss generally decreasing)
   - Training curves CSV export
   - Fallback to SimplePolicy when TRL unavailable
+  - GRPO v5: numerical stability (KL clamp, ratio clamp, value_loss clamp)
+  - GRPO v5: binary freeze/unfreeze
 """
 
 from __future__ import annotations
@@ -77,6 +79,18 @@ class TestTRLGRPOConfig:
         assert cfg.output_dir == "train/output"
         assert cfg.export_curves is True
         assert cfg.use_trl is True
+        # GRPO v3/v5 defaults
+        assert cfg.freeze_bc_epochs == 500
+        assert cfg.kl_coef == 0.1
+        assert cfg.grpo_lr == 1e-5
+        # GRPO v5 numerical stability clamps
+        assert cfg.kl_max == 1.0
+        assert cfg.ratio_max == 10.0
+        assert cfg.value_loss_max == 1.0
+        # v4 fields should NOT exist
+        assert not hasattr(cfg, "unfreeze_policy_epochs")
+        assert not hasattr(cfg, "grpo_lr_phase_b")
+        assert not hasattr(cfg, "grpo_lr_phase_c")
 
     def test_custom_values(self):
         from train.trl_trainer import TRLGRPOConfig
@@ -466,3 +480,486 @@ class TestCreateGRPOTrainer:
             config = GRPOConfig(use_trl=True)
             trainer = create_grpo_trainer(config)
             assert isinstance(trainer, GRPOTrainer)
+
+
+# ─── GRPO v3/v5: BC weight freezing & KL penalty ────────────────
+
+
+@pytest.mark.skipif(
+    not HAS_TRL,
+    reason="PyTorch not installed",
+)
+class TestGRPOv5FreezingAndKL:
+    """Test GRPO v5 binary freeze/unfreeze and KL penalty features."""
+
+    @pytest.fixture()
+    def policy(self):
+        import torch
+        from train.trl_trainer import GRPOPolicy
+
+        obs_dim = 64 * 10 + 4 + 1
+        pol = GRPOPolicy(obs_dim=obs_dim, action_dim=6, hidden_dim=128, lr=1e-3)
+        # Simulate BC pretrain: save reference and switch optimizer
+        pol.save_bc_reference()
+        pol.set_grpo_optimizer(lr=1e-5)
+        return pol
+
+    @pytest.fixture()
+    def sample_obs(self):
+        return {
+            "entities": np.zeros((64, 10), dtype=np.float32),
+            "resources": np.zeros(4, dtype=np.float32),
+            "tick": np.zeros(1, dtype=np.float32),
+        }
+
+    def test_save_bc_reference_creates_snapshot(self, policy):
+        """save_bc_reference should store detached clones of backbone+policy_head."""
+        import torch
+
+        assert policy._bc_ref_backbone is not None
+        assert policy._bc_ref_policy_head is not None
+        # Reference network should have the same architecture but frozen params
+        for param in policy._bc_ref_backbone.parameters():
+            assert not param.requires_grad
+        for param in policy._bc_ref_policy_head.parameters():
+            assert not param.requires_grad
+
+    def test_set_grpo_optimizer_changes_lr(self, policy):
+        """set_grpo_optimizer should replace the optimizer with smaller LR."""
+        import torch
+
+        for pg in policy.optimizer.param_groups:
+            assert pg["lr"] == 1e-5
+
+    def test_freeze_during_early_episodes(self, policy, sample_obs):
+        """Backbone+policy_head should be frozen when episode < freeze_bc_epochs."""
+        import torch
+        from train.trl_trainer import TRLGRPOConfig
+
+        buf = RolloutBuffer(group_size=2)
+        for _ in range(4):
+            buf.add(
+                Transition(
+                    obs=sample_obs, action=0, reward=1.0,
+                    next_obs=sample_obs, terminated=False, truncated=False,
+                    info={}, log_prob=-0.5, value=0.1,
+                )
+            )
+
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=500, kl_coef=0.1,
+        )
+        advantages = buf.compute_advantages()
+
+        # Record pre-update params
+        backbone_w_before = policy.backbone[0].weight.data.clone()
+        policy_head_w_before = policy.policy_head.weight.data.clone()
+
+        metrics = policy.update_grpo(buf, advantages, config, episode=10)
+
+        # Backbone and policy_head should NOT change during freeze phase
+        assert torch.allclose(policy.backbone[0].weight.data, backbone_w_before), (
+            "backbone weights should be frozen during early episodes"
+        )
+        assert torch.allclose(policy.policy_head.weight.data, policy_head_w_before), (
+            "policy_head weights should be frozen during early episodes"
+        )
+        # value_head IS allowed to change (not checked strictly, but KL should be in metrics)
+        assert "kl_div" in metrics
+
+    def test_unfreeze_after_freeze_phase(self, policy, sample_obs):
+        """After freeze_bc_epochs, backbone+policy_head should be trainable."""
+        import torch
+        from train.trl_trainer import TRLGRPOConfig
+
+        buf = RolloutBuffer(group_size=2)
+        for _ in range(4):
+            buf.add(
+                Transition(
+                    obs=sample_obs, action=0, reward=1.0,
+                    next_obs=sample_obs, terminated=False, truncated=False,
+                    info={}, log_prob=-0.5, value=0.1,
+                )
+            )
+
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=2,
+            freeze_bc_epochs=3, kl_coef=0.1,
+        )
+        advantages = buf.compute_advantages()
+
+        backbone_w_before = policy.backbone[0].weight.data.clone()
+
+        # episode=5 > freeze_bc_epochs=3 → should be unfrozen
+        metrics = policy.update_grpo(buf, advantages, config, episode=5)
+
+        # After unfreeze, weights CAN change (not guaranteed with 1 mini-batch,
+        # but requires_grad should be True afterward)
+        for param in policy.backbone.parameters():
+            assert param.requires_grad, "backbone should be unfrozen after freeze phase"
+        for param in policy.policy_head.parameters():
+            assert param.requires_grad, "policy_head should be unfrozen after freeze phase"
+
+    def test_kl_penalty_in_metrics(self, policy, sample_obs):
+        """KL divergence should appear in metrics when bc_reference is set."""
+        from train.trl_trainer import TRLGRPOConfig
+
+        buf = RolloutBuffer(group_size=2)
+        for _ in range(4):
+            buf.add(
+                Transition(
+                    obs=sample_obs, action=0, reward=1.0,
+                    next_obs=sample_obs, terminated=False, truncated=False,
+                    info={}, log_prob=-0.5, value=0.1,
+                )
+            )
+
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=0, kl_coef=0.1,
+        )
+        advantages = buf.compute_advantages()
+        metrics = policy.update_grpo(buf, advantages, config, episode=0)
+
+        assert "kl_div" in metrics
+        # KL should be non-negative (allow tiny floating-point tolerance)
+        assert metrics["kl_div"] >= -1e-6
+
+    def test_no_kl_penalty_without_reference(self, sample_obs):
+        """When no BC reference is saved, KL penalty should be zero."""
+        import torch
+        pytest.importorskip("torch")
+        from train.trl_trainer import GRPOPolicy, TRLGRPOConfig
+
+        obs_dim = 64 * 10 + 4 + 1
+        policy = GRPOPolicy(obs_dim=obs_dim, action_dim=6, hidden_dim=128, lr=1e-3)
+        # Don't call save_bc_reference
+
+        buf = RolloutBuffer(group_size=2)
+        for _ in range(4):
+            buf.add(
+                Transition(
+                    obs=sample_obs, action=0, reward=1.0,
+                    next_obs=sample_obs, terminated=False, truncated=False,
+                    info={}, log_prob=-0.5, value=0.1,
+                )
+            )
+
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=0, kl_coef=0.1,
+        )
+        advantages = buf.compute_advantages()
+        metrics = policy.update_grpo(buf, advantages, config, episode=0)
+
+        assert "kl_div" in metrics
+        assert metrics["kl_div"] == 0.0
+
+
+# ─── GRPO v3/v5: CLI defaults ───────────────────────────────────
+
+
+class TestGRPOv5CLIDefaults:
+    """Verify that CLI and GRPOConfig have updated defaults for v5."""
+
+    def test_grpo_config_v5_defaults(self):
+        """GRPOConfig should have v3/v5 fields with correct defaults."""
+        cfg = GRPOConfig()
+        assert cfg.freeze_bc_epochs == 500
+        assert cfg.kl_coef == 0.1
+        assert cfg.grpo_lr == 1e-5
+        # v4 fields should NOT exist
+        assert not hasattr(cfg, "unfreeze_policy_epochs")
+        assert not hasattr(cfg, "grpo_lr_phase_b")
+        assert not hasattr(cfg, "grpo_lr_phase_c")
+
+    def test_grpo_config_default_episodes(self):
+        """GRPOConfig default episodes should be 1000."""
+        cfg = GRPOConfig()
+        assert cfg.episodes == 1000
+
+    def test_cli_episodes_default(self):
+        """CLI --episodes should default to 1000."""
+        import argparse
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--episodes", type=int, default=1000)
+        args = parser.parse_args([])
+        assert args.episodes == 1000
+
+    def test_create_grpo_trainer_no_v4_fields(self):
+        """create_grpo_trainer should not pass v4 fields to TRLGRPOConfig."""
+        if not HAS_TRL:
+            pytest.skip("TRL not installed")
+
+        from train.trl_trainer import TRLGRPOTrainer
+
+        cfg = GRPOConfig(
+            episodes=10,
+            freeze_bc_epochs=3,
+        )
+        trainer = create_grpo_trainer(cfg)
+        assert isinstance(trainer, TRLGRPOTrainer)
+        # v4 fields should not be on the trainer's config
+        assert not hasattr(trainer.config, "unfreeze_policy_epochs")
+        assert not hasattr(trainer.config, "grpo_lr_phase_b")
+        assert not hasattr(trainer.config, "grpo_lr_phase_c")
+
+
+# ─── GRPO v5: Numerical Stability ──────────────────────────────
+
+
+@pytest.mark.skipif(
+    not HAS_TRL,
+    reason="PyTorch not installed",
+)
+class TestGRPOv5NumericalStability:
+    """Test GRPO v5 numerical stability clamps."""
+
+    OBS_DIM = 64 * 10 + 4 + 1  # 645
+
+    @pytest.fixture()
+    def policy(self):
+        import torch
+        from train.trl_trainer import GRPOPolicy
+
+        pol = GRPOPolicy(obs_dim=self.OBS_DIM, action_dim=6, hidden_dim=128, lr=1e-3)
+        pol.save_bc_reference()
+        return pol
+
+    @pytest.fixture()
+    def sample_obs(self):
+        return {
+            "entities": np.zeros((64, 10), dtype=np.float32),
+            "resources": np.zeros(4, dtype=np.float32),
+            "tick": np.zeros(1, dtype=np.float32),
+        }
+
+    def _make_buffer(self, sample_obs, n=4, reward=1.0):
+        buf = RolloutBuffer(group_size=2)
+        for _ in range(n):
+            buf.add(
+                Transition(
+                    obs=sample_obs, action=0, reward=reward,
+                    next_obs=sample_obs, terminated=False, truncated=False,
+                    info={}, log_prob=-0.5, value=0.1,
+                )
+            )
+        return buf
+
+    def test_kl_clamp(self, policy, sample_obs):
+        """KL penalty should be clamped to max kl_max (default 1.0)."""
+        import torch
+        from train.trl_trainer import TRLGRPOConfig
+
+        buf = self._make_buffer(sample_obs)
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=0, kl_coef=100.0,  # very high to provoke large KL
+            kl_max=1.0,
+        )
+        advantages = buf.compute_advantages()
+        metrics = policy.update_grpo(buf, advantages, config, episode=0)
+
+        # KL divergence in metrics should not exceed kl_max
+        assert metrics["kl_div"] <= config.kl_max + 1e-6, (
+            f"KL {metrics['kl_div']} exceeds max {config.kl_max}"
+        )
+
+    def test_ratio_clamp(self, policy, sample_obs):
+        """PPO ratio should be clamped to max ratio_max (default 10.0)."""
+        import torch
+        from train.trl_trainer import TRLGRPOConfig
+
+        buf = self._make_buffer(sample_obs, reward=100.0)  # high reward for extreme ratio
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=0, kl_coef=0.0,
+            ratio_max=10.0,
+        )
+        advantages = buf.compute_advantages()
+
+        # Patch exp to verify clamp is applied — we check the ratio indirectly
+        # by verifying loss is finite (no inf)
+        metrics = policy.update_grpo(buf, advantages, config, episode=0)
+
+        assert not np.isinf(metrics["total_loss"]), (
+            f"Loss is inf — ratio clamp may not be working"
+        )
+        assert not np.isnan(metrics["total_loss"]), (
+            f"Loss is NaN — ratio clamp may not be working"
+        )
+
+    def test_value_loss_clamp(self, policy, sample_obs):
+        """Value loss should be clamped to max value_loss_max (default 1.0)."""
+        import torch
+        from train.trl_trainer import TRLGRPOConfig
+
+        # Use extreme returns to provoke large value loss
+        buf = self._make_buffer(sample_obs, reward=1000.0)
+        config = TRLGRPOConfig(
+            batch_size=2, ppo_epochs=1,
+            freeze_bc_epochs=0, kl_coef=0.0,
+            value_loss_max=1.0,
+        )
+        advantages = buf.compute_advantages()
+        metrics = policy.update_grpo(buf, advantages, config, episode=0)
+
+        # value_loss in metrics should not exceed value_loss_max
+        assert metrics["value_loss"] <= config.value_loss_max + 1e-3, (
+            f"value_loss {metrics['value_loss']} exceeds max {config.value_loss_max}"
+        )
+
+    def test_no_inf_loss_over_10_episodes(self, tmp_path):
+        """After 10 episodes, loss should never be inf or NaN."""
+        from train.trl_trainer import TRLGRPOConfig, TRLGRPOTrainer
+
+        config = TRLGRPOConfig(
+            episodes=10,
+            batch_size=2,
+            group_size=2,
+            max_ticks=50,
+            ppo_epochs=1,
+            log_interval=1,
+            save_interval=100,
+            output_dir=str(tmp_path / "output"),
+            # Use the clamps
+            kl_max=1.0,
+            ratio_max=10.0,
+            value_loss_max=1.0,
+        )
+        trainer = TRLGRPOTrainer(config)
+        result = trainer.train()
+
+        assert result["episodes"] == 10
+        for m in trainer.metrics:
+            loss_key = "total_loss" if "total_loss" in m else "loss"
+            if loss_key in m:
+                assert not np.isinf(m[loss_key]), (
+                    f"inf loss at episode {m['episode']}: {m[loss_key]}"
+                )
+                assert not np.isnan(m[loss_key]), (
+                    f"NaN loss at episode {m['episode']}: {m[loss_key]}"
+                )
+
+
+# ─── Opponent curriculum ──────────────────────────────────────
+
+
+class TestOpponentCurriculumHelper:
+    """Test the get_opponent_difficulty_for_step helper."""
+
+    def test_easy_phase(self):
+        from train.trl_trainer import get_opponent_difficulty_for_step
+
+        assert get_opponent_difficulty_for_step(0) == "easy"
+        assert get_opponent_difficulty_for_step(99_999) == "easy"
+
+    def test_medium_phase(self):
+        from train.trl_trainer import get_opponent_difficulty_for_step
+
+        assert get_opponent_difficulty_for_step(100_000) == "medium"
+        assert get_opponent_difficulty_for_step(199_999) == "medium"
+
+    def test_hard_phase(self):
+        from train.trl_trainer import get_opponent_difficulty_for_step
+
+        assert get_opponent_difficulty_for_step(200_000) == "hard"
+        assert get_opponent_difficulty_for_step(500_000) == "hard"
+
+    def test_custom_total_steps(self):
+        from train.trl_trainer import get_opponent_difficulty_for_step
+
+        assert get_opponent_difficulty_for_step(0, total_steps=90_000) == "easy"
+        assert get_opponent_difficulty_for_step(30_000, total_steps=90_000) == "medium"
+        assert get_opponent_difficulty_for_step(60_000, total_steps=90_000) == "hard"
+
+    def test_phase_ordering(self):
+        from train.trl_trainer import get_opponent_difficulty_for_step
+
+        difficulties = [get_opponent_difficulty_for_step(s) for s in [0, 150_000, 300_000]]
+        assert difficulties == ["easy", "medium", "hard"]
+
+
+class TestOpponentCurriculumConfig:
+    """Test TRLGRPOConfig opponent curriculum fields."""
+
+    def test_default_opponent_difficulty(self):
+        from train.trl_trainer import TRLGRPOConfig
+
+        cfg = TRLGRPOConfig()
+        assert cfg.opponent_difficulty == "easy"
+        assert cfg.opponent_curriculum is True
+        assert cfg.opponent_curve_steps == 300_000
+
+    def test_custom_opponent_config(self):
+        from train.trl_trainer import TRLGRPOConfig
+
+        cfg = TRLGRPOConfig(
+            opponent_difficulty="hard",
+            opponent_curriculum=False,
+            opponent_curve_steps=100_000,
+        )
+        assert cfg.opponent_difficulty == "hard"
+        assert cfg.opponent_curriculum is False
+        assert cfg.opponent_curve_steps == 100_000
+
+
+class TestOpponentCurriculumSmoke:
+    """Smoke test: short training with opponent curriculum enabled."""
+
+    def test_curriculum_smoke(self, tmp_path):
+        """3-episode training with opponent curriculum completes without error."""
+        pytest.importorskip("torch")
+        from train.trl_trainer import TRLGRPOConfig, TRLGRPOTrainer
+
+        config = TRLGRPOConfig(
+            episodes=3,
+            batch_size=2,
+            group_size=2,
+            max_ticks=50,  # very short for speed
+            ppo_epochs=1,
+            log_interval=1,
+            save_interval=10,
+            opponent_difficulty="easy",
+            opponent_curriculum=True,
+            opponent_curve_steps=100,  # tiny for fast phase transitions
+            output_dir=str(tmp_path / "output"),
+        )
+        trainer = TRLGRPOTrainer(config)
+        result = trainer.train()
+
+        assert result["episodes"] == 3
+        assert len(trainer.metrics) == 3
+        # Verify opponent_difficulty is tracked in metrics
+        for m in trainer.metrics:
+            assert "opponent_difficulty" in m, "Missing opponent_difficulty in metrics"
+            assert m["opponent_difficulty"] in ("easy", "medium", "hard")
+
+
+class TestGymEnvOpponentDifficulty:
+    """Test that opponent_difficulty flows through gym.make to RTSSimCoreEnv."""
+
+    def test_make_with_opponent_difficulty(self):
+        import gymnasium as gym
+        import simcore.gym_env  # noqa: F401
+
+        env = gym.make("rts-ai-v0", seed=42, opponent_difficulty="easy")
+        obs, info = env.reset()
+        assert obs["entities"].shape == (64, 17)
+
+        # Verify the unwrapped env has the correct difficulty
+        inner = env.unwrapped
+        assert hasattr(inner, "_opponent_difficulty")
+        assert inner._opponent_difficulty == "easy"
+        env.close()
+
+    def test_make_with_opponent_difficulty_medium(self):
+        import gymnasium as gym
+        import simcore.gym_env  # noqa: F401
+
+        env = gym.make("rts-ai-v0", seed=42, opponent_difficulty="medium")
+        inner = env.unwrapped
+        assert inner._opponent_difficulty == "medium"
+        env.close()

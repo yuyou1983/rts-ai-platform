@@ -22,6 +22,9 @@ agents = [
 train = [
     "torch>=2.2",
     "trl>=0.12",
+    "gymnasium>=0.29",
+    "stable-baselines3>=2.2",
+    "sb3-contrib>=2.2",
 ]
 dev = [
     "pytest>=8.0",

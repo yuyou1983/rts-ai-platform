@@ -552,7 +552,7 @@ def process_spells(
                         eu["energy"] = eu["mp"]
                         # Drain shields
                         drain_s = config.get("drain_shield", 100)
-                        eu["shield"] = max(0, e.get("shield", 0) - drain_s)
+                        eu["shields"] = max(0, e.get("shields", e.get("shield", 0)) - drain_s)
                         result[eid] = eu
                 result[caster_id] = {**caster, **updates}
 

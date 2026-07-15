@@ -18,6 +18,11 @@ from simcore.upgrades import apply_upgrade_effects
 
 from simcore.order import Order, OrderQueue
 from simcore.replay import ReplayRecorder, ReplayV2
+from simcore.wrappers import FlattenRTSObs, NormalizeRTSReward, ActionMaskRTS
+from simcore.hierarchical_env import ActionMasker as HierarchicalActionMasker
+from simcore.reward_shaping import (
+    RewardShapingConfig, SubgoalTracker, compute_dense_reward, get_subgoal_info,
+)
 
 __all__ = [
     "SimCore",
@@ -58,4 +63,12 @@ __all__ = [
     "OrderQueue",
     "ReplayRecorder",
     "ReplayV2",
+    "FlattenRTSObs",
+    "NormalizeRTSReward",
+    "ActionMaskRTS",
+    "HierarchicalActionMasker",
+    "RewardShapingConfig",
+    "SubgoalTracker",
+    "compute_dense_reward",
+    "get_subgoal_info",
 ]

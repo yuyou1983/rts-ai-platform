@@ -62,7 +62,34 @@ except ImportError:
 from train.grpo_trainer import GRPOConfig, RolloutBuffer, SimplePolicy, Transition
 from train.rl_trainer import HAS_TORCH as _RL_HAS_TORCH
 
+from simcore.gym_env import md_to_discrete
+
 logger = logging.getLogger(__name__)
+
+
+# ─── Opponent curriculum helper ───────────────────────────
+
+
+def get_opponent_difficulty_for_step(
+    step: int,
+    total_steps: int = 300_000,
+) -> str:
+    """Return the opponent difficulty for a given training step.
+
+    The total step range is divided into 3 equal thirds:
+      - Phase 1 (0 – total/3):     ``"easy"``
+      - Phase 2 (total/3 – 2×total/3): ``"medium"``
+      - Phase 3 (2×total/3+):     ``"hard"``
+    """
+    one_third = total_steps // 3
+    two_thirds = 2 * total_steps // 3
+    if step >= two_thirds:
+        return "hard"
+    elif step >= one_third:
+        return "medium"
+    else:
+        return "easy"
+
 
 # ─── Config ────────────────────────────────────────────────
 
@@ -117,6 +144,28 @@ class TRLGRPOConfig:
     # Phase D: terrain elevation
     enable_elevation: bool = False
 
+    # BC pre-training
+    bc_pretrain: bool = False  # enable BC pre-training before GRPO
+    n_demos: int = 50         # number of demonstration episodes to collect
+    bc_epochs: int = 15       # BC training epochs
+    bc_batch_size: int = 256  # BC training batch size
+    bc_lr: float = 1e-3      # BC learning rate
+
+    # GRPO v5 — catastrophic forgetting prevention (binary freeze)
+    freeze_bc_epochs: int = 500   # freeze backbone+policy_head for first N episodes
+    kl_coef: float = 0.1         # KL(pi_new || pi_bc) penalty weight
+    grpo_lr: float = 1e-5        # learning rate for GRPO phase (much smaller than bc_lr)
+
+    # GRPO v5 — numerical stability clamps (Config fields only, no CLI args)
+    kl_max: float = 1.0           # clamp KL penalty to prevent inf loss
+    ratio_max: float = 10.0       # clamp PPO ratio to prevent exp() overflow
+    value_loss_max: float = 1.0    # clamp value loss for numerical stability
+
+    # Opponent curriculum — start easy, gradually increase difficulty
+    opponent_difficulty: str = "easy"    # "easy", "medium", "hard"
+    opponent_curriculum: bool = True     # gradually increase difficulty over training
+    opponent_curve_steps: int = 300_000  # total steps over which to go easy→medium→hard
+
     def __post_init__(self) -> None:
         if HAS_TRL:
             self.trl_version = trl.__version__  # type: ignore[union-attr]
@@ -166,6 +215,10 @@ if HAS_TORCH:
             # Optimizer
             self.optimizer = optim.Adam(self.parameters(), lr=lr)
 
+            # GRPO v3: BC reference network for KL penalty (populated after BC pretrain)
+            self._bc_ref_backbone: nn.Sequential | None = None
+            self._bc_ref_policy_head: nn.Linear | None = None
+
         def forward(
             self, obs: torch.Tensor
         ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -197,6 +250,7 @@ if HAS_TORCH:
             buffer: RolloutBuffer,
             advantages: np.ndarray,
             config: TRLGRPOConfig,
+            episode: int = 0,
         ) -> dict[str, float]:
             """GRPO update step: PPO-style clipped objective with group-relative advantages.
 
@@ -206,9 +260,47 @@ if HAS_TORCH:
             This is already computed in `advantages` parameter. Here we apply
             the PPO clipped objective using these advantages.
 
-            Returns metrics dict with pg_loss, value_loss, entropy, total_loss.
+            GRPO v3 additions:
+              - KL divergence penalty against BC reference policy
+              - Weight freezing for backbone+policy_head during early episodes
+
+            Parameters
+            ----------
+            buffer : RolloutBuffer
+                Rollout data from recent episodes.
+            advantages : np.ndarray
+                Group-relative advantages, pre-computed.
+            config : TRLGRPOConfig
+                Training configuration.
+            episode : int
+                Current episode index (used for freeze_bc_epochs gating).
+
+            Returns metrics dict with pg_loss, value_loss, entropy, kl_div, total_loss.
             """
             self.train()
+
+            # ── GRPO v5: Binary freeze (same as v3) ──
+            # When episode < freeze_bc_epochs: freeze backbone + policy_head, train value_head only
+            # When episode >= freeze_bc_epochs: train all params
+            freeze_active = (
+                config.freeze_bc_epochs > 0
+                and episode < config.freeze_bc_epochs
+            )
+
+            if freeze_active:
+                for param in self.backbone.parameters():
+                    param.requires_grad = False
+                for param in self.policy_head.parameters():
+                    param.requires_grad = False
+                for param in self.value_head.parameters():
+                    param.requires_grad = True
+            else:
+                for param in self.backbone.parameters():
+                    param.requires_grad = True
+                for param in self.policy_head.parameters():
+                    param.requires_grad = True
+                for param in self.value_head.parameters():
+                    param.requires_grad = True
 
             # Build tensors from buffer
             obs_list: list[np.ndarray] = []
@@ -236,6 +328,7 @@ if HAS_TORCH:
             total_pg_loss = 0.0
             total_v_loss = 0.0
             total_entropy = 0.0
+            total_kl = 0.0
             n_updates = 0
 
             for _epoch in range(config.ppo_epochs):
@@ -257,6 +350,8 @@ if HAS_TORCH:
 
                     # PPO clipped ratio
                     ratio = torch.exp(new_log_probs - b_old_log_probs)
+                    # ── GRPO v5: clamp ratio to prevent exp() overflow ──
+                    ratio = torch.clamp(ratio, max=config.ratio_max)
                     surr1 = ratio * b_advantages
                     surr2 = (
                         torch.clamp(
@@ -270,12 +365,31 @@ if HAS_TORCH:
 
                     # Value loss
                     value_loss = nn.functional.mse_loss(values, b_returns)
+                    # ── GRPO v5: clamp value loss for numerical stability ──
+                    value_loss = torch.clamp(value_loss, max=config.value_loss_max)
+
+                    # ── GRPO v3: KL divergence penalty against BC reference ──
+                    kl_penalty = torch.tensor(0.0)
+                    if self._bc_ref_backbone is not None and config.kl_coef > 0:
+                        # Compute reference logits from the saved BC reference network
+                        with torch.no_grad():
+                            ref_features = self._bc_ref_backbone(b_obs)
+                            ref_logits = self._bc_ref_policy_head(ref_features)
+                        ref_dist = Categorical(logits=ref_logits)
+                        # KL(pi_ref || pi_new) — penalises new policy moving
+                        # away from BC reference.
+                        kl_penalty = torch.distributions.kl_divergence(
+                            ref_dist, dist
+                        ).mean()
+                    # ── GRPO v5: clamp KL penalty to prevent inf loss ──
+                    kl_penalty = torch.clamp(kl_penalty, max=config.kl_max)
 
                     # Total loss
                     loss = (
                         pg_loss
                         + config.value_coeff * value_loss
                         - config.entropy_coeff * entropy
+                        + config.kl_coef * kl_penalty
                     )
 
                     self.optimizer.zero_grad()
@@ -288,23 +402,71 @@ if HAS_TORCH:
                     total_pg_loss += pg_loss.item()
                     total_v_loss += value_loss.item()
                     total_entropy += entropy.item()
+                    total_kl += kl_penalty.item()
                     n_updates += 1
+
+            # ── Ensure all params unfrozen after update for inference ──
+            # (freeze gating is re-applied at the start of each update_grpo call)
+            for param in self.backbone.parameters():
+                param.requires_grad = True
+            for param in self.policy_head.parameters():
+                param.requires_grad = True
+            for param in self.value_head.parameters():
+                param.requires_grad = True
 
             avg_pg = total_pg_loss / max(n_updates, 1)
             avg_vl = total_v_loss / max(n_updates, 1)
             avg_ent = total_entropy / max(n_updates, 1)
+            avg_kl = total_kl / max(n_updates, 1)
             total_loss = (
                 avg_pg
                 + config.value_coeff * avg_vl
                 - config.entropy_coeff * avg_ent
+                + config.kl_coef * avg_kl
             )
 
             return {
                 "pg_loss": avg_pg,
                 "value_loss": avg_vl,
                 "entropy": avg_ent,
+                "kl_div": avg_kl,
                 "total_loss": total_loss,
             }
+
+        def save_bc_reference(self) -> None:
+            """Snapshot current backbone + policy_head as a separate BC reference network.
+
+            Called once after BC pre-training completes, before the GRPO loop.
+            The reference is stored as independent nn.Module copies so it can
+            compute forward passes without modifying the live model.
+            """
+            # Deep-copy the backbone architecture and weights
+            import copy
+            self._bc_ref_backbone = copy.deepcopy(self.backbone)
+            for param in self._bc_ref_backbone.parameters():
+                param.requires_grad = False
+
+            # Deep-copy the policy_head architecture and weights
+            self._bc_ref_policy_head = copy.deepcopy(self.policy_head)
+            for param in self._bc_ref_policy_head.parameters():
+                param.requires_grad = False
+
+            logger.info("BC reference network saved for KL penalty (GRPO v5)")
+
+        def set_grpo_optimizer(self, lr: float) -> None:
+            """Replace optimizer with a new one at the GRPO learning rate.
+
+            Called after BC pre-training to switch from bc_lr to the much
+            smaller grpo_lr, preventing aggressive updates that cause
+            catastrophic forgetting.
+            """
+            trainable_params = [p for p in self.parameters() if p.requires_grad]
+            self.optimizer = optim.Adam(trainable_params, lr=lr)
+            logger.info(
+                "GRPO optimizer created: lr=%.1e, trainable_params=%d",
+                lr,
+                len(trainable_params),
+            )
 
         def save_checkpoint(self, path: Path) -> None:
             """Save model weights and optimizer state."""
@@ -315,6 +477,7 @@ if HAS_TORCH:
                     "optimizer_state_dict": self.optimizer.state_dict(),
                     "obs_dim": self.obs_dim,
                     "action_dim": self.action_dim,
+                    "hidden_dim": self.backbone[0].out_features,
                 },
                 path,
             )
@@ -347,6 +510,155 @@ if HAS_TORCH:
             return torch.from_numpy(flat).unsqueeze(0)
 
 
+# ─── BC Pre-training helpers ──────────────────────────────
+
+
+def collect_grpo_demonstrations(
+    n_episodes: int = 50,
+    seed_start: int = 42,
+    max_ticks: int = 1000,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Collect expert demonstrations and convert MultiDiscrete → flat Discrete.
+
+    Reuses :func:`simcore.bc_pretrain.collect_demonstrations` to get
+    (obs, act) pairs where act is MultiDiscrete ``[ct, eid, x, y]``,
+    then converts each action row to a single Discrete index via
+    :func:`simcore.gym_env.md_to_discrete`.
+
+    Returns
+    -------
+    obs_flat : np.ndarray, shape (N, obs_dim)
+        Flattened observation vectors (float32).
+    act_flat : np.ndarray, shape (N,)
+        Flat discrete action indices in [0, 768).
+    """
+    from simcore.bc_pretrain import collect_demonstrations
+
+    obs_array, act_md_array = collect_demonstrations(
+        n_episodes=n_episodes,
+        seed_start=seed_start,
+        max_ticks=max_ticks,
+    )
+
+    # Convert each MultiDiscrete row [ct, eid, x, y] → flat index
+    act_flat = np.array(
+        [md_to_discrete(row) for row in act_md_array],
+        dtype=np.int64,
+    )
+
+    logger.info(
+        "Collected %d GRPO demonstrations (%d transitions, action range [%d, %d])",
+        n_episodes,
+        len(act_flat),
+        act_flat.min(),
+        act_flat.max(),
+    )
+
+    return obs_array, act_flat
+
+
+def bc_pretrain_grpo(
+    policy: Any,
+    obs_array: np.ndarray,
+    act_array: np.ndarray,
+    n_epochs: int = 15,
+    batch_size: int = 256,
+    lr: float = 1e-3,
+) -> Any:
+    """Supervised BC pre-training of a GRPOPolicy backbone + policy_head.
+
+    Trains the shared backbone and policy_head using CrossEntropyLoss
+    against the flat discrete expert actions.  The value_head is frozen
+    (it will learn during the subsequent GRPO fine-tuning phase).
+
+    Parameters
+    ----------
+    policy : GRPOPolicy
+        The policy network to pre-train.
+    obs_array : np.ndarray, shape (N, obs_dim)
+        Flattened observation vectors.
+    act_array : np.ndarray, shape (N,)
+        Flat discrete expert action indices.
+    n_epochs : int
+        Number of training epochs.
+    batch_size : int
+        Mini-batch size.
+    lr : float
+        Learning rate for Adam optimizer.
+
+    Returns
+    -------
+    GRPOPolicy
+        The pre-trained policy (modified in-place).
+    """
+    import torch  # local to avoid hard dep at module level
+    import torch.nn as nn
+
+    if not isinstance(policy, nn.Module):
+        logger.warning("bc_pretrain_grpo: policy is not nn.Module, skipping BC")
+        return policy
+
+    device = next(policy.parameters()).device
+    n_samples = obs_array.shape[0]
+
+    # Freeze value_head — it will learn during GRPO
+    for param in policy.value_head.parameters():
+        param.requires_grad = False
+
+    # Only train backbone + policy_head
+    optimizer = torch.optim.Adam(
+        list(policy.backbone.parameters()) + list(policy.policy_head.parameters()),
+        lr=lr,
+    )
+
+    criterion = nn.CrossEntropyLoss()
+
+    obs_t = torch.tensor(obs_array, dtype=torch.float32, device=device)
+    act_t = torch.tensor(act_array, dtype=torch.long, device=device)
+
+    logger.info(
+        "BC GRPO pre-training: %d samples, %d epochs, lr=%s, device=%s",
+        n_samples,
+        n_epochs,
+        lr,
+        device,
+    )
+
+    for epoch in range(n_epochs):
+        policy.train()
+        perm = torch.randperm(n_samples, device=device)
+        epoch_loss = 0.0
+        n_batches = 0
+
+        for i in range(0, n_samples, batch_size):
+            idx = perm[i : i + batch_size]
+            batch_obs = obs_t[idx]
+            batch_act = act_t[idx]
+
+            # Forward through backbone + policy_head (value_head frozen)
+            features = policy.backbone(batch_obs)
+            logits = policy.policy_head(features)
+
+            loss = criterion(logits, batch_act)
+
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(policy.parameters(), 1.0)
+            optimizer.step()
+
+            epoch_loss += loss.item()
+            n_batches += 1
+
+        avg_loss = epoch_loss / max(n_batches, 1)
+        logger.info("  BC epoch %d/%d  loss=%.4f", epoch + 1, n_epochs, avg_loss)
+
+    # Unfreeze value_head
+    for param in policy.value_head.parameters():
+        param.requires_grad = True
+
+    return policy
+
+
 # ─── TRL GRPO Trainer ──────────────────────────────────────
 
 
@@ -375,11 +687,21 @@ class TRLGRPOTrainer:
         self.env_factory = env_factory or self._default_env_factory
         self._external_policy = policy
         self._policy: Any | None = None
+        self._training_step: int = 0  # curriculum step counter
 
     # ─── Public API ───────────────────────────────────────────
 
     def train(self) -> dict[str, Any]:
         """Run full GRPO training loop.
+
+        When ``config.bc_pretrain`` is True, expert demonstrations are
+        collected and the policy backbone + policy_head are BC-pretrained
+        *before* the GRPO loop starts.
+
+        A curriculum ``_training_step`` counter is maintained and synced
+        into the env's :class:`~simcore.reward_shaping.SubgoalTracker` so
+        that :func:`~simcore.reward_shaping.get_curriculum_phase` gates
+        milestones correctly as training progresses.
 
         Returns summary dict with total_time and episodes.
         """
@@ -401,8 +723,56 @@ class TRLGRPOTrainer:
             enable_order_queue=cfg.enable_order_queue,
             enable_event_log=cfg.enable_event_log,
             enable_replay_v2=cfg.enable_replay_v2,
+            opponent_difficulty=cfg.opponent_difficulty,
         )
         policy = self._ensure_policy(env)
+
+        # ── Opponent curriculum state ──────────────────────────────
+        _opp_curriculum_active = cfg.opponent_curriculum
+        _opp_curriculum_phase = 1  # 1=easy, 2=medium, 3=hard
+        if _opp_curriculum_active:
+            logger.info(
+                "Opponent curriculum ON: easy→medium→hard over %d steps",
+                cfg.opponent_curve_steps,
+            )
+            # Force starting difficulty to easy
+            if cfg.opponent_difficulty != "easy":
+                logger.info(
+                    "Opponent curriculum overriding initial difficulty '%s' → 'easy'",
+                    cfg.opponent_difficulty,
+                )
+
+        # ── Optional BC pre-training ──────────────────────────────
+        if cfg.bc_pretrain and HAS_TORCH and isinstance(policy, nn.Module):  # type: ignore[name-defined]
+            logger.info("BC pre-training enabled: collecting %d demos", cfg.n_demos)
+            obs_demo, act_demo = collect_grpo_demonstrations(
+                n_episodes=cfg.n_demos,
+                seed_start=cfg.seed,
+                max_ticks=cfg.max_ticks,
+            )
+            policy = bc_pretrain_grpo(
+                policy,
+                obs_demo,
+                act_demo,
+                n_epochs=cfg.bc_epochs,
+                batch_size=cfg.bc_batch_size,
+                lr=cfg.bc_lr,
+            )
+
+            # ── GRPO v5: snapshot BC reference for KL penalty ──
+            policy.save_bc_reference()
+
+            # ── GRPO v5: switch optimizer (freeze applied inside update_grpo) ──
+            # Set requires_grad for frozen phase first, then create optimizer
+            for param in policy.backbone.parameters():
+                param.requires_grad = False
+            for param in policy.policy_head.parameters():
+                param.requires_grad = False
+            for param in policy.value_head.parameters():
+                param.requires_grad = True
+            policy.set_grpo_optimizer(lr=cfg.grpo_lr)
+
+            logger.info("BC pre-training complete — starting GRPO v5 (value_head only, backbone+policy_head frozen)")
 
         logger.info(
             "Starting TRL-GRPO training: %d episodes | policy=%s | "
@@ -417,12 +787,64 @@ class TRLGRPOTrainer:
         for episode in range(cfg.episodes):
             # --- Collect rollouts for one episode ---
             obs, info = env.reset(seed=cfg.seed + episode)
+            self._sync_training_step(env)  # sync before episode starts
             episode_reward = 0.0
             episode_length = 0
 
             while True:
                 action, log_prob, value = policy.act(obs)
                 next_obs, reward, terminated, truncated, info = env.step(action)
+
+                # ── Curriculum: increment step counter ────────────
+                self._training_step += 1
+                self._sync_training_step(env)
+
+                # ── Opponent curriculum: phase transition check ───
+                if _opp_curriculum_active:
+                    _phase_one_third = cfg.opponent_curve_steps // 3
+                    _phase_two_third = 2 * cfg.opponent_curve_steps // 3
+                    if self._training_step >= _phase_two_third and _opp_curriculum_phase < 3:
+                        _opp_curriculum_phase = 3
+                        env.close()
+                        env = gym.make(
+                            cfg.env_id,
+                            seed=cfg.seed,
+                            max_ticks=cfg.max_ticks,
+                            reward_shaping=cfg.reward_shaping,
+                            enable_state_hash=cfg.enable_state_hash,
+                            enable_order_queue=cfg.enable_order_queue,
+                            enable_event_log=cfg.enable_event_log,
+                            enable_replay_v2=cfg.enable_replay_v2,
+                            opponent_difficulty="hard",
+                        )
+                        # Must reset new env before stepping
+                        obs, info = env.reset(seed=cfg.seed + episode)
+                        self._sync_training_step(env)
+                        logger.info(
+                            "Opponent curriculum → Phase 3 (hard) at step %d",
+                            self._training_step,
+                        )
+                    elif self._training_step >= _phase_one_third and _opp_curriculum_phase < 2:
+                        _opp_curriculum_phase = 2
+                        env.close()
+                        env = gym.make(
+                            cfg.env_id,
+                            seed=cfg.seed,
+                            max_ticks=cfg.max_ticks,
+                            reward_shaping=cfg.reward_shaping,
+                            enable_state_hash=cfg.enable_state_hash,
+                            enable_order_queue=cfg.enable_order_queue,
+                            enable_event_log=cfg.enable_event_log,
+                            enable_replay_v2=cfg.enable_replay_v2,
+                            opponent_difficulty="medium",
+                        )
+                        # Must reset new env before stepping
+                        obs, info = env.reset(seed=cfg.seed + episode)
+                        self._sync_training_step(env)
+                        logger.info(
+                            "Opponent curriculum → Phase 2 (medium) at step %d",
+                            self._training_step,
+                        )
 
                 self.buffer.add(
                     Transition(
@@ -448,12 +870,42 @@ class TRLGRPOTrainer:
             # --- Compute group-relative advantages and update ---
             if len(self.buffer) >= cfg.group_size:
                 advantages = self._compute_grpo_advantages()
-                update_metrics = self._update_policy(advantages)
+                update_metrics = self._update_policy(advantages, episode=episode)
             else:
                 # Not enough data for group estimation; use simple advantage
                 rewards = np.array([t.reward for t in self.buffer])
                 advantages = rewards - np.mean(rewards)
-                update_metrics = self._update_policy(advantages)
+                update_metrics = self._update_policy(advantages, episode=episode)
+
+            # ── GRPO v5: unfreeze all params after freeze_bc_epochs ──
+            if HAS_TORCH and isinstance(policy, nn.Module):  # type: ignore[name-defined]
+                if (
+                    cfg.freeze_bc_epochs > 0
+                    and episode == cfg.freeze_bc_epochs
+                ):
+                    for param in policy.backbone.parameters():
+                        param.requires_grad = True
+                    for param in policy.policy_head.parameters():
+                        param.requires_grad = True
+                    for param in policy.value_head.parameters():
+                        param.requires_grad = True
+                    policy.set_grpo_optimizer(lr=cfg.grpo_lr)
+                    logger.info(
+                        "Ep %d | Unfrozen all params | lr=%.1e",
+                        episode,
+                        cfg.grpo_lr,
+                    )
+
+            # --- Determine current status for logging ---
+            is_frozen = (
+                cfg.freeze_bc_epochs > 0 and episode < cfg.freeze_bc_epochs
+            )
+            status = "frozen" if is_frozen else "fine-tune"
+            opp_diff = (
+                {1: "easy", 2: "medium", 3: "hard"}.get(_opp_curriculum_phase, cfg.opponent_difficulty)
+                if _opp_curriculum_active
+                else cfg.opponent_difficulty
+            )
 
             # --- Log metrics ---
             metric: dict[str, Any] = {
@@ -461,6 +913,8 @@ class TRLGRPOTrainer:
                 "reward": episode_reward,
                 "length": episode_length,
                 "winner": info.get("winner", 0),
+                "status": status,
+                "opponent_difficulty": opp_diff,
                 **update_metrics,
             }
             self.metrics.append(metric)
@@ -476,8 +930,10 @@ class TRLGRPOTrainer:
                     "total_loss", recent[-1].get("loss", 0.0)
                 )
                 logger.info(
-                    "Ep %d | reward=%.2f | len=%.0f | win=%.1f%% | loss=%.4f",
+                    "Ep %d | %s | opp=%s | reward=%.2f | len=%.0f | win=%.1f%% | loss=%.4f",
                     episode,
+                    status,
+                    opp_diff,
                     avg_reward,
                     avg_length,
                     win_rate * 100,
@@ -623,11 +1079,11 @@ class TRLGRPOTrainer:
             # --- Compute advantages and update policy ---
             if len(self.buffer) >= cfg.group_size:
                 advantages = self._compute_grpo_advantages()
-                update_metrics = self._update_policy(advantages)
+                update_metrics = self._update_policy(advantages, episode=episode)
             else:
                 rewards_arr = np.array([t.reward for t in self.buffer])
                 advantages = rewards_arr - np.mean(rewards_arr)
-                update_metrics = self._update_policy(advantages)
+                update_metrics = self._update_policy(advantages, episode=episode)
 
             # --- Log metrics ---
             avg_reward = float(np.mean(episode_rewards)) if episode_rewards else 0.0
@@ -799,6 +1255,31 @@ class TRLGRPOTrainer:
 
     # ─── Internals ────────────────────────────────────────────
 
+    def _sync_training_step(self, env: Any) -> None:
+        """Push ``_training_step`` into the env's SubgoalTracker.
+
+        Mirrors what :class:`~simcore.ppo_callbacks.CurriculumStepSync`
+        does for SB3, but without requiring a BaseCallback.
+        Walks through any wrapper layers to find the inner
+        :class:`~simcore.reward_shaping.SubgoalTracker`.
+        """
+        try:
+            inner = env.unwrapped
+            if hasattr(inner, "_subgoal_tracker"):
+                inner._subgoal_tracker.current_training_step = self._training_step
+                return
+            # Walk through wrappers
+            candidate = env
+            while hasattr(candidate, "env"):
+                candidate = candidate.env
+                if hasattr(candidate, "_subgoal_tracker"):
+                    candidate._subgoal_tracker.current_training_step = (
+                        self._training_step
+                    )
+                    return
+        except Exception:
+            pass  # best-effort; curriculum is optional
+
     def _compute_grpo_advantages(self) -> np.ndarray:
         """Compute GRPO group-relative advantages.
 
@@ -826,14 +1307,22 @@ class TRLGRPOTrainer:
 
         return advantages.astype(np.float32)
 
-    def _update_policy(self, advantages: np.ndarray) -> dict[str, float]:
-        """Update policy with computed advantages."""
+    def _update_policy(self, advantages: np.ndarray, episode: int = 0) -> dict[str, float]:
+        """Update policy with computed advantages.
+
+        Parameters
+        ----------
+        advantages : np.ndarray
+            Group-relative advantages.
+        episode : int
+            Current episode number (used for freeze_bc_epochs gating).
+        """
         policy = self._policy
         if policy is None:
             return {"loss": 0.0}
 
         if HAS_TORCH and isinstance(policy, nn.Module):  # type: ignore[name-defined]
-            return policy.update_grpo(self.buffer, advantages, self.config)
+            return policy.update_grpo(self.buffer, advantages, self.config, episode=episode)
         else:
             # Fallback: SimplePolicy gradient update
             actions = np.array([t.action for t in self.buffer])
@@ -906,6 +1395,7 @@ class TRLGRPOTrainer:
             enable_order_queue=cfg.enable_order_queue,
             enable_event_log=cfg.enable_event_log,
             enable_replay_v2=cfg.enable_replay_v2,
+            opponent_difficulty=cfg.opponent_difficulty,
         )
 
     def _export_curves(self, path: Path) -> None:
@@ -917,10 +1407,12 @@ class TRLGRPOTrainer:
             "reward",
             "length",
             "winner",
+            "status",
+            "opponent_difficulty",
         ]
         # Add loss columns if available
         if self.metrics:
-            for key in ("total_loss", "loss", "pg_loss", "value_loss", "entropy"):
+            for key in ("total_loss", "loss", "pg_loss", "value_loss", "entropy", "kl_div"):
                 if key in self.metrics[0]:
                     fieldnames.append(key)
 

@@ -32,17 +32,37 @@ class Recorder:
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
-    def start_recording(self, game_config: dict) -> None:
+    def start_recording(
+        self,
+        game_config: dict,
+        engine: Any | None = None,
+    ) -> None:
         """Begin a new recording session.
 
         Args:
             game_config: dict with game parameters (seed, max_ticks,
                 player_races, etc.). Stored as metadata in the replay header.
+            engine: optional SimCore engine instance.  If *player_races* or
+                *height_map* are missing from *game_config*, they will be
+                back-filled from ``engine._player_races`` and
+                ``engine._state.height_map`` respectively.
         """
         self._recording = True
         self._ticks.clear()
         self._config = dict(game_config)
         self._start_time = time.time()
+
+        # Back-fill player_races and height_map from engine if not in config
+        if engine is not None:
+            if "player_races" not in self._config:
+                races = getattr(engine, "_player_races", None)
+                if races is not None:
+                    self._config["player_races"] = dict(races)
+            if "height_map" not in self._config:
+                state = getattr(engine, "_state", None)
+                hm = getattr(state, "height_map", None) if state is not None else None
+                if hm is not None:
+                    self._config["height_map"] = hm
 
     def record_tick(
         self,

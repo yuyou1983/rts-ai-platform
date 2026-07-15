@@ -556,6 +556,11 @@ class SimCore:
                 self._replay_v2.record_hash(self._tick, step_snapshot["state_hash"])
             if self._tick % self._replay_v2.keyframe_interval == 0:
                 self._replay_v2.record_keyframe(self._tick, step_snapshot)
+            # ── Write winner/terminal info on game end ────────────
+            if self._state.is_terminal:
+                self._replay_v2.winner = self._state.winner
+                self._replay_v2.terminal_tick = self._tick
+                self._replay_v2.terminal_reason = reason
 
         return self._state
 
@@ -572,7 +577,7 @@ class SimCore:
         while self._tick < self.max_ticks and not self._state.is_terminal:
             obs = self._state.get_observations()
             commands = [a.decide(o) for a, o in zip(agents, obs, strict=True)]
-            self.step(commands)
+            self.step([c for agent_cmds in commands for c in agent_cmds])
         return self._state
 
     def get_observations(self, player_id: int) -> dict:

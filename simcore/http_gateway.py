@@ -271,7 +271,12 @@ async def handle_health(req: web.Request) -> web.Response:
 
 
 async def handle_replay(req: web.Request) -> web.Response:
-    """GET /api/replay/{match_id} — read replay data."""
+    """GET /api/replay/{match_id} — read replay data.
+
+    If the stored replay is in ReplayV2 compact format (``version: 2``),
+    it is automatically re-executed and converted to the V1 ticks array
+    that the Godot client expects.
+    """
     match_id = req.match_info["match_id"]
     json_path = _replay_dir / f"{match_id}.json"
     jsonl_path = _replay_dir / f"{match_id}.jsonl"
@@ -279,15 +284,38 @@ async def handle_replay(req: web.Request) -> web.Response:
     ticks: list[dict] = []
     replay_meta: dict = {}
 
-    # Try JSON first (single-file format with ticks array)
+    # Try JSON first (single-file format — may be V1 or V2)
     if json_path.is_file():
         with open(json_path) as f:
             data = json.load(f)
-        ticks = data.get("ticks", [])
-        match_id = data.get("match_id", match_id)
-        replay_meta = {"player_races": data.get("player_races", {}),
-                        "winner": data.get("winner", 0)}
-    # Try JSONL next (one tick per line)
+
+        # ── V2 detection & transparent conversion ──
+        if data.get("version") == 2:
+            logger.info("Replay %s is V2 format — re-executing to V1 ticks", match_id)
+            try:
+                from simcore.replay import ReplayV2
+                replay_v2 = ReplayV2.from_dict(data)
+                ticks = await asyncio.to_thread(
+                    ReplayV2.reexecute_to_v1_ticks, replay_v2
+                )
+                replay_meta = {
+                    "player_races": data.get("config", {}).get("player_races", {}),
+                    "winner": data.get("winner", 0),
+                }
+            except Exception as exc:
+                logger.error("V2→V1 reexecute failed for %s: %s", match_id, exc)
+                return web.json_response(
+                    {"error": f"V2 replay reexecute failed: {exc}"},
+                    status=500,
+                )
+        else:
+            # V1 format — plain ticks array
+            ticks = data.get("ticks", [])
+            match_id = data.get("match_id", match_id)
+            replay_meta = {"player_races": data.get("player_races", {}),
+                            "winner": data.get("winner", 0)}
+
+    # Try JSONL next (one tick per line — always V1)
     elif jsonl_path.is_file():
         with open(jsonl_path) as f:
             for line in f:
@@ -304,7 +332,6 @@ async def handle_replay(req: web.Request) -> web.Response:
             logger.warning("Failed to fetch replay via gRPC: %s", exc)
 
     # Normalize tick format for Godot client compatibility
-    replay_meta = {}
     for tick in ticks:
         # ── Normalize resources ──
         res: dict = tick.get("resources", {})
@@ -486,8 +513,9 @@ async def handle_replay_download(req: web.Request) -> web.Response:
     )
 
 
-async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = None) -> web.Application:
-    global _client
+async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = None,
+                     agent_factory: AgentFactory | None = None) -> web.Application:
+    global _client, _agent_factory
     if client is not None:
         _client = client
     elif grpc_address:
@@ -495,6 +523,17 @@ async def app_factory(grpc_address: str = "", *, client: SimCoreClient | None = 
         await _client.__aenter__()
     else:
         raise ValueError("Either grpc_address or client must be provided")
+
+    # Auto-discover agent factory from runtime layer (same as serve())
+    if agent_factory is not None:
+        _agent_factory = agent_factory
+    elif _agent_factory is None:
+        try:
+            import importlib
+            _mod = importlib.import_module("runtime.agent_factory")
+            _agent_factory = _mod.create_ai_agent
+        except ImportError:
+            logger.debug("runtime.agent_factory not available — AI commands disabled")
 
     app = web.Application()
     app.router.add_post("/api/start_game", handle_start_game)
