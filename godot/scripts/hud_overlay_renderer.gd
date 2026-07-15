@@ -30,7 +30,25 @@ const DEATH_EFFECT_DURATION: float = 0.5
 const HOVER_CHECK_INTERVAL: float = 0.05
 const SELECTION_BREATHE_SPEED: float = 3.0
 const SELECTION_BREATHE_MIN: float = 0.55
-const SELECTION_BREATHE_MAX: float = 1.0
+const SELECTION_BREATHE_MAX: float = 0.9
+
+# ─── Selection ring config (loaded from control_feel_config.json) ─────
+var _sr_inner_width: float = 0.045
+var _sr_outer_width: float = 0.08
+var _sr_dash_segments: int = 6
+var _sr_dash_gap_ratio: float = 0.4
+var _sr_rotation_speed: float = 0.5
+var _sr_shadow_alpha: float = 0.15
+var _sr_terran_color: Color = Color(0.3, 0.75, 1.0)
+var _sr_zerg_color: Color = Color(0.85, 0.25, 0.35)
+var _sr_protoss_color: Color = Color(0.85, 0.75, 0.2)
+
+# ─── Selection ring style (from visual_preset) ──────────────────────────
+var _selection_ring_style: String = "simple"  # "simple" or "enhanced"
+# Simple-mode colors: green=ally, red=enemy, white/neutral
+var _simple_ally_color: Color = Color(0.2, 1.0, 0.2, 0.9)
+var _simple_enemy_color: Color = Color(1.0, 0.2, 0.2, 0.9)
+var _simple_neutral_color: Color = Color(1.0, 1.0, 1.0, 0.45)
 
 const SELECT_RADIUS: float = 1.5
 const PYLON_POWER_RADIUS: float = 8.0
@@ -80,6 +98,15 @@ var _player_races: Dictionary = {}  # {"1": "1", "2": "2"}
 var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
 var _selection_node: Node = null  # SelectionManager autoload
 
+# ─── Test mode isolation ─────────────────────────────────────────────────────
+var _test_mode_isolation: bool = false
+
+func set_test_mode_isolation(enabled: bool) -> void:
+	_test_mode_isolation = enabled
+
+func is_test_mode_isolation() -> bool:
+	return _test_mode_isolation
+
 # ─── Callable helpers (injected from game_view) ────────────────────────────
 var _fn_resolve_visual_id: Callable
 var _fn_visual_radius: Callable
@@ -108,6 +135,7 @@ var _fog_alpha: PackedFloat32Array = []
 func setup(camera: Camera2D, default_font: Font) -> void:
 	_camera = camera
 	_default_font = default_font
+	_load_selection_ring_config()
 
 
 func set_visual_helpers(
@@ -213,15 +241,18 @@ func draw_all(canvas: CanvasItem) -> void:
 	_draw_hover_highlight(co)
 	_draw_health_bars(co)
 	_draw_build_progress_bars(co)
+	_draw_construction_wireframes(co)
 	_draw_production_bars(co)
 	_draw_status_icons(co)
 	_draw_selection_rings(co)
 	_draw_pylon_power_range(co)
-	_draw_rally_lines(co)
+	if not _test_mode_isolation:
+		_draw_rally_lines(co)
 	_draw_drag_box()
 	_draw_damage_floats(co)
-	_draw_command_pings(co)
-	_draw_control_group_hints(co)
+	if not _test_mode_isolation:
+		_draw_command_pings(co)
+		_draw_control_group_hints(co)
 	_draw_game_over_overlay()
 	_canvas = null
 
@@ -447,6 +478,53 @@ func _draw_build_progress_bars(_co: Vector2) -> void:
 		_canvas.draw_rect(Rect2(pos.x - bar_w / 2, bar_y, bar_w, bar_h), Color(0.6, 0.5, 0.3, 0.5), false, 0.03)
 
 
+# ─── Construction Wireframe Overlay ────────────────────────────────────────
+func _draw_construction_wireframes(_co: Vector2) -> void:
+	## Draw a dashed rectangle outline around buildings under construction.
+	## Only for player-owned (owner 1) buildings that are constructing.
+	## Uses team color for the dashes with reduced opacity.
+	for e in _ents:
+		if e.type != "building":
+			continue
+		var is_constructing: bool = bool(e.get("is_constructing", false)) if e.get("is_constructing") != null else false
+		if not is_constructing:
+			continue
+		if int(e.owner) != 1:
+			continue
+		if _fn_is_in_fog.call(e):
+			continue
+		var pos := Vector2(float(e.px), float(e.py))
+		var radius: float = _fn_visual_radius.call(e)
+		var half_size := radius * 2.0
+		var rect := Rect2(pos.x - half_size, pos.y - half_size, half_size * 2.0, half_size * 2.0)
+		# Team color for player 1 with alpha
+		var dash_color := Color(0.2, 0.8, 0.3, 0.6)
+		_draw_dashed_rect(rect, dash_color, 4, 0.5)
+
+
+func _draw_dashed_rect(rect: Rect2, color: Color, segments: int, gap_ratio: float) -> void:
+	## Draw a dashed rectangle. Each side is split into `segments` pieces,
+	## with `gap_ratio` of each segment being blank.
+	var dash_len: float = 1.0 - gap_ratio
+	var edges: Array = [
+		[Vector2(rect.position.x, rect.position.y), Vector2(rect.end.x, rect.position.y)],             # top
+		[Vector2(rect.end.x, rect.position.y), Vector2(rect.end.x, rect.end.y)],                       # right
+		[Vector2(rect.end.x, rect.end.y), Vector2(rect.position.x, rect.end.y)],                       # bottom
+		[Vector2(rect.position.x, rect.end.y), Vector2(rect.position.x, rect.position.y)],             # left
+	]
+	for edge in edges:
+		var start: Vector2 = edge[0]
+		var end: Vector2 = edge[1]
+		var edge_len: float = start.distance_to(end)
+		var seg_len: float = edge_len / float(segments)
+		var draw_len: float = seg_len * dash_len
+		var direction: Vector2 = (end - start).normalized()
+		for i in range(segments):
+			var seg_start: Vector2 = start + direction * (seg_len * float(i))
+			var seg_end: Vector2 = seg_start + direction * draw_len
+			_canvas.draw_line(seg_start, seg_end, color, 0.04)
+
+
 # ─── Team Color Helper ──────────────────────────────────────────────────────
 func _team_color(owner: int) -> Color:
 	## Return a team color for the given owner ID.
@@ -455,6 +533,62 @@ func _team_color(owner: int) -> Color:
 		2: return Color(0.9, 0.2, 0.2)   # red (enemy AI)
 		3: return Color(0.9, 0.8, 0.2)   # yellow (Protoss)
 		_: return Color(0.6, 0.6, 0.6)   # gray (neutral)
+
+
+# ─── Race-based Selection Color ──────────────────────────────────────────────
+func _race_selection_color(owner: int) -> Color:
+	## Return a race-specific selection color for the given owner.
+	## Uses _player_races dict (keys "1","2","3" → race IDs "1"=Terran, "2"=Zerg, "3"=Protoss).
+	var race_id: String = str(_player_races.get(str(owner), ""))
+	match race_id:
+		"1": return _sr_terran_color     # Terran — blue steel
+		"2": return _sr_zerg_color       # Zerg — crimson
+		"3": return _sr_protoss_color   # Protoss — gold
+		_: return _team_color(owner)    # fallback for non-player owners
+
+
+func _load_selection_ring_config() -> void:
+	## Load selection_ring and visual_preset settings from control_feel_config.json.
+	var path: String = "res://resources/feel/control_feel_config.json"
+	if not ResourceLoader.exists(path):
+		return
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return
+	var text: String = f.get_as_text()
+	f.close()
+	var json: JSON = JSON.new()
+	var err: int = json.parse(text)
+	if err != OK:
+		push_warning("hud_overlay_renderer: JSON parse error in control_feel_config.json")
+		return
+	var data: Dictionary = json.data
+	if not data is Dictionary:
+		return
+	# ── visual_preset → selection_ring_style ──
+	var vp: Dictionary = data.get("visual_preset", {})
+	if not vp.is_empty():
+		_selection_ring_style = str(vp.get("selection_ring_style", _selection_ring_style))
+	# ── selection_ring config ──
+	var sr: Dictionary = data.get("selection_ring", {})
+	if sr.is_empty():
+		return
+	_sr_inner_width = float(sr.get("inner_width", _sr_inner_width))
+	_sr_outer_width = float(sr.get("outer_width", _sr_outer_width))
+	_sr_dash_segments = int(sr.get("dash_segments", _sr_dash_segments))
+	_sr_dash_gap_ratio = float(sr.get("dash_gap_ratio", _sr_dash_gap_ratio))
+	_sr_rotation_speed = float(sr.get("rotation_speed", _sr_rotation_speed))
+	_sr_shadow_alpha = float(sr.get("shadow_alpha", _sr_shadow_alpha))
+	# Race colors (arrays [r, g, b])
+	var tc: Array = sr.get("terran_color", [])
+	if tc.size() >= 3:
+		_sr_terran_color = Color(float(tc[0]), float(tc[1]), float(tc[2]))
+	var zc: Array = sr.get("zerg_color", [])
+	if zc.size() >= 3:
+		_sr_zerg_color = Color(float(zc[0]), float(zc[1]), float(zc[2]))
+	var pc: Array = sr.get("protoss_color", [])
+	if pc.size() >= 3:
+		_sr_protoss_color = Color(float(pc[0]), float(pc[1]), float(pc[2]))
 
 
 # ─── Unit Letter Helper ─────────────────────────────────────────────────────
@@ -565,23 +699,73 @@ func _draw_status_icons(_co: Vector2) -> void:
 
 
 func _draw_selection_rings(_co: Vector2) -> void:
-	## Selected units: green ring with breathing (sinusoidal) glow pulse.
+	## Selected units: ring style depends on _selection_ring_style.
+	## "simple" — single clean ring: green=ally, red=enemy, white=neutral.
+	## "enhanced" — race-colored inner ring (solid, thin, breathing) +
+	##   outer ring (dashed, thick, slowly spinning) + ground shadow.
 	var breathe_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED)
 	var breathe_alpha: float = lerpf(SELECTION_BREATHE_MIN, SELECTION_BREATHE_MAX, 0.5 + 0.5 * breathe_phase)
+	var angle_offset: float = _game_time * _sr_rotation_speed
 	for uid in _selected:
 		var e: Dictionary = _fn_get_ent_by_id.call(uid)
 		if e.is_empty():
 			continue
 		var pos := Vector2(float(e.px), float(e.py))
 		var radius: float = _fn_visual_radius.call(e)
-		# Main selection ring with breathing alpha
-		var ring_color: Color = Color(0.2, 1.0, 0.2, breathe_alpha)
-		_canvas.draw_arc(pos, radius, 0.0, TAU, 24, ring_color, 0.055, true)
-		# Outer glow ring (subtler, also breathing but offset phase)
-		var glow_phase: float = sin(_game_time * SELECTION_BREATHE_SPEED + PI * 0.5)
-		var glow_alpha: float = lerpf(0.0, 0.25, 0.5 + 0.5 * glow_phase)
-		var glow_color: Color = Color(0.4, 1.0, 0.4, glow_alpha)
-		_canvas.draw_arc(pos, radius * 1.12, 0.0, TAU, 24, glow_color, 0.04, true)
+		var owner_id: int = int(e.owner)
+
+		if _selection_ring_style == "simple":
+			# ── Simple mode: single clean ring ──
+			var ring_color: Color
+			if owner_id == 1:
+				ring_color = _simple_ally_color
+			elif owner_id == 2:
+				ring_color = _simple_enemy_color
+			else:
+				ring_color = _simple_neutral_color
+			# Breathing alpha modulation
+			var final_color: Color = Color(ring_color.r, ring_color.g, ring_color.b, ring_color.a * breathe_alpha)
+			# selection_ring_offset from entity data (Array [x, y]) or default
+			var sro = e.get("selection_ring_offset")
+			var ring_offset: Vector2 = Vector2.ZERO
+			if sro is Array and sro.size() >= 2:
+				ring_offset = Vector2(float(sro[0]), float(sro[1]))
+			_canvas.draw_arc(pos + ring_offset, radius, 0.0, TAU, 24, final_color, _sr_inner_width * 2.0, true)
+		else:
+			# ── Enhanced mode: race-colored dual ring ──
+			var race_color: Color = _race_selection_color(owner_id)
+
+			# ── Ground shadow (only for non-building units) ──
+			if e.type != "building":
+				var shadow_color: Color = Color(0.0, 0.0, 0.0, _sr_shadow_alpha * breathe_alpha)
+				var shadow_w: float = radius * 0.7
+				var shadow_h: float = radius * 0.35
+				_draw_ellipse(pos, shadow_w, shadow_h, shadow_color)
+
+			# ── Inner ring: solid thin line with breathing alpha ──
+			var inner_color: Color = Color(race_color.r, race_color.g, race_color.b, breathe_alpha)
+			_canvas.draw_arc(pos, radius, 0.0, TAU, 24, inner_color, _sr_inner_width, true)
+
+			# ── Outer ring: dashed thick line, slowly spinning ──
+			var outer_base: Color = Color(race_color.r * 0.6, race_color.g * 0.6, race_color.b * 0.6, breathe_alpha)
+			var outer_radius: float = radius * 1.12
+			var seg_arc: float = TAU / float(_sr_dash_segments)
+			var dash_arc: float = seg_arc * (1.0 - _sr_dash_gap_ratio)
+			for i in range(_sr_dash_segments):
+				var start_a: float = angle_offset + seg_arc * float(i)
+				var end_a: float = start_a + dash_arc
+				_canvas.draw_arc(pos, outer_radius, start_a, end_a, 6, outer_base, _sr_outer_width, true)
+
+
+func _draw_ellipse(center: Vector2, radius_x: float, radius_y: float, color: Color) -> void:
+	## Draw a filled ellipse using draw_colored_polygon with arc-sampled points.
+	## Works on the current _canvas.
+	var points := PackedVector2Array()
+	var segs: int = 20
+	for i in range(segs):
+		var a: float = TAU * float(i) / float(segs)
+		points.append(center + Vector2(cos(a) * radius_x, sin(a) * radius_y))
+	_canvas.draw_colored_polygon(points, color)
 
 
 # ─── Pylon Power Range Visualization ───────────────────────────────────────
@@ -716,7 +900,7 @@ func _draw_control_group_hints(_co: Vector2) -> void:
 		var text: String = str(hint.get("text", ""))
 
 		var screen_center := _camera.get_viewport().get_visible_rect().size / 2.0
-		var hint_pos := _fn_screen_to_world.call(screen_center) + Vector2(0, _map_h * 0.4)
+		var hint_pos: Vector2 = _fn_screen_to_world.call(screen_center) + Vector2(0, _map_h * 0.4)
 		var font_size: int = 16
 		var font: Font = _default_font if _default_font else ThemeDB.fallback_font
 		var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)

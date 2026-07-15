@@ -170,6 +170,25 @@
       "radius": 0.82,
       "scale": 0.04,
       "rings": 2
+    },
+    "small_death_burst": {
+      "texture": "res://assets/effects/Burst.png",
+      "color": [
+        1.0,
+        0.7,
+        0.35,
+        0.9
+      ],
+      "secondary_color": [
+        0.85,
+        0.25,
+        0.1,
+        0.7
+      ],
+      "lifetime": 0.32,
+      "radius": 0.85,
+      "scale": 0.04,
+      "rings": 2
     }
   },
   "unit_effects": {
@@ -591,12 +610,15 @@
     "terran_ballistic": {
       "attack": "muzzle_flash_small",
       "hit": "hit_spark",
-      "death": "hit_spark",
+      "death": "small_death_burst",
       "projectile": "hitscan",
       "tracer": "thin_yellow",
-      "priority": 1,
+      "priority": 2,
       "tracer_style": "flicker",
-      "tracer_color": [1.0, 0.9, 0.5, 0.9]
+      "tracer_color": [1.0, 0.9, 0.5, 0.9],
+      "projectile_speed_tiles_per_second": 36.0,
+      "muzzle_offset_tiles": 0.35,
+      "impact_offset_tiles": 0.0
     },
     "terran_explosive": {
       "attack": "shell_impact",
@@ -604,9 +626,12 @@
       "death": "building_burst",
       "projectile": "ballistic",
       "tracer": "thick_orange",
-      "priority": 4,
+      "priority": 3,
       "tracer_style": "arc",
-      "tracer_color": [1.0, 0.6, 0.2, 0.8]
+      "tracer_color": [1.0, 0.6, 0.2, 0.8],
+      "projectile_speed_tiles_per_second": 16.0,
+      "muzzle_offset_tiles": 0.5,
+      "impact_offset_tiles": 0.0
     },
     "terran_flame": {
       "attack": "muzzle_flash_small",
@@ -616,7 +641,10 @@
       "tracer": "orange_cone",
       "priority": 2,
       "tracer_style": "cone",
-      "tracer_color": [1.0, 0.4, 0.1, 0.7]
+      "tracer_color": [1.0, 0.4, 0.1, 0.7],
+      "projectile_speed_tiles_per_second": 24.0,
+      "muzzle_offset_tiles": 0.3,
+      "impact_offset_tiles": 0.2
     },
     "zerg_melee": {
       "attack": "acid_hit",
@@ -626,7 +654,10 @@
       "tracer": "none",
       "priority": 1,
       "tracer_style": "slash",
-      "tracer_color": [0.2, 1.0, 0.3, 0.9]
+      "tracer_color": [0.0, 0.0, 0.0, 0.0],
+      "projectile_speed_tiles_per_second": 0.0,
+      "muzzle_offset_tiles": 0.3,
+      "impact_offset_tiles": 0.0
     },
     "zerg_acid": {
       "attack": "acid_hit",
@@ -636,7 +667,10 @@
       "tracer": "green_blob",
       "priority": 2,
       "tracer_style": "arc",
-      "tracer_color": [0.5, 1.0, 0.2, 0.8]
+      "tracer_color": [0.5, 1.0, 0.2, 0.8],
+      "projectile_speed_tiles_per_second": 20.0,
+      "muzzle_offset_tiles": 0.3,
+      "impact_offset_tiles": 0.0
     },
     "zerg_spore": {
       "attack": "acid_hit",
@@ -646,7 +680,10 @@
       "tracer": "thin_green",
       "priority": 1,
       "tracer_style": "flicker",
-      "tracer_color": [0.8, 1.0, 0.3, 0.9]
+      "tracer_color": [0.0, 0.0, 0.0, 0.0],
+      "projectile_speed_tiles_per_second": 32.0,
+      "muzzle_offset_tiles": 0.35,
+      "impact_offset_tiles": 0.0
     },
     "protoss_psi": {
       "attack": "psi_flash",
@@ -656,7 +693,10 @@
       "tracer": "blue_flash",
       "priority": 2,
       "tracer_style": "flash",
-      "tracer_color": [0.4, 0.4, 1.0, 0.9]
+      "tracer_color": [0.4, 0.4, 1.0, 0.9],
+      "projectile_speed_tiles_per_second": 0.0,
+      "muzzle_offset_tiles": 0.0,
+      "impact_offset_tiles": 0.0
     },
     "protoss_phase": {
       "attack": "psi_flash",
@@ -666,7 +706,10 @@
       "tracer": "blue_orb",
       "priority": 3,
       "tracer_style": "beam",
-      "tracer_color": [1.0, 0.85, 0.2, 0.85]
+      "tracer_color": [1.0, 0.85, 0.2, 0.85],
+      "projectile_speed_tiles_per_second": 18.0,
+      "muzzle_offset_tiles": 0.4,
+      "impact_offset_tiles": 0.0
     },
     "building_hit": {
       "attack": "none",
@@ -674,9 +717,12 @@
       "death": "building_burst",
       "projectile": "none",
       "tracer": "none",
-      "priority": 4,
+      "priority": 3,
       "tracer_style": "none",
-      "tracer_color": [0.0, 0.0, 0.0, 0.0]
+      "tracer_color": [0.0, 0.0, 0.0, 0.0],
+      "projectile_speed_tiles_per_second": 0.0,
+      "muzzle_offset_tiles": 0.0,
+      "impact_offset_tiles": 0.0
     },
     "shield_hit": {
       "attack": "none",
@@ -686,7 +732,10 @@
       "tracer": "none",
       "priority": 2,
       "tracer_style": "none",
-      "tracer_color": [0.0, 0.0, 0.0, 0.0]
+      "tracer_color": [0.0, 0.0, 0.0, 0.0],
+      "projectile_speed_tiles_per_second": 0.0,
+      "muzzle_offset_tiles": 0.0,
+      "impact_offset_tiles": 0.0
     }
   }
 }

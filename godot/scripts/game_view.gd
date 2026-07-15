@@ -33,6 +33,9 @@ const VictoryScene := preload("res://scenes/victory_screen.tscn")
 const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
 const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
+const TerrainRendererScript = preload("res://scripts/terrain_renderer.gd")
+const SC1TilesetRendererScript = preload("res://scripts/sc1_tileset_renderer.gd")
+const InputFeedbackControllerScript = preload("res://scripts/input_feedback_controller.gd")
 const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 const HUD_FULL_HEIGHT := 480
@@ -67,6 +70,8 @@ var _drag_end := Vector2.ZERO
 const SELECT_RADIUS := 1.5
 const PYLON_POWER_RADIUS: float = 8.0
 var _test_gallery: TestModeGallery = null
+var _test_label_layer: TestModeLabelLayer = null
+var _test_ui_ctrl: TestModeUIController = null
 var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
 var _zoom_out_btn: Button = null
@@ -81,8 +86,10 @@ var _unit_anim_info: Dictionary = {}
 var _height_map: Array = []        # 2D array [y][x] → int 0..8
 var _height_map_w: int = 64
 var _height_map_h: int = 64
-var _elevation_dirty: bool = false  # redraw flag
-var _show_elevation: bool = false   # default OFF — toggle via debug button
+# _elevation_dirty kept for backward compat but no longer drives _draw();
+# TerrainRenderer handles its own cache invalidation.
+var _elevation_dirty: bool = false
+var _show_elevation: bool = false   # toggle via debug button → TerrainRenderer visibility
 
 # ─── Build mode ────────────────────────────────────────────
 var _build_mode := false
@@ -112,9 +119,18 @@ var _fog_alpha: PackedFloat32Array = []
 var _fog_prev_tiles: PackedInt32Array = []  # previous tick's raw fog state
 const FOG_FADE_FRAMES := 15  # ~0.5s at 30fps before fully fading
 
+# ─── Construction ghost fade ──────────────────────────────
+var _construction_fade: Dictionary = {}  # entity_id → current_alpha (fading to 1.0)
+var _construction_cfg: Dictionary = {}   # loaded from feel config
+
 # ─── Jitter monitor ────────────────────────────────────────
 var _jitter_count: int = 0
 var _total_jitter_px: float = 0.0
+
+# ─── Hover detection ─────────────────────────────────────
+var _hover_check_timer: float = 0.0
+const HOVER_CHECK_INTERVAL := 0.1
+var _hovered_entity_id: String = ""
 
 # ─── Control group double-tap ──────────────────────────────
 var _last_group_key: int = -1
@@ -124,6 +140,7 @@ var _last_group_time: float = 0.0
 var _mm_size := Vector2(152, 136)  # minimap inner drawing area
 var _mm_margin := Vector2(12, 28)  # bottom-right float: x=8+4, y=8+20
 var _mm_rect_node: Control = null  # ref to MinimapRect node
+var _mm_panel_node: PanelContainer = null  # ref to Minimap panel wrapper
 
 # ─── Integrated Pattern References ─────────────────────────
 var _selection: Node  # SelectionManager autoload
@@ -134,12 +151,15 @@ var _ability_mgr: Node  # AbilityManager autoload
 var _unit_textures: Dictionary = {}
 var _building_textures: Dictionary = {}
 var _player_races: Dictionary = {}  # {"1": "1", "2": "2"} — maps player ID → race ID (1=Terran, 2=Zerg, 3=Protoss)
+var _resource_textures: Dictionary = {}  # cached Texture2D: path → Texture2D
+var _resource_visual_cfg: Dictionary = {}  # loaded from control_feel_config.json
 var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
 var _sprite_container: Node2D = null  # parent for all entity sprites
 var _vfx_manager: VFXManager = null
 var _sprite_loader: SpriteLoader = null
 var _presentation_manifest: Dictionary = {}
 var _map_texture: Texture2D = null
+var _terrain_renderer: Node2D = null  # TerrainRenderer — procedural terrain
 
 # ─── Sprint 4 Components ──────────────────────────────────
 var _cam_ctrl: Node = null  # CameraController
@@ -148,6 +168,7 @@ var _ui_layer: CanvasLayer = null  # UI layer for HUD, minimap, replay overlay
 var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
 
 var _hud_overlay: HUDOverlayRenderer = null  # Delegated HUD overlay renderer
+var _input_feedback_ctrl: InputFeedbackController = null  # Local input feedback
 
 # ─── Entity Data Provider ──────────────────────────────────
 var _entity_cache_by_id: Dictionary = {}
@@ -178,6 +199,29 @@ func _load_texture_or_fallback(primary_path: String, fallback_path: String) -> T
 			return ImageTexture.create_from_image(image)
 	return load(fallback_path)
 
+## Load a single resource texture with caching support.
+func _load_resource_texture(path: String) -> Texture2D:
+	if _resource_textures.has(path):
+		return _resource_textures[path]
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = ResourceLoader.load(path, "Texture2D") as Texture2D
+	if tex == null and FileAccess.file_exists(path):
+		var image := Image.new()
+		if image.load(path) == OK:
+			tex = ImageTexture.create_from_image(image)
+	if tex == null and path.begins_with("res://"):
+		var globalized: String = ProjectSettings.globalize_path(path)
+		if globalized != "" and FileAccess.file_exists(globalized):
+			var image := Image.new()
+			if image.load(globalized) == OK:
+				tex = ImageTexture.create_from_image(image)
+	if tex:
+		_resource_textures[path] = tex
+	else:
+		push_warning("[GameView] Resource texture not found: %s" % path)
+	return tex
+
 # ───────────────────────────────────────────────────────────
 func _ready() -> void:
 	_default_font = ThemeDB.fallback_font
@@ -204,6 +248,42 @@ func _ready() -> void:
 	_bridge.enable_elevation = true
 	add_child(_bridge)
 	_feel_config = _load_feel_config()
+	# ─── Load construction ghost config ───
+	if _feel_config.has("construction"):
+		_construction_cfg = _feel_config["construction"]
+	else:
+		_construction_cfg = {
+			"ghost_alpha": 0.45,
+			"breath_speed": 3.0,
+			"breath_amplitude": 0.1,
+			"fade_in_speed": 3.0,
+		}
+	# ─── Load resource visuals config ───
+	if _feel_config.has("resource_visuals"):
+		_resource_visual_cfg = _feel_config["resource_visuals"]
+	else:
+		_resource_visual_cfg = {
+			"mineral_textures": [
+				"res://assets/sc1_generated/MineralFieldType1.png",
+				"res://assets/sc1_generated/MineralFieldType2.png",
+				"res://assets/sc1_generated/MineralFieldType3.png",
+			],
+			"gas_texture": "res://assets/sc1_generated/VespeneGeyser.png",
+			"resource_scale": 0.022,
+		}
+	# ─── Pre-load resource textures (cached in _resource_textures) ───
+	var mineral_paths: Array = _resource_visual_cfg.get("mineral_textures", [])
+	for path in mineral_paths:
+		var p: String = str(path)
+		if not _resource_textures.has(p):
+			var tex: Texture2D = _load_resource_texture(p)
+			if tex:
+				_resource_textures[p] = tex
+	var gas_path: String = str(_resource_visual_cfg.get("gas_texture", ""))
+	if gas_path != "" and not _resource_textures.has(gas_path):
+		var tex: Texture2D = _load_resource_texture(gas_path)
+		if tex:
+			_resource_textures[gas_path] = tex
 	_bridge.game_started.connect(_on_start)
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
@@ -307,7 +387,17 @@ func _ready() -> void:
 	_unit_anim_info["scout_2"] = _unit_anim_info.get("scout_1", {})
 	# Dragoon (reuse Zealot info for now — will need its own sprite)
 	_unit_anim_info["scout_3"] = _unit_anim_info.get("soldier_3", {})
-	_map_texture = load("res://assets/maps/(2)Switchback.jpg")
+	# ─── Terrain renderer: choose based on terrain_mode config ───
+	var terrain_mode: String = str(_feel_config.get("terrain_mode", "height_debug"))
+	if terrain_mode == "sc1_tileset":
+		_terrain_renderer = SC1TilesetRendererScript.new()
+		_terrain_renderer.name = "SC1TilesetRenderer"
+	else:
+		_terrain_renderer = TerrainRendererScript.new()
+		_terrain_renderer.name = "TerrainRenderer"
+	_terrain_renderer.z_index = -5  # below fog, below everything else
+	_terrain_renderer.visible = false  # hidden until data arrives
+	add_child(_terrain_renderer)
 
 	# ─── CanvasLayer for floating UI (above fullscreen game map) ───
 	_ui_layer.layer = 10
@@ -318,6 +408,7 @@ func _ready() -> void:
 	var mm_size := Vector2(160, 160)
 	var mm_margin := 8
 	var _mm_panel := PanelContainer.new()
+	_mm_panel_node = _mm_panel
 	_mm_panel.anchor_left = 1.0
 	_mm_panel.anchor_top = 1.0
 	_mm_panel.anchor_right = 1.0
@@ -370,9 +461,12 @@ func _ready() -> void:
 	_hud_overlay.setup(_camera, _default_font)
 	_hud_overlay.set_visual_helpers(
 		_visual_radius, _visual_scale, _resolve_visual_id,
-		_is_building_entity_visual, _screen_to_world, _world_to_screen, _is_in_fog
+		_is_building_entity_visual, _screen_to_world, _world_to_screen, _is_in_fog,
+		_get_ent_by_id, _get_entity_data, _to_f, _ent_at_world_pos
 	)
 	_hud_overlay.pings_updated.connect(func(): queue_redraw())
+	_hud_overlay.set_data_refs(_player_races, _rally_indicators, _selection)
+	_hud_overlay.set_map_size(_map_w, _map_h)
 	# ─── Forward feel_config ping settings to HUDOverlayRenderer ───
 	if _feel_config.has("command_feedback"):
 		var cf: Dictionary = _feel_config["command_feedback"]
@@ -390,6 +484,12 @@ func _ready() -> void:
 		_hud_overlay._assign_flash_duration = float(cg.get("assign_flash_duration", 0.5))
 		_hud_overlay._empty_group_hint_duration = float(cg.get("empty_group_hint_duration", 0.8))
 
+	# ─── Input Feedback Controller (local input feedback only) ───
+	_input_feedback_ctrl = InputFeedbackControllerScript.new()
+	_input_feedback_ctrl.name = "InputFeedbackController"
+	add_child(_input_feedback_ctrl)
+	_input_feedback_ctrl.pings_updated.connect(func(): queue_redraw())
+
 	# ─── Test Mode Gallery ───
 	_test_gallery = TestModeGallery.new()
 	_test_gallery.name = "TestModeGallery"
@@ -397,6 +497,20 @@ func _ready() -> void:
 	_test_gallery.setup(_ui_layer, _sprite_loader, _default_font, _entity_cache_by_id)
 	_test_gallery.entities_rebuilt.connect(_on_test_entities_rebuilt)
 	_test_gallery.state_changed.connect(_on_test_state_changed)
+	# Bug 4 fix: instantiate TestModeLabelLayer, add as child of _ui_layer
+	_test_label_layer = TestModeLabelLayer.new()
+	_test_label_layer.name = "TestModeLabelLayer"
+	_test_label_layer.setup(_camera, _default_font)
+	_ui_layer.add_child(_test_label_layer)
+	_test_label_layer.visible = false
+	# Bug 5 fix: instantiate TestModeUIController, add as child of _ui_layer
+	_test_ui_ctrl = TestModeUIController.new()
+	_test_ui_ctrl.name = "TestModeUIController"
+	_ui_layer.add_child(_test_ui_ctrl)
+	_test_ui_ctrl.setup()
+	_test_ui_ctrl.mode_selected.connect(_test_gallery.set_gallery_mode)
+	_test_ui_ctrl.filter_changed.connect(_test_gallery.set_filter)
+	_test_ui_ctrl.visible = false
 	# Elevation toggle button (below test button)
 	_elev_btn = Button.new()
 	_elev_btn.text = "⛰ Elev"
@@ -566,6 +680,10 @@ func _process(delta: float) -> void:
 		_hud_overlay.provide_entity_data(_ents, _selected, _entity_cache_by_id)
 		_hud_overlay.advance_timers(delta)
 
+	# ── Advance input feedback controller timers ──
+	if _input_feedback_ctrl:
+		_input_feedback_ctrl.advance_timers(delta)
+
 	# Hover detection (throttled)
 	_hover_check_timer -= delta
 	if _hover_check_timer <= 0.0:
@@ -573,6 +691,24 @@ func _process(delta: float) -> void:
 		var mouse_world: Vector2 = _screen_to_world(get_viewport().get_mouse_position())
 		var hovered_ent: Dictionary = _ent_at_world_pos(mouse_world, SELECT_RADIUS)
 		_hovered_entity_id = "" if hovered_ent.is_empty() else str(hovered_ent.get("id", ""))
+
+	# ── Construction fade: lerp completed buildings to full alpha ──
+	if not _construction_fade.is_empty():
+		var fade_speed: float = float(_construction_cfg.get("fade_in_speed", 3.0))
+		var to_remove: Array = []
+		for eid in _construction_fade:
+			var cur_alpha: float = float(_construction_fade[eid])
+			cur_alpha = move_toward(cur_alpha, 1.0, fade_speed * delta)
+			if cur_alpha >= 0.999:
+				cur_alpha = 1.0
+				to_remove.append(eid)
+			_construction_fade[eid] = cur_alpha
+			if _sprite_pool.has(eid):
+				var node: Node2D = _sprite_pool[eid]
+				if node.visible:
+					node.modulate.a = cur_alpha
+		for eid in to_remove:
+			_construction_fade.erase(eid)
 
 	# Tick minimap attack indicators and redraw minimap
 	if _mm_rect_node and _mm_rect_node.has_method("tick_attack_indicators"):
@@ -598,6 +734,16 @@ func _ent_at_world_pos(wp: Vector2, radius: float = SELECT_RADIUS) -> Dictionary
 		if wp.distance_to(Vector2(e.px, e.py)) < radius:
 			return e
 	return {}
+
+func _is_in_fog(e: Dictionary) -> bool:
+	var px: float = float(e.get("px", 0.0))
+	var py: float = float(e.get("py", 0.0))
+	var gx: int = clampi(int(px * float(_fog_w) / _map_w) if _map_w > 0.0 else 0, 0, _fog_w - 1)
+	var gy: int = clampi(int(py * float(_fog_h) / _map_h) if _map_h > 0.0 else 0, 0, _fog_h - 1)
+	var idx: int = gy * _fog_w + gx
+	if idx < 0 or idx >= _fog_tiles.size():
+		return false
+	return _fog_tiles[idx] < 2
 
 func _ents_in_world_rect(rect: Rect2) -> Array:
 	var result: Array = []
@@ -681,13 +827,13 @@ func _input(event: InputEvent) -> void:
 			if _selection:
 				if event.ctrl_pressed:
 					_selection.create_hotkey_group(group_idx)
-					if _hud_overlay:
-						_hud_overlay.add_control_group_hint("Ctrl+%d → Group %d" % [group_idx, group_idx], _hud_overlay._assign_flash_duration)
+					if _input_feedback_ctrl:
+						_input_feedback_ctrl.show_control_group_flash(group_idx, true)
 				elif event.shift_pressed:
 					_selection.add_to_hotkey_group(group_idx)
-					if _hud_overlay:
-						_hud_overlay.add_control_group_hint("Shift+%d → Added to Group %d" % [group_idx, group_idx], _hud_overlay._assign_flash_duration)
-				else:
+					if _input_feedback_ctrl:
+						_input_feedback_ctrl.show_control_group_flash(group_idx, true)
+			else:
 					# Double-tap detection: same key within 0.3s → jump camera
 					var now: float = Time.get_ticks_msec() / 1000.0
 					if _last_group_key == key and (now - _last_group_time) < 0.3:
@@ -696,10 +842,12 @@ func _input(event: InputEvent) -> void:
 						_last_group_time = 0.0
 					else:
 						_selection.select_hotkey_group(group_idx)
-						var recalled_ids: Array = _selection.get_selected_ids() if _selection else []
-					if recalled_ids.is_empty():
-						if _hud_overlay:
-							_hud_overlay.add_control_group_hint("Group %d (empty)" % group_idx, _hud_overlay._empty_group_hint_duration)
+						var recalled_ids: Array = []
+						if _selection:
+							recalled_ids = _selection.get_selected_ids()
+						if recalled_ids.is_empty():
+							if _input_feedback_ctrl:
+								_input_feedback_ctrl.show_control_group_flash(group_idx, false)
 						_last_group_key = key
 						_last_group_time = now
 			return
@@ -799,7 +947,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var speeds := [0.5, 1.0, 2.0, 4.0, 8.0]
 			var cur_idx := 0
 			for i in range(speeds.size()):
-				if absf(_replay_player._playback_speed - speeds[i]) < 0.01:
+				if abs(_replay_player._playback_speed - speeds[i]) < 0.01:
 					cur_idx = i
 					break
 			var new_idx := mini(cur_idx + 1, speeds.size() - 1)
@@ -810,7 +958,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var speeds := [0.5, 1.0, 2.0, 4.0, 8.0]
 			var cur_idx := 0
 			for i in range(speeds.size()):
-				if absf(_replay_player._playback_speed - speeds[i]) < 0.01:
+				if abs(_replay_player._playback_speed - speeds[i]) < 0.01:
 					cur_idx = i
 					break
 			var new_idx := maxi(cur_idx - 1, 0)
@@ -867,16 +1015,16 @@ func _handle_right_click() -> void:
 				continue
 			if e.type == "building" and e.owner == 1:
 				_set_rally_point(uid, world_pos)
-				if _hud_overlay:
-					_hud_overlay.add_ground_ping(world_pos)
+				if _input_feedback_ctrl:
+					_input_feedback_ctrl.show_ground_ping(world_pos)
 				return
 
 	# Smart context
 	if not clicked_ent.is_empty():
 		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
 			action = "attack"
-			if _hud_overlay:
-				_hud_overlay.add_attack_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
+			if _input_feedback_ctrl:
+				_input_feedback_ctrl.show_attack_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
 		elif clicked_ent.type == "resource" and workers_selected:
 			# Gas geyser without refinery → auto-build refinery on it
 			if clicked_ent.resource_type == "gas" and not _has_refinery_on_geyser(clicked_ent.id):
@@ -885,8 +1033,8 @@ func _handle_right_click() -> void:
 				_build_mode = true
 			else:
 				action = "gather"
-				if _hud_overlay:
-					_hud_overlay.add_ground_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
+				if _input_feedback_ctrl:
+					_input_feedback_ctrl.show_ground_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
 		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
 			action = "move"
 	elif combat_selected and not workers_selected:
@@ -918,8 +1066,8 @@ func _handle_right_click() -> void:
 				if _is_own_combat(e):
 					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
 					if not nearest_enemy.is_empty():
-						if _hud_overlay:
-							_hud_overlay.add_attack_ping(Vector2(float(nearest_enemy.px), float(nearest_enemy.py)))
+						if _input_feedback_ctrl:
+							_input_feedback_ctrl.show_attack_ping(Vector2(float(nearest_enemy.px), float(nearest_enemy.py)))
 						cmds.append({
 							"action": "attack",
 							"attacker_id": uid,
@@ -927,8 +1075,8 @@ func _handle_right_click() -> void:
 							"issuer": 1,
 						})
 						if _vfx_manager:
-						_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py), _vfx_profile_for(e))
-						_emit_attack_indicator(Vector2(e.px, e.py))
+							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py), _vfx_profile_for(e))
+							_emit_attack_indicator(Vector2(e.px, e.py))
 					else:
 						moving_ids.append(uid)
 			"gather":
@@ -947,8 +1095,8 @@ func _handle_right_click() -> void:
 					if _build_type == "refinery" and not clicked_ent.is_empty() and clicked_ent.resource_type == "gas":
 						build_x = clicked_ent.px
 						build_y = clicked_ent.py
-						if _hud_overlay:
-					_hud_overlay.add_ground_ping(Vector2(float(build_x), float(build_y)))
+						if _input_feedback_ctrl:
+							_input_feedback_ctrl.show_ground_ping(Vector2(float(build_x), float(build_y)))
 					cmds.append({
 						"action": "build",
 						"builder_id": uid,
@@ -963,8 +1111,8 @@ func _handle_right_click() -> void:
 
 	# Formation-based move commands
 	if not moving_ids.is_empty():
-		if _hud_overlay:
-			_hud_overlay.add_ground_ping(world_pos)
+		if _input_feedback_ctrl:
+			_input_feedback_ctrl.show_ground_ping(world_pos)
 		var formation: Array = _selection.calculate_formation_positions(world_pos, moving_ids.size()) if _selection \
 			else _calc_formation_fallback(world_pos, moving_ids.size())
 		for i in range(moving_ids.size()):
@@ -989,8 +1137,8 @@ func _handle_right_click() -> void:
 
 	# Invalid command feedback — selected units but no valid action
 	if cmds.is_empty() and not selected_ids.is_empty():
-		if _hud_overlay:
-			_hud_overlay.add_command_ping(world_pos, "invalid", _hud_overlay._invalid_ping_duration, _hud_overlay._invalid_ping_color)
+		if _input_feedback_ctrl:
+			_input_feedback_ctrl.show_invalid_ping(world_pos)
 
 	# Hide build panel after placing
 	if _build_mode and _hud:
@@ -1231,7 +1379,7 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 	var positions: Array = []
 	if count == 0:
 		return positions
-	var cols: int = int(ceilf(sqrt(float(count))))
+	var cols: int = int(ceil(sqrt(float(count))))
 	for i in range(count):
 		var row: int = i / cols
 		var col: int = i % cols
@@ -1285,6 +1433,10 @@ func _apply_start_state(state: Dictionary) -> void:
 		_height_map_w = _map_w
 		_height_map_h = _map_h
 		_elevation_dirty = true
+		# Feed height_map to procedural terrain renderer
+		if _terrain_renderer and _terrain_renderer.has_method("update_terrain"):
+			_terrain_renderer.update_terrain(_height_map)
+			_terrain_renderer.visible = _show_elevation
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
@@ -1425,7 +1577,7 @@ func _is_building_entity_visual(e: Dictionary, visual_id: String) -> bool:
 func _visual_scale(visual_id: String, is_building: bool) -> Vector2:
 	var fallback := 0.018 if is_building else 0.022
 	if _sprite_loader:
-		var params := _sprite_loader.get_visual_params(visual_id, is_building)
+		var params: Dictionary = _sprite_loader.get_visual_params(visual_id, is_building)
 		var loader_scale := float(params.get("render_scale", fallback))
 		return Vector2(loader_scale, loader_scale)
 	var section_name := "building_visuals" if is_building else "unit_visuals"
@@ -1438,7 +1590,7 @@ func _visual_radius(e: Dictionary) -> float:
 	var visual_id := _resolve_visual_id(e)
 	var is_building := _is_building_entity_visual(e, visual_id)
 	if _sprite_loader:
-		var params := _sprite_loader.get_visual_params(visual_id, is_building)
+		var params: Dictionary = _sprite_loader.get_visual_params(visual_id, is_building)
 		return float(params.get("selection_radius", 1.5 if is_building else 0.55))
 	var section_name := "building_visuals" if is_building else "unit_visuals"
 	var section: Dictionary = _presentation_manifest.get(section_name, {})
@@ -1455,7 +1607,7 @@ func _unit_animation_key(e: Dictionary, frames: SpriteFrames) -> String:
 		base = "attack"
 	elif not bool(e.get("is_idle", true)):
 		base = "moving"
-	var key := _sprite_loader.get_animation_key(base, 0)
+	var key: String = _sprite_loader.get_animation_key(base, 0)
 	if frames.has_animation(key):
 		return key
 	key = _sprite_loader.get_animation_key("idle", 0)
@@ -1527,36 +1679,50 @@ func _parse(state: Dictionary) -> void:
 	# Update smooth fog alpha: state=2 → alpha=0 instantly, state=0→alpha target=0.88,
 	# state=1 → target=0.50, but only fade toward target (never snap).
 	# Tiles that were 2 last tick and are now 1: keep alpha near 0 for FOG_FADE_FRAMES.
+	# In Test Mode isolation: force all fog alpha to 0.0 so fog is invisible.
+	var _test_iso: bool = _test_gallery != null and _test_gallery.is_active()
 	var tile_count := _fog_w * _fog_h
 	if _fog_alpha.size() != tile_count:
 		_fog_alpha.resize(tile_count)
-		for i in range(tile_count):
-			var initial: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
-			match initial:
-				2: _fog_alpha[i] = 0.0
-				1: _fog_alpha[i] = 0.50
-				_: _fog_alpha[i] = 0.88
-	for i in range(tile_count):
-		var cur: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
-		var prev: int = _fog_prev_tiles[i] if i < _fog_prev_tiles.size() else 0
-		var target: float
-		match cur:
-			0: target = 0.88
-			1: target = 0.50
-			2: target = 0.0
-			_: target = 0.88
-		# Current vision should be clear immediately; fade only when leaving vision.
-		if cur == 2:
-			_fog_alpha[i] = 0.0
-		elif prev == 2:
-			_fog_alpha[i] = 0.0  # keep fully clear
+		if _test_iso:
+			for i in range(tile_count):
+				_fog_alpha[i] = 0.0
 		else:
-			# Smoothly approach target
-			var speed := 1.0 / float(FOG_FADE_FRAMES)
-			if _fog_alpha[i] < target:
-				_fog_alpha[i] = minf(_fog_alpha[i] + (target - _fog_alpha[i]) * speed * 3.0, target)
-			elif _fog_alpha[i] > target:
-				_fog_alpha[i] = maxf(_fog_alpha[i] - (_fog_alpha[i] - target) * speed * 2.0, target)
+			for i in range(tile_count):
+				var initial: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
+				match initial:
+					2: _fog_alpha[i] = 0.0
+					1: _fog_alpha[i] = 0.50
+					_: _fog_alpha[i] = 0.88
+	if _test_iso:
+		for i in range(tile_count):
+			_fog_alpha[i] = 0.0
+	else:
+		for i in range(tile_count):
+			var cur: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
+			var prev: int = _fog_prev_tiles[i] if i < _fog_prev_tiles.size() else 0
+			var target: float
+			match cur:
+				0: target = 0.88
+				1: target = 0.50
+				2: target = 0.0
+				_: target = 0.88
+			# Current vision should be clear immediately; fade only when leaving vision.
+			if cur == 2:
+				_fog_alpha[i] = 0.0
+			elif prev == 2:
+				_fog_alpha[i] = 0.0  # keep fully clear
+			else:
+				# Smoothly approach target
+				var speed := 1.0 / float(FOG_FADE_FRAMES)
+				if _fog_alpha[i] < target:
+					_fog_alpha[i] = minf(_fog_alpha[i] + (target - _fog_alpha[i]) * speed * 3.0, target)
+				elif _fog_alpha[i] > target:
+					_fog_alpha[i] = maxf(_fog_alpha[i] - (_fog_alpha[i] - target) * speed * 2.0, target)
+
+	# Push fog data to HUDOverlayRenderer
+	if _hud_overlay:
+		_hud_overlay.set_fog_data(_fog_w, _fog_h, _fog_alpha)
 
 	# Parse resources for P1
 	var resources: Dictionary = state.get("resources", {})
@@ -1659,78 +1825,27 @@ func _parse(state: Dictionary) -> void:
 func _draw() -> void:
 	# NO camera offset needed — Camera2D handles canvas transform automatically.
 	# _draw() local coordinates ARE world coordinates.
+	# TerrainRenderer (child Node2D, z_index=-5) draws the procedural terrain.
 	var co := Vector2.ZERO
 	_draw_map_background(co)
-	if _show_elevation:
-		_draw_elevation(co)
+	# Elevation is now handled by TerrainRenderer child node — no _draw_elevation here
 	_draw_grid(co)
 	_draw_entities(co)
 	_draw_pylon_power_range(co)
 	_draw_fog_of_war(co)
 	if _hud_overlay:
 		_hud_overlay.draw_all(self)
+	if _input_feedback_ctrl:
+		_input_feedback_ctrl.draw_all(self)
 	if _test_gallery:
 		_test_gallery.draw_labels(self)
 
 func _draw_map_background(_co: Vector2) -> void:
-	# Map fills from world origin (0,0) to (_map_w, _map_h)
+	# Procedural terrain renderer (child TerrainRenderer, z_index=-5) handles
+	# the real terrain.  This draws a dark fallback rect beneath everything
+	# so the map area is always defined even before height_map data arrives.
 	var map_rect := Rect2(Vector2.ZERO, Vector2(_map_w, _map_h))
-	if _map_texture:
-		draw_texture_rect(_map_texture, map_rect, false)
-	else:
-		draw_rect(map_rect, Color(0.15, 0.18, 0.12, 1.0))
-
-func _draw_elevation(_co: Vector2) -> void:
-	"""Phase D: Render height_map as terrain coloring + contour lines + cliff markers."""
-	if _height_map.is_empty():
-		return
-	var rows := _height_map.size()
-	if rows == 0:
-		return
-	var cols: int = _height_map[0].size()
-	# ── Height-based terrain tint (draw small rects per tile) ──
-	for y in range(rows):
-		var row = _height_map[y]
-		for x in range(cols):
-			var h: int = row[x] if x < row.size() else 0
-			if h == 0:
-				continue  # base level keeps default color
-			# Gradient: low → dark green, high → bright yellow-green (subtle tint)
-			var t := float(h) / 8.0
-			var col := Color(0.05 + t * 0.15, 0.15 + t * 0.25, 0.05 + t * 0.03, 0.25)
-			draw_rect(Rect2(x, y, 1.0, 1.0), col)
-	# ── Contour lines (draw edge where height changes) ──
-	var contour_color := Color(0.6, 0.45, 0.2, 0.5)  # brownish
-	for y in range(rows):
-		var row = _height_map[y]
-		for x in range(cols):
-			var h: int = row[x] if x < row.size() else 0
-			# Right neighbor
-			if x + 1 < cols:
-				var hr: int = _height_map[y][x + 1] if (x + 1) < _height_map[y].size() else h
-				if hr != h:
-					draw_line(Vector2(x + 1, y), Vector2(x + 1, y + 1), contour_color, 0.08)
-			# Bottom neighbor
-			if y + 1 < rows:
-				var hb: int = _height_map[y + 1][x] if x < _height_map[y + 1].size() else h
-				if hb != h:
-					draw_line(Vector2(x, y + 1), Vector2(x + 1, y + 1), contour_color, 0.08)
-	# ── Cliff markers (Δh ≥ 3 = red thick line) ──
-	var cliff_color := Color(0.9, 0.15, 0.1, 0.7)
-	for y in range(rows):
-		var row = _height_map[y]
-		for x in range(cols):
-			var h: int = row[x] if x < row.size() else 0
-			# Right cliff
-			if x + 1 < cols:
-				var hr: int = _height_map[y][x + 1] if (x + 1) < _height_map[y].size() else h
-				if abs(hr - h) >= 3:
-					draw_line(Vector2(x + 1, y), Vector2(x + 1, y + 1), cliff_color, 0.25)
-			# Bottom cliff
-			if y + 1 < rows:
-				var hb: int = _height_map[y + 1][x] if x < _height_map[y + 1].size() else h
-				if abs(hb - h) >= 3:
-					draw_line(Vector2(x, y + 1), Vector2(x + 1, y + 1), cliff_color, 0.25)
+	draw_rect(map_rect, Color(0.15, 0.18, 0.12, 1.0))
 
 func _draw_grid(co: Vector2) -> void:
 	var grid_color := Color(0.25, 0.28, 0.22, 0.3)
@@ -1747,6 +1862,9 @@ func _draw_grid(co: Vector2) -> void:
 		y += step
 
 func _draw_fog_of_war(co: Vector2) -> void:
+	# Bug 6 fix: early-out when Test Mode is active (fog should be invisible)
+	if _test_gallery != null and _test_gallery.is_active():
+		return
 	# Smooth fog: uses _fog_alpha array (updated in _parse) for flicker-free rendering.
 	# Boundary gradient smoothing uses alpha values directly for seamless transitions.
 	if _fog_w <= 0 or _fog_h <= 0 or _fog_tiles.is_empty():
@@ -1796,7 +1914,7 @@ func _draw_fog_of_war(co: Vector2) -> void:
 					n_alpha = alpha_grid[ny][nx]
 					neighbor_sum += n_alpha
 					neighbor_count += 1
-					if absf(n_alpha - base_alpha) > 0.1:
+					if abs(n_alpha - base_alpha) > 0.1:
 						is_boundary = true
 
 			var alpha: float
@@ -1976,9 +2094,10 @@ func _update_entity_sprites() -> void:
 		var is_building := _is_building_entity_visual(e, visual_id)
 		var is_generated_resource_preview: bool = _test_gallery != null and _test_gallery.is_active() and str(e.get("type", "")) == "resource" and str(e.get("generated_asset_id", "")) != ""
 		var is_generated_unit_preview: bool = _test_gallery != null and _test_gallery.is_active() and str(e.get("type", "")) == "unit" and str(e.get("generated_asset_id", "")) != ""
+		var is_resource: bool = str(e.get("type", "")) == "resource" and not is_generated_resource_preview
 		var has_unit_override := _has_unit_region_override(e)
 		var node: Node2D = _sprite_pool.get(eid, null)
-		var needs_animated := not is_building and not has_unit_override and not is_generated_resource_preview
+		var needs_animated := not is_building and not is_resource and not has_unit_override and not is_generated_resource_preview
 		if node == null or (needs_animated and not (node is AnimatedSprite2D)) or (not needs_animated and not (node is Sprite2D)):
 			if node:
 				node.queue_free()
@@ -2003,7 +2122,7 @@ func _update_entity_sprites() -> void:
 				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
 				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			else:
-				var atlas := _sprite_loader.get_building_atlas(visual_id) if _sprite_loader else null
+				var atlas: Texture2D = _sprite_loader.get_building_atlas(visual_id) if _sprite_loader else null
 				if atlas:
 					sprite.texture = atlas
 					sprite.region_enabled = false
@@ -2014,10 +2133,39 @@ func _update_entity_sprites() -> void:
 				else:
 					sprite.texture = null
 					sprite.visible = false
+		elif is_resource:
+			var sprite := node as Sprite2D
+			var resource_type: String = str(e.get("resource_type", ""))
+			var tex: Texture2D = null
+			if resource_type == "mineral":
+				var mineral_paths: Array = _resource_visual_cfg.get("mineral_textures", [])
+				if mineral_paths.size() > 0:
+					var idx: int = absi(hash(eid)) % mineral_paths.size()
+					var chosen_path: String = str(mineral_paths[idx])
+					tex = _resource_textures.get(chosen_path, null)
+					if tex == null:
+						tex = _load_resource_texture(chosen_path)
+			elif resource_type == "gas":
+				var gas_path: String = str(_resource_visual_cfg.get("gas_texture", ""))
+				if gas_path != "":
+					tex = _resource_textures.get(gas_path, null)
+					if tex == null:
+						tex = _load_resource_texture(gas_path)
+			if tex:
+				sprite.texture = tex
+				sprite.region_enabled = false
+				var res_scale: float = float(_resource_visual_cfg.get("resource_scale", 0.022))
+				sprite.scale = Vector2(res_scale, res_scale)
+				sprite.visible = true
+				sprite.texture_repeat = CanvasItem.TEXTURE_REPEAT_DISABLED
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			else:
+				sprite.texture = null
+				sprite.visible = false
 		elif is_generated_resource_preview:
 			var sprite := node as Sprite2D
 			var asset_id := str(e.get("generated_asset_id", ""))
-			var atlas := _sprite_loader.get_generated_asset_atlas(asset_id, "resource", true) if _sprite_loader else null
+			var atlas: Texture2D = _sprite_loader.get_generated_asset_atlas(asset_id, "resource", true) if _sprite_loader else null
 			if atlas:
 				sprite.texture = atlas
 				sprite.region_enabled = false
@@ -2076,13 +2224,41 @@ func _update_entity_sprites() -> void:
 				anim_sprite.visible = false
 
 		if node.visible:
-			node.modulate = Color.WHITE
+			# ── Construction ghost: semi-transparent breathing pulse for buildings under construction ──
+			var is_constructing: bool = bool(e.get("is_constructing", false)) if e.get("is_constructing") != null else false
+			if is_building and is_constructing:
+				# Remove from fade dict if it was fading (building got re-selected for construction)
+				_construction_fade.erase(eid)
+				var ghost_alpha: float = float(_construction_cfg.get("ghost_alpha", 0.45))
+				var breath_speed: float = float(_construction_cfg.get("breath_speed", 3.0))
+				var breath_amp: float = float(_construction_cfg.get("breath_amplitude", 0.1))
+				var breath_alpha: float = (ghost_alpha - breath_amp) + breath_amp * sin(_game_time * breath_speed)
+				node.modulate = Color(1.0, 1.0, 1.0, breath_alpha)
+			elif _construction_fade.has(eid):
+				# Building completed — use fading alpha (lerped in _process)
+				var fade_alpha: float = float(_construction_fade[eid])
+				node.modulate = Color(1.0, 1.0, 1.0, fade_alpha)
+			else:
+				# Fully visible or not a constructing building — start fade if just completed
+				if is_building and not is_constructing and _sprite_pool.has(eid):
+					var prev_ent: Dictionary = _entity_cache_by_id.get(eid, {})
+					var was_constructing: bool = bool(prev_ent.get("is_constructing", false)) if prev_ent.get("is_constructing") != null else false
+					if was_constructing:
+						# Transition: building just completed, start fade from current alpha
+						var start_alpha: float = node.modulate.a if node.modulate.a < 1.0 else float(_construction_cfg.get("ghost_alpha", 0.45))
+						_construction_fade[eid] = start_alpha
+						node.modulate = Color(1.0, 1.0, 1.0, start_alpha)
+					else:
+						node.modulate = Color.WHITE
+				else:
+					node.modulate = Color.WHITE
 		node.position = Vector2(e.px, e.py)
 
 	# Hide sprites for entities that no longer exist
 	for eid in _sprite_pool:
 		if not active_ids.has(eid):
 			_sprite_pool[eid].visible = false
+			_construction_fade.erase(eid)
 
 	if _bridge and _bridge._tick % 60 == 0:
 		var vc := 0
@@ -2101,18 +2277,8 @@ func _draw_entities(co: Vector2) -> void:
 
 		var pos := Vector2(e.px, e.py) 
 
-		# ─── Only draw circles for resources (no sprite) ───
-		# Workers, soldiers, scouts, buildings use Sprite2D nodes instead
-		if e.type == "resource":
-			if bool(e.get("uses_sprite", false)):
-				continue
-			var radius := 0.4
-			if e.resource_type == "mineral":
-				draw_rect(Rect2(pos - Vector2(radius, radius), Vector2(radius * 2, radius * 2)), Color(1.0, 0.85, 0.0, 1.0), true)
-			elif e.resource_type == "gas":
-				draw_circle(pos, radius, Color(0.0, 0.8, 0.0, 1.0))
-			else:
-				draw_circle(pos, radius, Color.GRAY)
+		# Resources are now rendered via Sprite2D in _update_entity_sprites()
+		# using SC1 textures — no fallback color blocks needed
 
 	# Attack / move target lines
 	for e in _ents:
@@ -2128,21 +2294,6 @@ func _draw_entities(co: Vector2) -> void:
 			elif e.target_x != 0 or e.target_y != 0:
 				var tpos := Vector2(e.target_x, e.target_y)   # TILE_SIZE=1, no _cell multiplier
 				draw_line(lpos, tpos, Color(0.3, 1.0, 0.3, 0.3), 0.06, true)
-
-func _is_in_fog(e: Dictionary) -> bool:
-	"""Check if an entity is in non-visible fog (unexplored or explored but not currently visible).
-	Uses smooth alpha: if fog is still fading out (alpha < 0.15), entity is considered visible."""
-	if _fog_w <= 0 or _fog_h <= 0 or _fog_alpha.is_empty():
-		return false
-	var fog_x := int(e.px * float(_fog_w) / _map_w)
-	var fog_y := int(e.py * float(_fog_h) / _map_h)
-	fog_x = clampi(fog_x, 0, _fog_w - 1)
-	fog_y = clampi(fog_y, 0, _fog_h - 1)
-	var idx := fog_y * _fog_w + fog_x
-	if idx < _fog_alpha.size():
-		# If fog alpha is very low (still fading from visible), entity is visible
-		return _fog_alpha[idx] > 0.15
-	return true
 
 # ─── Pylon Power Range Visualization ───────────────────────
 func _draw_pylon_power_range(_co: Vector2) -> void:
@@ -2231,9 +2382,9 @@ func _get_state_for_minimap() -> Dictionary:
 func _monitor_canvas_transform() -> void:
 	var ct := get_viewport().get_canvas_transform()
 	var origin_x: float = ct.get_origin().x
-	if absf(origin_x) > 2.0:
+	if abs(origin_x) > 2.0:
 		_jitter_count += 1
-		_total_jitter_px += absf(origin_x)
+		_total_jitter_px += abs(origin_x)
 		if _frame % 60 == 0 or _jitter_count <= 5:
 			print("[Frame %d] ⚠️ CANVAS JITTER: origin_x=%.1f (count=%d)" % [_frame, origin_x, _jitter_count])
 
@@ -2269,16 +2420,48 @@ func _write_analysis() -> void:
 
 
 func _toggle_elevation() -> void:
+	_show_elevation = not _show_elevation
+	if _terrain_renderer:
+		_terrain_renderer.set_visible_flag(_show_elevation)
 	if _test_gallery:
 		_test_gallery.toggle_elevation()
 
 # ── TestModeGallery signal handlers ──
+
+func _set_test_mode_isolation(enabled: bool) -> void:
+	if _hud:
+		_hud.visible = not enabled
+	if _hud_overlay:
+		_hud_overlay.set_test_mode_isolation(enabled)
+	if _mm_rect_node:
+		_mm_rect_node.visible = not enabled
+	if _mm_panel_node:
+		_mm_panel_node.visible = not enabled
+	if _apm_label:
+		_apm_label.visible = not enabled
+	if _terrain_renderer:
+		_terrain_renderer.visible = not enabled  # hide elevation debug
+	# Bug 5 fix: toggle TestModeUIController visibility with test mode
+	if _test_ui_ctrl:
+		_test_ui_ctrl.visible = enabled
+	# Force fog invisible in test mode by zeroing fog alpha
+	if enabled:
+		_fog_alpha.clear()
+		for i in range(_fog_tiles.size()):
+			_fog_alpha.append(0.0)
+	queue_redraw()
+
 func _on_test_entities_rebuilt(new_ents: Array) -> void:
 	_ents = new_ents
 	_update_entity_sprites()
 	queue_redraw()
 
 func _on_test_state_changed() -> void:
+	var is_active: bool = _test_gallery != null and _test_gallery.is_active()
+	# Bug 2 fix: save game state BEFORE entering test mode isolation
+	if is_active and _test_gallery:
+		_test_gallery.save_state(_ents, _player_races, _fog_tiles, _fog_w, _fog_h)
+	_set_test_mode_isolation(is_active)
 	if _test_gallery and not _test_gallery.is_active():
 		var saved: Dictionary = _test_gallery.get_saved_state()
 		if not saved.is_empty():
@@ -2287,6 +2470,23 @@ func _on_test_state_changed() -> void:
 			_fog_tiles = PackedInt32Array(saved.get("fog_tiles", PackedInt32Array()))
 			_fog_w = int(saved.get("fog_w", 0))
 			_fog_h = int(saved.get("fog_h", 0))
+			# Bug 3 fix: rebuild _fog_alpha from restored _fog_tiles
+			var tile_count := _fog_w * _fog_h
+			_fog_alpha.resize(tile_count)
+			for i in range(tile_count):
+				var fog_val: int = _fog_tiles[i] if i < _fog_tiles.size() else 0
+				match fog_val:
+					0: _fog_alpha[i] = 0.92
+					1: _fog_alpha[i] = 0.55
+					2: _fog_alpha[i] = 0.0
+					_: _fog_alpha[i] = 0.92
+	# Bug 4 fix: toggle TestModeLabelLayer visibility with test mode
+	if _test_label_layer:
+		if is_active:
+			_test_label_layer.set_labels(_test_gallery.get_screen_labels())
+			_test_label_layer.visible = true
+		else:
+			_test_label_layer.visible = false
 	_update_entity_sprites()
 	queue_redraw()
 

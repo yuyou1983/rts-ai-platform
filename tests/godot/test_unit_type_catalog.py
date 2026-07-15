@@ -340,3 +340,108 @@ def test_worker_entries_have_worker_role() -> None:
         assert role == "worker", (
             f"Worker unit '{name}' has role='{role}', expected 'worker'"
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests — Test Mode filter fields coverage
+# ---------------------------------------------------------------------------
+
+# These are the filter values hardcoded in test_mode_gallery.gd's UI.
+# They must be a subset of what unit_type_catalog.json actually uses,
+# so that no filter button is "dead" (selects nothing).
+
+GALLERY_FILTER_RACES = {"terran", "zerg", "protoss"}
+GALLERY_FILTER_KINDS = {"unit", "building"}
+GALLERY_FILTER_DOMAINS = {"ground", "air"}
+GALLERY_FILTER_ROLES = {
+    "worker", "infantry", "vehicle", "air", "caster", "siege", "support",
+}
+GALLERY_FILTER_TIERS = {"basic", "advanced", "tech"}
+
+
+def test_gallery_races_are_catalog_subset() -> None:
+    """Every race used by gallery filter must appear in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    catalog_races = {e["race"] for e in entries.values()}
+    for r in sorted(GALLERY_FILTER_RACES):
+        assert r in catalog_races, (
+            f"Gallery filter race '{r}' not found in any catalog entry"
+        )
+
+
+def test_gallery_kinds_are_catalog_subset() -> None:
+    """Every kind used by gallery filter must appear in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    catalog_kinds = {e["kind"] for e in entries.values()}
+    for k in sorted(GALLERY_FILTER_KINDS):
+        assert k in catalog_kinds, (
+            f"Gallery filter kind '{k}' not found in any catalog entry"
+        )
+
+
+def test_gallery_domains_are_catalog_subset() -> None:
+    """Every domain used by gallery filter must appear in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    catalog_domains = {e["domain"] for e in entries.values()}
+    for d in sorted(GALLERY_FILTER_DOMAINS):
+        assert d in catalog_domains, (
+            f"Gallery filter domain '{d}' not found in any catalog entry"
+        )
+
+
+def test_gallery_roles_are_catalog_subset() -> None:
+    """Every role used by gallery filter must appear in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    catalog_roles = {e["role"] for e in entries.values()}
+    for r in sorted(GALLERY_FILTER_ROLES):
+        assert r in catalog_roles, (
+            f"Gallery filter role '{r}' not found in any catalog entry"
+        )
+
+
+def test_gallery_tiers_are_catalog_subset() -> None:
+    """Every tier used by gallery filter must appear in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    catalog_tiers = {e["tier"] for e in entries.values()}
+    for t in sorted(GALLERY_FILTER_TIERS):
+        assert t in catalog_tiers, (
+            f"Gallery filter tier '{t}' not found in any catalog entry"
+        )
+
+
+def test_scale_view_units_exist_in_catalog() -> None:
+    """All units referenced in the Scale view must exist in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    scale_units = [
+        "SCV", "Drone", "Probe",
+        "Marine", "Zergling", "Zealot",
+        "CommandCenter", "Hatchery", "Nexus",
+        "Barracks", "SpawningPool", "Gateway",
+    ]
+    missing: list[str] = []
+    for uid in scale_units:
+        if uid not in entries:
+            missing.append(uid)
+    assert not missing, (
+        f"Scale view units missing from catalog: {missing}"
+    )
+
+
+def test_combat_view_units_exist_in_catalog() -> None:
+    """All units referenced in the Combat view must exist in the catalog."""
+    catalog = _load_json(UNIT_TYPE_CATALOG)
+    entries = _catalog_entries(catalog)
+    combat_units = {"Marine", "Zergling", "Hydralisk", "Zealot", "Tank", "Dragoon", "Firebat"}
+    missing: list[str] = []
+    for uid in sorted(combat_units):
+        if uid not in entries:
+            missing.append(uid)
+    assert not missing, (
+        f"Combat view units missing from catalog: {missing}"
+    )

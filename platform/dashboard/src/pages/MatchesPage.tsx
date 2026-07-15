@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchReplayList, fetchLeagueRanking, startLeagueMatch, type ReplayEntry, type LeagueEntry } from '../api';
 
+function Nav() {
+  return (
+    <nav style={{ display: 'flex', gap: 18, marginBottom: 10, fontSize: 14 }}>
+      <Link to="/" style={{ color: '#1a73e8', fontWeight: 600 }}>📼 Matches</Link>
+      <Link to="/sim" style={{ color: '#1a73e8', fontWeight: 600 }}>🎮 Live Sim</Link>
+    </nav>
+  );
+}
+
 function formatTime(ts: number): string {
   return new Date(ts * 1000).toLocaleString();
 }
@@ -58,6 +67,7 @@ export default function MatchesPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+      <Nav />
       <h1 style={{ marginBottom: 8 }}>⚔️ RTS-AI Platform</h1>
       <p style={{ color: '#666', marginBottom: 24 }}>Real-time strategy AI research &amp; visualization</p>
 

@@ -322,3 +322,92 @@ curl http://localhost:8080/api/state      # → 空状态
 | 护盾不回复 | 等待 >40 tick 无攻击后观察 |
 | 高地没效果 | 确认 `enable_elevation: true` 在 config 或 mapgen 默认 |
 | 6001 端口无法访问 | Platform Dashboard 用浏览器，Godot 游戏走 8080 |
+
+---
+
+## 二十七、SC1 手感专项验收 (Phase 6)
+
+> 基于 `docs/reports/godot-sc1-feel-gap-report.md` 的 10 项评分，每项 1-5 分。低于 3 分的项目必须进入下一轮 backlog。
+
+### 验收前准备
+
+```bash
+# 确保 sc1_feel_baseline.json 和 control_feel_config.json 存在
+ls godot/resources/feel/sc1_feel_baseline.json godot/resources/feel/control_feel_config.json
+# 运行 pytest 基线
+python3 -m pytest tests/godot/ -q
+```
+
+### A. Terran 验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| A1 | 框选 4 个 SCV | 框选无延迟，选中高亮即时出现 | | |
+| A2 | 右键矿区 | 地面出现绿色 ping，SCV 即刻开始移动 | | |
+| A3 | Ctrl+1 编队 | 编队闪光反馈清楚 | | |
+| A4 | 双击 1 回到编队 | 摄像机跳转至编队中心 | | |
+| A5 | 建造 Barracks | 建筑半透明呼吸 ghost，完成后淡入 | | |
+| A6 | Marine attack-move | 攻击 ping + muzzle flash 命中反馈 | | |
+
+### B. Zerg 验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| B1 | Drone 采集 | 右键 ping + 即时移动 | | |
+| B2 | Zergling move/attack | 移动 ping + 近战命中 acid/melee 效果 | | |
+| B3 | Hydralisk 远程攻击 | 弹道 tracer + 命中 spark | | |
+| B4 | Hatchery footprint 检查 | 选择圈、血条、sprite 边界对齐 | | |
+
+### C. Protoss 验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| C1 | Probe 采集 | 同 Terran/Zerg worker 手感 | | |
+| C2 | Pylon/Nexus/Zealot/Dragoon 比例 | Scale 视图中 worker→infantry→townhall 梯度清晰 | | |
+| C3 | shield hit 检查 | 被攻击时蓝色闪烁 + shield_hit VFX | | |
+
+### D. Mixed Combat 验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| D1 | 6v6 | 命中/死亡反馈可辨识，不互相遮挡 | | |
+| D2 | 12v12 | 血条和选择圈仍可读 | | |
+| D3 | 30v30 | 特效不遮挡核心信息，低优先级特效被淘汰 | | |
+| D4 | 地面打空中 | 弹道方向和命中清晰 | | |
+| D5 | 建筑被攻击 | 建筑 damaged VFX 明显不同于单位命中 | | |
+
+### E. Fog / Terrain 验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| E1 | 未探索黑区 | 纯黑，单位完全不可见 | | |
+| E2 | 探索后 shroud | 深灰暗，可见地形轮廓但无单位 | | |
+| E3 | 可见区 | 完全清晰，无残留雾 | | |
+| E4 | debug elevation off/on | 默认关闭，按 ⛏ Elev 开启后等高线出现 | | |
+
+### F. 相机手感验收
+
+| # | 操作 | SC1 参考行为 | 评分 1-5 | 备注 |
+|---|------|------------|---------|------|
+| F1 | 键盘平移速度 | 主观感觉稳定，不随 zoom 突变 | | |
+| F2 | 边缘滚动 | 渐进加速，不突然跳速 | | |
+| F3 | zoom 预设 | gameplay/inspection/debug 三档，默认 gameplay | | |
+
+### 评分汇总
+
+将每项分数记录到 `docs/reports/godot-sc1-feel-gap-report.md` 对应行。
+
+```
+| 评分项 | 得分 | 备注 |
+|--------|------|------|
+| camera pan stability | | |
+| camera edge scroll | | |
+| zoom readability | | |
+| click selection accuracy | | |
+| box selection accuracy | | |
+| right-click acknowledgement | | |
+| control group recall | | |
+| unit movement readability | | |
+| basic combat readability | | |
+| building footprint clarity | | |
+```

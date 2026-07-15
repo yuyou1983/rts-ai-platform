@@ -158,3 +158,50 @@ def test_all_colors_are_hex_rrggbb(config: dict):
         assert HEX_COLOR_RE.match(color), (
             f"{section}.{field}='{color}' does not match #RRGGBB"
         )
+
+
+# ── 10. test_mode config section ───────────────────────────────────────────
+
+TEST_MODE_REQUIRED_FIELDS = [
+    "hide_game_hud",
+    "force_fog_visible",
+    "neutral_team_tint",
+    "show_minimap",
+    "show_world_grid",
+]
+
+
+def test_test_mode_config_exists(config: dict) -> None:
+    """The test_mode section must exist with all required boolean fields."""
+    assert "test_mode" in config, "Config missing 'test_mode' section"
+    test_mode = config["test_mode"]
+    for field in TEST_MODE_REQUIRED_FIELDS:
+        assert field in test_mode, f"test_mode missing required field: {field}"
+
+
+def test_test_mode_config_values(config: dict) -> None:
+    """test_mode values must match the spec (booleans)."""
+    test_mode = config["test_mode"]
+    assert test_mode["hide_game_hud"] is True
+    assert test_mode["force_fog_visible"] is True
+    assert test_mode["neutral_team_tint"] is True
+    assert test_mode["show_minimap"] is False
+    assert test_mode["show_world_grid"] is False
+
+
+def test_gallery_has_tint_toggle() -> None:
+    """test_mode_gallery.gd must contain tint toggle UI code."""
+    gallery_path = Path(__file__).resolve().parents[2] / "godot" / "scripts" / "test_mode_gallery.gd"
+    text = gallery_path.read_text(encoding="utf-8")
+    assert "_tint_btn" in text or "_toggle_tint" in text, \
+        "Gallery missing tint toggle button variable or callback"
+    assert "neutral_team_tint" in text, \
+        "Gallery missing 'neutral_team_tint' key in entity data"
+
+
+def test_entity_visual_respects_neutral_tint() -> None:
+    """entity_visual.gd must check for neutral_team_tint flag."""
+    visual_path = Path(__file__).resolve().parents[2] / "godot" / "scripts" / "entity_visual.gd"
+    text = visual_path.read_text(encoding="utf-8")
+    assert "neutral_team_tint" in text, \
+        "EntityVisual does not check for neutral_team_tint flag"

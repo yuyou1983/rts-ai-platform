@@ -255,7 +255,7 @@ func coordinate_activation(
 		return commands
 
 	# Formation: arrange in a grid centered on the target position
-	var cols: int = int(ceilf(sqrt(float(count))))
+	var cols: int = int(ceil(sqrt(float(count))))
 	var spacing: float = 0.8  # tile-space spacing (TILE_SIZE=1)
 
 	for i in range(count):

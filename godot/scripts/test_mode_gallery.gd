@@ -8,15 +8,29 @@ extends Node2D
 
 signal entities_rebuilt(new_ents: Array)
 signal state_changed()
+signal combat_preview_event(event: Dictionary)
 
 const UNIT_TYPE_CATALOG_PATH := "res://resources/unit_type_catalog.json"
 const ANIM_FPS := 8.0  # frames per second for walk cycle
 const ATTACK_FLASH_DURATION: float = 0.1
+const ANIM_CYCLE_PERIOD: float = 3.0   # seconds per animation phase in Animation view
+const COMBAT_REPLAY_PERIOD: float = 3.0  # seconds per combat replay cycle
+const TESTMODE_WORLD_ORIGIN := Vector2(8.0, 6.0)
+const TESTMODE_WORLD_RIGHT_LIMIT := 54.0
+const TESTMODE_WORLD_BOTTOM_LIMIT := 58.0
 
 # ─── Internal state ────────────────────────────────────────
 var _active: bool = false
 var _test_ents: Array = []
 var _test_section_headers: Array = []
+
+# ─── Pagination ────────────────────────────────────────────
+var _test_page: int = 0
+const TESTMODE_ITEMS_PER_PAGE := 24
+
+# ─── Gallery mode ──────────────────────────────────────────
+var _gallery_mode: String = "roster"  # "roster" / "scale" / "animation" / "combat"
+var _gallery_mode_buttons: Dictionary = {}  # { mode: Button }
 
 # ─── UI elements ───────────────────────────────────────────
 var _test_btn: Button = null
@@ -27,6 +41,11 @@ var _test_batch_filter: OptionButton = null
 var _elev_btn: Button = null
 var _zoom_in_btn: Button = null
 var _zoom_out_btn: Button = null
+var _calib_btn: Button = null
+var _tint_btn: Button = null
+var _neutral_tint_enabled: bool = true
+var _prev_page_btn: Button = null
+var _next_page_btn: Button = null
 
 # ─── Filter state ──────────────────────────────────────────
 var _test_filter_race: String = ""    # "" = all, "terran"/"zerg"/"protoss"
@@ -34,7 +53,7 @@ var _test_filter_kind: String = ""    # "" = all, "unit"/"building"
 var _test_filter_domain: String = ""  # "" = all, "ground"/"air"
 var _test_filter_role: String = ""    # "" = all
 var _test_filter_tier: String = ""    # "" = all
-var _test_preview_mode: String = "idle"  # "idle"/"move"/"attack"
+var _test_preview_mode: String = "idle"  # "idle"/"move"/"attack"/"death"
 var _test_filter_batch: String = "all"
 
 # ─── Filter button groups ──────────────────────────────────
@@ -60,14 +79,44 @@ var _anim_frame: int = 0
 var _anim_tick: float = 0.0
 var _attack_flash_timers: Dictionary = {}  # entity_id → remaining flash seconds
 
+# ─── Animation view cycle state ─────────────────────────────
+var _anim_cycle_timer: float = 0.0
+var _anim_current_phase: int = 0  # 0=idle, 1=move, 2=attack, 3=death
+const _ANIM_PHASES: PackedStringArray = ["idle", "move", "attack", "death"]
+
+# ─── Combat view state ─────────────────────────────────────
+var _combat_timer: float = 0.0
+var _combat_phase: int = 0  # 0=attack, 1=hit, 2=death, 3=reset
+var _combat_current_pair: int = 0  # index into _COMBAT_PAIRS
+var _combat_pair_positions: Dictionary = {}  # pair_idx → {attacker_pos, target_pos}
+
+const _COMBAT_PAIRS: Array = [
+	{"profile": "terran_ballistic", "attacker": "Marine", "target": "Zergling"},
+	{"profile": "terran_explosive", "attacker": "Tank", "target": "Dragoon"},
+	{"profile": "terran_flame", "attacker": "Firebat", "target": "Zergling"},
+	{"profile": "zerg_melee", "attacker": "Zergling", "target": "Marine"},
+	{"profile": "zerg_acid", "attacker": "Hydralisk", "target": "Zealot"},
+	{"profile": "protoss_psi", "attacker": "Dragoon", "target": "Hydralisk"},
+]
+
+# ─── Scale view unit rows ──────────────────────────────────
+const _SCALE_ROWS: Array = [
+	{"label": "Workers", "units": ["SCV", "Drone", "Probe"]},
+	{"label": "Basic Infantry", "units": ["Marine", "Zergling", "Zealot"]},
+	{"label": "Townhalls", "units": ["CommandCenter", "Hatchery", "Nexus"]},
+	{"label": "Production", "units": ["Barracks", "SpawningPool", "Gateway"]},
+]
+
 # ─── External references (injected via setup) ───────────────
 var _ui_layer: CanvasLayer = null
-var _sprite_loader: Node = null      # SpriteLoader
+var _sprite_loader: RefCounted = null      # SpriteLoader
 var _default_font: Font = null
 var _entity_cache_by_id: Dictionary = {}
 var _sprite_pool: Dictionary = {}    # Injected via setup()
 var _cam_ctrl: Node = null           # CameraController (optional)
 var _show_elevation: bool = false
+var _show_calibration: bool = false
+var _calibration_overlay = null  # VisualCalibrationOverlay — set at runtime
 
 
 # ────────────────────────────────────────────────────────────
@@ -78,7 +127,7 @@ func is_active() -> bool:
 	return _active
 
 
-func setup(ui_layer: CanvasLayer, sprite_loader: Node, default_font: Font,
+func setup(ui_layer: CanvasLayer, sprite_loader: RefCounted, default_font: Font,
 		entity_cache_by_id: Dictionary, sprite_pool: Dictionary = {},
 		cam_ctrl: Node = null) -> void:
 	_ui_layer = ui_layer
@@ -99,6 +148,7 @@ func setup(ui_layer: CanvasLayer, sprite_loader: Node, default_font: Font,
 	_ui_layer.add_child(_test_btn)
 	_test_btn.pressed.connect(toggle)
 
+	_create_gallery_mode_tabs()
 	_create_test_filter_panel()
 
 	# ── Elevation toggle button (below test button) ──
@@ -111,10 +161,32 @@ func setup(ui_layer: CanvasLayer, sprite_loader: Node, default_font: Font,
 	_ui_layer.add_child(_elev_btn)
 	_elev_btn.pressed.connect(_toggle_elevation)
 
+	# ── Calibration overlay toggle button (below elev button) ──
+	_calib_btn = Button.new()
+	_calib_btn.text = "📐 Cal"
+	_calib_btn.tooltip_text = "Toggle visual calibration overlay"
+	_calib_btn.position = Vector2(8, 68)
+	_calib_btn.size = Vector2(120, 24)
+	_calib_btn.modulate = Color(0.7, 0.7, 0.85)
+	_ui_layer.add_child(_calib_btn)
+	_calib_btn.pressed.connect(_toggle_calibration)
+
+	# ── Tint toggle button ──
+	_tint_btn = Button.new()
+	_tint_btn.text = "🎨 Tint"
+	_tint_btn.tooltip_text = "Toggle neutral team tint (original colors)"
+	_tint_btn.position = Vector2(8, 94)
+	_tint_btn.size = Vector2(120, 24)
+	_tint_btn.modulate = Color(0.7, 0.7, 0.85)
+	_tint_btn.toggle_mode = true
+	_tint_btn.button_pressed = true
+	_ui_layer.add_child(_tint_btn)
+	_tint_btn.pressed.connect(_toggle_tint)
+
 	# ── Zoom buttons ──
 	_zoom_in_btn = Button.new()
 	_zoom_in_btn.text = "🔍+"
-	_zoom_in_btn.position = Vector2(4, 30)
+	_zoom_in_btn.position = Vector2(4, 120)
 	_zoom_in_btn.size = Vector2(40, 24)
 	_zoom_in_btn.modulate = Color(0.9, 0.95, 1.0)
 	_ui_layer.add_child(_zoom_in_btn)
@@ -122,11 +194,30 @@ func setup(ui_layer: CanvasLayer, sprite_loader: Node, default_font: Font,
 
 	_zoom_out_btn = Button.new()
 	_zoom_out_btn.text = "🔍-"
-	_zoom_out_btn.position = Vector2(46, 30)
+	_zoom_out_btn.position = Vector2(46, 120)
 	_zoom_out_btn.size = Vector2(40, 24)
 	_zoom_out_btn.modulate = Color(0.9, 0.95, 1.0)
 	_ui_layer.add_child(_zoom_out_btn)
 	_zoom_out_btn.pressed.connect(func(): _cam_ctrl._zoom_out() if _cam_ctrl else null)
+
+	# ── Pagination buttons ──
+	_prev_page_btn = Button.new()
+	_prev_page_btn.text = "◀ Page"
+	_prev_page_btn.tooltip_text = "Previous page"
+	_prev_page_btn.position = Vector2(4, 146)
+	_prev_page_btn.size = Vector2(56, 24)
+	_prev_page_btn.modulate = Color(0.85, 0.85, 0.9)
+	_ui_layer.add_child(_prev_page_btn)
+	_prev_page_btn.pressed.connect(_on_prev_page)
+
+	_next_page_btn = Button.new()
+	_next_page_btn.text = "Page ▶"
+	_next_page_btn.tooltip_text = "Next page"
+	_next_page_btn.position = Vector2(64, 146)
+	_next_page_btn.size = Vector2(56, 24)
+	_next_page_btn.modulate = Color(0.85, 0.85, 0.9)
+	_ui_layer.add_child(_next_page_btn)
+	_next_page_btn.pressed.connect(_on_next_page)
 
 
 func set_sprite_pool(sprite_pool: Dictionary) -> void:
@@ -140,6 +231,12 @@ func toggle_elevation() -> void:
 func is_elevation_active() -> bool:
 	return _show_elevation
 
+func is_calibration_active() -> bool:
+	return _show_calibration
+
+func get_calibration_overlay():  # returns VisualCalibrationOverlay at runtime
+	return _calibration_overlay
+
 
 func toggle() -> void:
 	_active = not _active
@@ -147,16 +244,18 @@ func toggle() -> void:
 		_build_test_entities()
 		if _test_filter_panel:
 			_test_filter_panel.visible = true
+		_show_gallery_mode_tabs(true)
 		if _test_btn:
 			_test_btn.text = "Back"
 			_test_btn.modulate = Color(1.0, 0.8, 0.8)
-		print("[TEST MODE] ON — generated asset gallery")
+		print("[TEST MODE] ON — generated asset gallery (mode: %s)" % _gallery_mode)
 	else:
 		_clear_test_sprites()
 		_test_ents.clear()
 		_test_section_headers.clear()
 		if _test_filter_panel:
 			_test_filter_panel.visible = false
+		_show_gallery_mode_tabs(false)
 		if _test_btn:
 			_test_btn.text = "🧪 Test Mode"
 			_test_btn.modulate = Color(0.8, 1.0, 0.8)
@@ -193,13 +292,18 @@ func get_saved_state() -> Dictionary:
 	}
 
 
+var _use_screen_labels: bool = true
+
 func draw_labels(canvas: CanvasItem) -> void:
+	if _use_screen_labels:
+		return  # Labels handled by TestModeLabelLayer instead
 	var font: Font = _default_font
 	if not font:
 		return
 	var title_size := 1.2
 	var label_size := 0.8
 	var vc_label_size := 0.55
+	var info_label_size := 0.38
 	for header in _test_section_headers:
 		canvas.draw_string(
 			font,
@@ -241,6 +345,94 @@ func draw_labels(canvas: CanvasItem) -> void:
 				vc_label_size,
 				Color(0.7, 0.9, 1.0, 0.7)
 			)
+		# Calibration info below visual class label
+		var render_scale_val = str(e.get("render_scale", ""))
+		var sel_radius_val = str(e.get("selection_radius", ""))
+		var footprint_val = ""
+		var vfx_profile_val = str(e.get("vfx_profile", ""))
+		var gen_id = str(e.get("generated_asset_id", e.get("unit_type", e.get("building_type", ""))))
+		# Look up footprint from manifest if available
+		var footprint_data = _get_footprint_for_entity(e)
+		if not footprint_data.is_empty():
+			footprint_val = "%s×%s" % [str(footprint_data.get("w", "")), str(footprint_data.get("h", ""))]
+		var entity_type = str(e.get("entity_type", ""))
+		var info_y_offset = 2.5 + 0.45 if entity_type == "unit" else 4.2 + 0.45 if entity_type == "building" else 2.95
+		if vc != "":
+			info_y_offset += 0.30
+		# Build info lines
+		var info_lines := PackedStringArray()
+		info_lines.append("id:%s  rs:%s  sr:%s" % [gen_id, render_scale_val, sel_radius_val])
+		if footprint_val != "":
+			info_lines.append("fp:%s  vfx:%s" % [footprint_val, vfx_profile_val])
+		else:
+			info_lines.append("vfx:%s" % vfx_profile_val)
+		for i in range(info_lines.size()):
+			canvas.draw_string(
+				font,
+				Vector2(float(e.get("px", 0.0)) + 1.3, float(e.get("py", 0.0)) + info_y_offset + float(i) * 0.25),
+				info_lines[i],
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				info_label_size,
+				Color(0.65, 0.75, 0.85, 0.55)
+			)
+
+
+func get_screen_labels() -> Array:
+	var labels: Array = []
+	for header in _test_section_headers:
+		labels.append({
+			"world_pos": header.get("pos", Vector2.ZERO),
+			"text": str(header.get("text", "")),
+			"color": header.get("color", Color.WHITE),
+		})
+	for e in _test_ents:
+		if not str(e.get("id", "")).begins_with("test_"):
+			continue
+		if bool(e.get("preview_hidden", false)):
+			continue
+		var text := str(e.get("label", ""))
+		if text != "":
+			labels.append({
+				"world_pos": Vector2(float(e.get("px", 0.0)) + 0.6, float(e.get("py", 0.0)) + 0.9),
+				"text": text,
+				"color": Color(0.95, 0.95, 0.9, 0.95),
+			})
+	return labels
+
+
+func _get_footprint_for_entity(e: Dictionary) -> Dictionary:
+	var entity_type = str(e.get("entity_type", ""))
+	var visual_id = str(e.get("generated_asset_id", e.get("unit_type", e.get("building_type", ""))))
+	if visual_id == "":
+		return {}
+	# Try to load manifest if not already loaded
+	if _presentation_manifest.is_empty():
+		_load_presentation_manifest()
+	if _presentation_manifest.is_empty():
+		return {}
+	var section: String = "building_visuals" if entity_type == "building" else "unit_visuals"
+	var entry: Dictionary = _presentation_manifest.get(section, {}).get(visual_id, {})
+	if entry.is_empty():
+		return {}
+	var fp = entry.get("footprint", {})
+	if fp is Dictionary:
+		return fp
+	if fp is Array and fp.size() >= 2:
+		return {"w": float(fp[0]), "h": float(fp[1])}
+	return {}
+
+
+var _presentation_manifest: Dictionary = {}
+
+func _load_presentation_manifest() -> void:
+	var path: String = "res://resources/presentation_manifest.json"
+	if not FileAccess.file_exists(path):
+		return
+	var raw_text: String = FileAccess.get_file_as_string(path)
+	var parsed = JSON.parse_string(raw_text)
+	if parsed is Dictionary:
+		_presentation_manifest = parsed
 
 
 func advance_animation(delta: float) -> void:
@@ -275,6 +467,214 @@ func tick_attack_flash_timers(delta: float) -> void:
 
 
 # ────────────────────────────────────────────────────────────
+# _process — Animation cycle, Combat replay, F12 screenshot
+# ────────────────────────────────────────────────────────────
+
+func _process(delta: float) -> void:
+	if not _active:
+		return
+
+	# Animation view: auto-cycle idle→move→attack→death
+	if _gallery_mode == "animation":
+		_anim_cycle_timer += delta
+		if _anim_cycle_timer >= ANIM_CYCLE_PERIOD:
+			_anim_cycle_timer -= ANIM_CYCLE_PERIOD
+			_anim_current_phase = (_anim_current_phase + 1) % _ANIM_PHASES.size()
+			_test_preview_mode = _ANIM_PHASES[_anim_current_phase]
+			# Update preview button highlights
+			for val in _preview_buttons:
+				var btn: Button = _preview_buttons[val]
+				if val == _test_preview_mode:
+					btn.button_pressed = true
+					btn.modulate = Color(0.5, 1.0, 0.5)
+				else:
+					btn.button_pressed = false
+					btn.modulate = Color(0.85, 0.85, 0.85)
+			_build_test_entities()
+			print("[TEST MODE] Animation phase: %s" % _test_preview_mode)
+
+	# Combat view: replay cycle
+	if _gallery_mode == "combat":
+		_combat_timer += delta
+		if _combat_timer >= COMBAT_REPLAY_PERIOD:
+			_combat_timer -= COMBAT_REPLAY_PERIOD
+			_combat_phase = (_combat_phase + 1) % 4
+			if _combat_phase == 0:
+				_combat_current_pair = (_combat_current_pair + 1) % _COMBAT_PAIRS.size()
+			_update_combat_phase()
+
+
+func _update_combat_phase() -> void:
+	if _test_ents.is_empty():
+		return
+	# Find attacker and target entities and update their preview_action
+	var pair = _COMBAT_PAIRS[_combat_current_pair]
+	var attacker_id_prefix = "test_unit_%s" % pair["attacker"]
+	var target_id_prefix = "test_unit_%s" % pair["target"]
+
+	# Emit combat preview event for VFX system
+	var profile_name: String = str(pair.get("profile", "none"))
+	var positions: Dictionary = _combat_pair_positions.get(_combat_current_pair, {})
+	var source_pos: Vector2 = positions.get("attacker_pos", Vector2.ZERO)
+	var target_pos: Vector2 = positions.get("target_pos", Vector2.ZERO)
+
+	combat_preview_event.emit({
+		"event_type": "projectile_fired",
+		"vfx_profile": profile_name,
+		"source_pos": source_pos,
+		"target_pos": target_pos,
+	})
+
+	for e in _test_ents:
+		var eid = str(e.get("id", ""))
+		match _combat_phase:
+			0:  # attack phase
+				if eid.begins_with(attacker_id_prefix) and "attack" in eid:
+					e["preview_action"] = "attack"
+				elif eid.begins_with(target_id_prefix) and "idle" in eid:
+					e["preview_action"] = "idle"
+			1:  # hit phase — flash target
+				if eid.begins_with(attacker_id_prefix) and "attack" in eid:
+					e["preview_action"] = "attack"
+				elif eid.begins_with(target_id_prefix) and "idle" in eid:
+					e["preview_action"] = "idle"
+					_attack_flash_timers[eid] = ATTACK_FLASH_DURATION * 5.0
+			2:  # death phase
+				if eid.begins_with(attacker_id_prefix) and "attack" in eid:
+					e["preview_action"] = "idle"
+				elif eid.begins_with(target_id_prefix) and "idle" in eid:
+					e["preview_action"] = "death"
+			3:  # reset
+				if eid.begins_with(attacker_id_prefix):
+					e["preview_action"] = "idle"
+				elif eid.begins_with(target_id_prefix):
+					e["preview_action"] = "idle"
+	state_changed.emit()
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+		_take_screenshot()
+	elif event is InputEventKey and event.pressed and event.keycode == KEY_F11:
+		if _active:
+			_export_all_mode_screenshots()
+
+
+func _take_screenshot() -> void:
+	var img: Image = get_viewport().get_texture().get_image()
+	var dir_path: String = "user://screenshots"
+	DirAccess.make_dir_recursive_absolute(dir_path)
+	var timestamp: String = Time.get_datetime_string_from_system().replace(":", "-")
+	var mode_suffix: String = "_" + _gallery_mode if _active else ""
+	var file_name: String = "testmode%s_%s.png" % [mode_suffix, timestamp]
+	var full_path: String = dir_path.path_join(file_name)
+	var err: int = img.save_png(full_path)
+	if err == OK:
+		print("[TEST MODE] Screenshot saved: %s" % full_path)
+	else:
+		push_warning("[TEST MODE] Screenshot save failed (error %d): %s" % [err, full_path])
+
+
+func _export_all_mode_screenshots() -> void:
+	var exporter: TestmodeScreenshotExporter = TestmodeScreenshotExporter.new()
+	add_child(exporter)
+	exporter.setup(self)
+	exporter.export_all_modes()
+
+
+# ────────────────────────────────────────────────────────────
+# Gallery mode tab buttons
+# ────────────────────────────────────────────────────────────
+
+func _create_gallery_mode_tabs() -> void:
+	var modes: PackedStringArray = ["roster", "scale", "animation", "combat"]
+	var labels: PackedStringArray = ["📋 Roster", "📐 Scale", "🎬 Animation", "⚔ Combat"]
+	for i in range(modes.size()):
+		var btn := Button.new()
+		btn.text = labels[i]
+		btn.toggle_mode = true
+		btn.visible = false  # hidden until test mode is active
+		btn.position = Vector2(8, 126 + i * 26)
+		btn.size = Vector2(120, 24)
+		var mode_val: String = modes[i]
+		if mode_val == _gallery_mode:
+			btn.button_pressed = true
+			btn.modulate = Color(0.5, 1.0, 0.5)
+		else:
+			btn.modulate = Color(0.85, 0.85, 0.85)
+		btn.pressed.connect(_on_gallery_mode_btn.bind(mode_val))
+		_ui_layer.add_child(btn)
+		_gallery_mode_buttons[mode_val] = btn
+
+
+func _show_gallery_mode_tabs(show: bool) -> void:
+	for mode_val in _gallery_mode_buttons:
+		var btn: Button = _gallery_mode_buttons[mode_val]
+		btn.visible = show
+		if mode_val == _gallery_mode:
+			btn.button_pressed = true
+			btn.modulate = Color(0.5, 1.0, 0.5)
+		else:
+			btn.button_pressed = false
+			btn.modulate = Color(0.85, 0.85, 0.85)
+
+
+func _on_gallery_mode_btn(mode: String) -> void:
+	_gallery_mode = mode
+	# Update button highlights
+	for mode_val in _gallery_mode_buttons:
+		var btn: Button = _gallery_mode_buttons[mode_val]
+		if mode_val == mode:
+			btn.button_pressed = true
+			btn.modulate = Color(0.5, 1.0, 0.5)
+		else:
+			btn.button_pressed = false
+			btn.modulate = Color(0.85, 0.85, 0.85)
+	# Reset animation/combat timers
+	_anim_cycle_timer = 0.0
+	_anim_current_phase = 0
+	_combat_timer = 0.0
+	_combat_phase = 0
+	_combat_current_pair = 0
+	# Update preview mode based on gallery mode
+	if _gallery_mode == "animation":
+		_test_preview_mode = "idle"
+	elif _gallery_mode == "combat":
+		_test_preview_mode = "idle"
+	# Show/hide filter panel (only visible in roster mode)
+	if _test_filter_panel:
+		_test_filter_panel.visible = (_gallery_mode == "roster")
+	if _active:
+		_build_test_entities()
+	print("[TEST MODE] Switched to gallery mode: %s" % mode)
+
+
+# ── Public methods for TestModeUIController integration ──
+
+func set_gallery_mode(mode: String) -> void:
+	_on_gallery_mode_btn(mode)
+
+func set_filter(key: String, value: String) -> void:
+	match key:
+		"race":
+			_test_filter_race = value
+		"kind":
+			_test_filter_kind = value
+		"domain":
+			_test_filter_domain = value
+		"role":
+			_test_filter_role = value
+		"tier":
+			_test_filter_tier = value
+		"preview":
+			_test_preview_mode = value
+		"batch":
+			_test_filter_batch = value
+	if _active:
+		_build_test_entities()
+
+
+# ────────────────────────────────────────────────────────────
 # Filter panel creation
 # ────────────────────────────────────────────────────────────
 
@@ -285,9 +685,9 @@ func _create_test_filter_panel() -> void:
 	_test_filter_panel.anchor_top = 0.0
 	_test_filter_panel.anchor_right = 0.0
 	_test_filter_panel.anchor_bottom = 0.0
-	_test_filter_panel.offset_left = 132
+	_test_filter_panel.offset_left = 168
 	_test_filter_panel.offset_top = 8
-	_test_filter_panel.offset_right = 900
+	_test_filter_panel.offset_right = -320
 	_test_filter_panel.offset_bottom = 175
 	_ui_layer.add_child(_test_filter_panel)
 
@@ -335,13 +735,13 @@ func _create_test_filter_panel() -> void:
 	_tier_buttons = _make_toggle_group(row5, ["All", "Basic", "Advanced", "Tech"],
 		["", "basic", "advanced", "tech"], _test_filter_tier, "_on_tier_filter_btn")
 
-	# Row 6: Preview mode
+	# Row 6: Preview mode (includes "death" for Animation view)
 	var row6 := HBoxContainer.new()
 	row6.add_theme_constant_override("separation", 4)
 	vbox.add_child(row6)
 	_add_row_label(row6, "Preview:")
-	_preview_buttons = _make_toggle_group(row6, ["Idle", "Move", "Attack"],
-		["idle", "move", "attack"], _test_preview_mode, "_on_preview_mode_btn")
+	_preview_buttons = _make_toggle_group(row6, ["Idle", "Move", "Attack", "Death"],
+		["idle", "move", "attack", "death"], _test_preview_mode, "_on_preview_mode_btn")
 
 	# Keep batch filter as OptionButton (it has dynamic content)
 	var batch_row := HBoxContainer.new()
@@ -412,36 +812,42 @@ func _on_filter_btn_pressed(value: String, callback: String, buttons: Dictionary
 
 func _on_race_filter_btn(value: String) -> void:
 	_test_filter_race = value
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
 		_build_test_entities()
 
 
 func _on_kind_filter_btn(value: String) -> void:
 	_test_filter_kind = value
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
 		_build_test_entities()
 
 
 func _on_domain_filter_btn(value: String) -> void:
 	_test_filter_domain = value
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
 		_build_test_entities()
 
 
 func _on_role_filter_btn(value: String) -> void:
 	_test_filter_role = value
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
 		_build_test_entities()
 
 
 func _on_tier_filter_btn(value: String) -> void:
 	_test_filter_tier = value
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
 		_build_test_entities()
 
 
 func _on_preview_mode_btn(value: String) -> void:
 	_test_preview_mode = value
+	_test_page = 0
 	if _active:
 		_build_test_entities()
 
@@ -455,7 +861,28 @@ func _on_test_batch_filter_selected(index: int) -> void:
 	if _test_batch_filter == null:
 		return
 	_test_filter_batch = str(_test_batch_filter.get_item_metadata(index))
-	if _active:
+	_test_page = 0
+	if _active and _gallery_mode == "roster":
+		_build_test_entities()
+
+
+# ────────────────────────────────────────────────────────────
+# Pagination callbacks
+# ────────────────────────────────────────────────────────────
+
+func _on_prev_page() -> void:
+	if _test_page > 0:
+		_test_page -= 1
+		_build_test_entities()
+
+func _on_next_page() -> void:
+	var test_count := 0
+	for e in _test_ents:
+		if str(e.get("id", "")).begins_with("test_"):
+			test_count += 1
+	var max_page := maxi(0, ceili(float(test_count) / float(TESTMODE_ITEMS_PER_PAGE)) - 1)
+	if _test_page < max_page:
+		_test_page += 1
 		_build_test_entities()
 
 
@@ -469,6 +896,23 @@ func _toggle_elevation() -> void:
 		_elev_btn.text = "⛰ Elev ON" if _show_elevation else "⛰ Elev"
 		_elev_btn.modulate = Color(0.5, 1.0, 0.5) if _show_elevation else Color(0.7, 0.85, 0.7)
 	state_changed.emit()
+
+
+func _toggle_calibration() -> void:
+	_show_calibration = not _show_calibration
+	if _calib_btn:
+		_calib_btn.text = "📐 Cal ON" if _show_calibration else "📐 Cal"
+		_calib_btn.modulate = Color(0.5, 1.0, 0.5) if _show_calibration else Color(0.7, 0.7, 0.85)
+	if _calibration_overlay:
+		_calibration_overlay.active = _show_calibration
+	state_changed.emit()
+
+
+func _toggle_tint() -> void:
+	_neutral_tint_enabled = _tint_btn.button_pressed
+	for e in _test_ents:
+		e["neutral_team_tint"] = _neutral_tint_enabled
+	entities_rebuilt.emit(_test_ents)
 
 
 # ────────────────────────────────────────────────────────────
@@ -486,7 +930,7 @@ func _load_unit_type_catalog() -> void:
 		# Strip _meta key — it's not a unit entry
 		_unit_type_catalog = {}
 		for key in parsed.keys():
-			if key.nocasecmp_to("_meta") != 0:
+			if key.casecmp_to("_meta") != 0:
 				var entry: Dictionary = parsed[key]
 				if entry is Dictionary:
 					_unit_type_catalog[key] = entry
@@ -539,7 +983,7 @@ func _catalog_passes_filters(unit_id: String) -> bool:
 
 
 # ────────────────────────────────────────────────────────────
-# Build / clear test entities
+# Build / clear test entities — dispatches by _gallery_mode
 # ────────────────────────────────────────────────────────────
 
 func _build_test_entities() -> void:
@@ -547,12 +991,48 @@ func _build_test_entities() -> void:
 	_test_ents.clear()
 	_test_section_headers.clear()
 
+	match _gallery_mode:
+		"roster":
+			_create_view_roster()
+		"scale":
+			_create_view_scale()
+		"animation":
+			_create_view_animation()
+		"combat":
+			_create_view_combat()
+		_:
+			_create_view_roster()
+
+	entities_rebuilt.emit(_test_ents)
+
+
+func _clear_test_entities() -> void:
+	_clear_test_sprites()
+	_test_ents.clear()
+	_test_section_headers.clear()
+
+
+func _clear_test_sprites() -> void:
+	var to_remove: Array = []
+	for eid in _sprite_pool:
+		if str(eid).begins_with("test_"):
+			_sprite_pool[eid].queue_free()
+			to_remove.append(eid)
+	for eid in to_remove:
+		_sprite_pool.erase(eid)
+
+
+# ────────────────────────────────────────────────────────────
+# Roster view — existing behavior
+# ────────────────────────────────────────────────────────────
+
+func _create_view_roster() -> void:
 	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
 	# Apply batch filter first — use SpriteLoader batch API if active
 	if _test_filter_batch != "all" and _sprite_loader:
 		var batch_assets = _sprite_loader.get_assets_by_batch(_test_filter_batch)
 		assets = batch_assets
-	var kind_x: Dictionary = {"building": 5.0, "unit": 26.0, "resource": 53.0}
+	var kind_x: Dictionary = {"building": 10.0, "unit": 28.0, "resource": 50.0}
 	var kind_title: Dictionary = {"building": "Buildings", "unit": "Units", "resource": "Resources"}
 	var race_order: Array = ["terran", "zerg", "protoss", "neutral"]
 	var kind_order: Array = ["building", "unit", "resource"]
@@ -592,7 +1072,7 @@ func _build_test_entities() -> void:
 					var tb = int(eb.get("tech_tier", 1))
 					if ta != tb:
 						return ta < tb
-					return a.nocasecmp_to(b) < 0
+					return a.casecmp_to(b) < 0
 				)
 			elif kind == "unit":
 				ids.sort_custom(func(a, b):
@@ -601,8 +1081,8 @@ func _build_test_entities() -> void:
 					var vca = str(ea.get("visual_class", ""))
 					var vcb = str(eb.get("visual_class", ""))
 					if vca != vcb:
-						return vca.nocasecmp_to(vcb) < 0
-					return a.nocasecmp_to(b) < 0
+						return vca.casecmp_to(vcb) < 0
+					return a.casecmp_to(b) < 0
 				)
 			else:
 				ids.sort()
@@ -630,31 +1110,255 @@ func _build_test_entities() -> void:
 						"attack":
 							_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
 							y += 3.2
+						"death":
+							_test_ents.append(_make_test_asset_entity(asset_id, entry, race, "unit", Vector2(x, y), "death"))
+							y += 3.2
 						_:
-							# Fallback: show all three (legacy behavior)
+							# Fallback: show all four (legacy behavior)
 							_add_test_unit_pair(asset_id, entry, race, Vector2(x, y))
 							y += 3.2
 				else:
 					_test_ents.append(_make_test_asset_entity(asset_id, entry, race, kind, Vector2(x, y)))
 					y += 4.6 if kind == "building" else 3.0
 
-	entities_rebuilt.emit(_test_ents)
+	# Apply pagination — hide entities beyond current page
+	var test_ids: Array = []
+	for e in _test_ents:
+		if str(e.get("id", "")).begins_with("test_"):
+			test_ids.append(e)
+	var start := _test_page * TESTMODE_ITEMS_PER_PAGE
+	for i in range(test_ids.size()):
+		var e = test_ids[i]
+		if i < start or i >= start + TESTMODE_ITEMS_PER_PAGE:
+			e["preview_hidden"] = true
+		else:
+			e["preview_hidden"] = false
+	var total_count := test_ids.size()
+	var total_pages := maxi(1, ceili(float(total_count) / float(TESTMODE_ITEMS_PER_PAGE)))
+	_add_test_header("Page %d/%d (%d items)" % [_test_page + 1, total_pages, total_count], Vector2(8.0, 52.0), Color(0.9, 0.9, 0.7))
 
 
-func _clear_test_entities() -> void:
-	_clear_test_sprites()
-	_test_ents.clear()
-	_test_section_headers.clear()
+# ────────────────────────────────────────────────────────────
+# Scale view — three-race side-by-side comparison
+# ────────────────────────────────────────────────────────────
+
+func _create_view_scale() -> void:
+	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
+	var start_x: float = 5.0
+	var start_y: float = 4.0
+	var col_spacing: float = 12.0  # horizontal spacing between Terran/Zerg/Protoss
+	var row_spacing: float = 6.0   # vertical spacing between rows
+	var race_labels: PackedStringArray = ["Terran", "Zerg", "Protoss"]
+
+	_add_test_header("📐 Scale Comparison — Core Units & Buildings", Vector2(start_x, 2.0), Color(1.0, 0.9, 0.6))
+
+	# Auto-enable calibration overlay in scale view
+	_show_calibration = true
+	if _calibration_overlay:
+		_calibration_overlay.active = true
+
+	for row_idx in range(_SCALE_ROWS.size()):
+		var row_info: Dictionary = _SCALE_ROWS[row_idx]
+		var row_label: String = row_info["label"]
+		var row_units: Array = row_info["units"]
+		var y: float = start_y + float(row_idx) * row_spacing
+
+		# Row header
+		_add_test_header(row_label, Vector2(start_x, y - 1.5), Color(0.8, 0.9, 1.0))
+
+		for col_idx in range(row_units.size()):
+			var unit_id: String = row_units[col_idx]
+			var x: float = start_x + float(col_idx) * col_spacing
+			var race_label: String = race_labels[col_idx] if col_idx < race_labels.size() else ""
+			var entry: Dictionary = assets.get(unit_id, {})
+			var race: String = _test_asset_race(unit_id, entry)
+
+			if entry.is_empty():
+				# Unit not found in assets — create a placeholder
+				_test_ents.append(_make_placeholder_entity(unit_id, race_label, Vector2(x, y)))
+			else:
+				var kind: String = str(entry.get("kind", "unit"))
+				var entity := _make_test_asset_entity(unit_id, entry, race, kind, Vector2(x, y), "")
+				var rs := str(entry.get("render_scale", ""))
+				var sr := str(entry.get("selection_radius", ""))
+				var fp_dict = entry.get("footprint", {})
+				var fp_str := ""
+				if fp_dict is Dictionary and fp_dict.has("w"):
+					fp_str = "%sx%s" % [str(fp_dict["w"]), str(fp_dict["h"])]
+				elif fp_dict is Array and fp_dict.size() >= 2:
+					fp_str = "%sx%s" % [str(fp_dict[0]), str(fp_dict[1])]
+				var hbo = entry.get("health_bar_offset", [])
+				var hbo_str := ""
+				if hbo is Array and hbo.size() >= 2:
+					hbo_str = "hbo:%s,%s" % [str(hbo[0]), str(hbo[1])]
+				var parts: PackedStringArray = PackedStringArray()
+				parts.append(unit_id)
+				parts.append("rs=%s" % rs)
+				if sr != "":
+					parts.append("sr=%s" % sr)
+				if fp_str != "":
+					parts.append("fp=%s" % fp_str)
+				if hbo_str != "":
+					parts.append(hbo_str)
+				entity["label"] = "\n".join(parts)
+				_test_ents.append(entity)
 
 
-func _clear_test_sprites() -> void:
-	var to_remove: Array = []
-	for eid in _sprite_pool:
-		if str(eid).begins_with("test_"):
-			_sprite_pool[eid].queue_free()
-			to_remove.append(eid)
-	for eid in to_remove:
-		_sprite_pool.erase(eid)
+func _make_placeholder_entity(unit_id: String, race_label: String, pos: Vector2) -> Dictionary:
+	var owner := 0
+	match race_label.to_lower():
+		"terran":
+			owner = 1
+		"zerg":
+			owner = 2
+		"protoss":
+			owner = 3
+	return {
+		"id": "test_unit_%s_idle" % unit_id,
+		"owner": owner,
+		"type": "unit",
+		"entity_type": "unit",
+		"unit_type": unit_id,
+		"building_type": "",
+		"resource_type": "",
+		"generated_asset_id": unit_id,
+		"preview_action": "",
+		"label": "%s (missing)" % unit_id,
+		"visual_class": "",
+		"tech_tier": -1,
+		"uses_sprite": false,
+		"render_scale": 0.018,
+		"neutral_team_tint": true,
+		"px": pos.x,
+		"py": pos.y,
+		"health": 1,
+		"max_health": 1,
+		"is_idle": true,
+		"carry_amount": 0,
+		"carry_capacity": 0,
+		"attack": 0,
+		"attack_range": 0,
+		"speed": 0,
+		"resource_amount": 0,
+		"attack_target_id": "",
+		"target_x": 0,
+		"target_y": 0,
+		"energy": 0,
+		"max_energy": 0,
+	}
+
+
+# ────────────────────────────────────────────────────────────
+# Animation view — cycle idle/move/attack/death
+# ────────────────────────────────────────────────────────────
+
+func _create_view_animation() -> void:
+	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
+	var start_x: float = 5.0
+	var start_y: float = 4.0
+	var col_spacing: float = 4.0
+	var row_spacing: float = 4.0
+
+	_add_test_header("🎬 Animation View — Auto-cycling idle→move→attack→death", Vector2(start_x, 2.0), Color(0.6, 1.0, 0.8))
+
+	# Show all units that have animation support, in compact layout
+	var race_order: Array = ["terran", "zerg", "protoss"]
+	var y: float = start_y
+
+	for race in race_order:
+		_add_test_header(_test_race_label(race), Vector2(start_x, y - 1.0), _test_race_color(race))
+		y += 1.0
+		var x: float = start_x
+		var count: int = 0
+
+		for asset_id in assets.keys():
+			var entry: Dictionary = assets[asset_id]
+			if str(entry.get("kind", "")) != "unit":
+				continue
+			if _test_asset_race(str(asset_id), entry) != race:
+				continue
+			# Show unit with current preview mode
+			var action: String = ""
+			match _test_preview_mode:
+				"move":
+					action = "moving"
+				"attack":
+					action = "attack"
+				"death":
+					action = "death"
+				_:
+					action = ""
+			var entity := _make_test_asset_entity(str(asset_id), entry, race, "unit", Vector2(x, y), action)
+			_test_ents.append(entity)
+			x += col_spacing
+			count += 1
+			if count >= 10:
+				count = 0
+				x = start_x
+				y += row_spacing
+		y += row_spacing + 1.0
+
+	# Add current phase label header
+	_add_test_header("Current phase: %s" % _test_preview_mode.to_upper(), Vector2(start_x + 40.0, 2.0), Color(1.0, 1.0, 0.6))
+
+
+# ────────────────────────────────────────────────────────────
+# Combat view — fixed attacker→target pairs
+# ────────────────────────────────────────────────────────────
+
+func _create_view_combat() -> void:
+	var assets: Dictionary = _sprite_loader.get_generated_assets() if _sprite_loader else {}
+	var start_x: float = 5.0
+	var start_y: float = 4.0
+	var pair_spacing: float = 10.0
+	var row_spacing: float = 6.0
+
+	_add_test_header("⚔ Combat View — Auto-replay attack→hit→death cycles", Vector2(start_x, 2.0), Color(1.0, 0.6, 0.6))
+
+	for pair_idx in range(_COMBAT_PAIRS.size()):
+		var pair: Dictionary = _COMBAT_PAIRS[pair_idx]
+		var attacker_id: String = pair["attacker"]
+		var target_id: String = pair["target"]
+		var y: float = start_y + float(pair_idx) * row_spacing
+		var x: float = start_x
+
+		# Pair label
+		var profile_name: String = str(pair.get("profile", "none"))
+		_add_test_header("[%s] %s → %s" % [profile_name, attacker_id, target_id], Vector2(x, y - 1.5), Color(0.9, 0.7, 0.6))
+
+		# Attacker
+		var attacker_entry: Dictionary = assets.get(attacker_id, {})
+		var attacker_race: String = _test_asset_race(attacker_id, attacker_entry)
+		if attacker_entry.is_empty():
+			_test_ents.append(_make_placeholder_entity(attacker_id, "Attacker", Vector2(x, y)))
+		else:
+			var atk_entity := _make_test_asset_entity(attacker_id, attacker_entry, attacker_race, "unit", Vector2(x, y), "idle")
+			atk_entity["label"] = attacker_id
+			_test_ents.append(atk_entity)
+
+		# Arrow / gap
+		x += 5.0
+
+		# Target
+		var target_entry: Dictionary = assets.get(target_id, {})
+		var target_race: String = _test_asset_race(target_id, target_entry)
+		if target_entry.is_empty():
+			_test_ents.append(_make_placeholder_entity(target_id, "Target", Vector2(x, y)))
+		else:
+			var tgt_entity := _make_test_asset_entity(target_id, target_entry, target_race, "unit", Vector2(x, y), "idle")
+			tgt_entity["label"] = target_id
+			_test_ents.append(tgt_entity)
+
+		# Set initial combat state: attacker idle, target idle
+		_combat_phase = 0
+		_combat_timer = 0.0
+		_combat_current_pair = 0
+
+		# Store positions for this pair for later combat event emission
+		_combat_pair_positions[pair_idx] = {
+			"attacker_pos": Vector2(start_x, y),
+			"target_pos": Vector2(start_x + 5.0, y),
+		}
 
 
 # ────────────────────────────────────────────────────────────
@@ -715,11 +1419,24 @@ func _make_test_asset_entity(
 	var visual_class = str(entry.get("visual_class", ""))
 	var label := asset_id
 	if kind == "unit":
-		var action_tag = "atk" if action == "attack" else "move"
-		if "air" in visual_class:
-			label = "✈%s %s" % [asset_id, action_tag]
-		else:
-			label = "%s %s" % [asset_id, action_tag]
+		var action_tag = "atk" if action == "attack" else ("die" if action == "death" else "move")
+		if action != "":
+			if "air" in visual_class:
+				label = "✈%s %s" % [asset_id, action_tag]
+			else:
+				label = "%s %s" % [asset_id, action_tag]
+	# Look up catalog for vfx_profile and selection info
+	var catalog_entry: Dictionary = _unit_type_catalog.get(asset_id, {})
+	var vfx_profile: String = str(catalog_entry.get("vfx_profile", str(entry.get("vfx_profile", "none"))))
+	var selection_radius: float = float(catalog_entry.get("selection_radius", 0.0))
+	if selection_radius == 0.0:
+		# Try manifest
+		if _presentation_manifest.is_empty():
+			_load_presentation_manifest()
+		var section: String = "building_visuals" if kind == "building" else "unit_visuals"
+		var manifest_entry: Dictionary = _presentation_manifest.get(section, {}).get(asset_id, {})
+		selection_radius = float(manifest_entry.get("selection_radius", 1.5 if kind == "unit" else 3.0))
+
 	var entity := {
 		"id": "test_%s_%s_%s" % [kind, asset_id, action if action != "" else "idle"],
 		"owner": owner,
@@ -735,6 +1452,9 @@ func _make_test_asset_entity(
 		"tech_tier": int(entry.get("tech_tier", 1)) if kind == "building" else -1,
 		"uses_sprite": kind == "resource",
 		"render_scale": float(entry.get("render_scale", 0.018)),
+		"selection_radius": selection_radius,
+		"vfx_profile": vfx_profile,
+		"neutral_team_tint": true,
 		"px": pos.x,
 		"py": pos.y,
 		"health": 1000 if kind == "building" else 100,
@@ -760,11 +1480,11 @@ func _test_asset_race(asset_id: String, entry: Dictionary) -> String:
 	if race != "":
 		return race
 	match asset_id:
-		"SCV", "Marine", "CommandCenter", "Barracks", "Refinery":
+		"SCV", "Marine", "Firebat", "Ghost", "Medic", "Vulture", "Tank", "Goliath", "Wraith", "Valkyrie", "Battlecruiser", "Dropship", "CommandCenter", "Barracks", "Refinery", "SupplyDepot", "Academy", "Factory", "Starport", "EngineeringBay", "MissileTurret", "Bunker", "ComSatStation", "NuclearSilo", "MachineShop", "Armory", "ScienceFacility":
 			return "terran"
-		"Drone", "Zergling", "Hatchery", "SpawningPool", "Extractor":
+		"Drone", "Zergling", "Hydralisk", "Overlord", "Mutalisk", "Scourge", "Queen", "Broodling", "Ultralisk", "Defiler", "InfestedTerran", "Hatchery", "SpawningPool", "Extractor", "CreepColony", "SporeColony", "SunkenColony", "HydraliskDen", "EvolutionChamber", "NydusCanal", "QueensNest", "Spire", "GreaterSpire", "UltraliskCavern", "DefilerMound":
 			return "zerg"
-		"Probe", "Zealot", "Nexus", "Gateway", "Pylon", "Assimilator":
+		"Probe", "Zealot", "Dragoon", "HighTemplar", "Archon", "Reaver", "Shuttle", "Observer", "Corsair", "Scout", "Arbiter", "Carrier", "DarkTemplar", "Nexus", "Gateway", "Pylon", "Assimilator", "CyberneticsCore", "Forge", "PhotonCannon", "CitadelOfAdun", "RoboticsFacility", "Stargate", "TemplarArchives", "FleetBeacon", "RoboticsSupportBay", "Observatory", "ArbiterTribunal":
 			return "protoss"
 		_:
 			return "neutral"

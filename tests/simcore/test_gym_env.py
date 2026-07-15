@@ -15,8 +15,9 @@ class TestGymEnvBasics:
         assert "entities" in obs
         assert "resources" in obs
         assert "tick" in obs
-        assert obs["entities"].shape == (64, 10)
+        assert obs["entities"].shape == (64, 17)
         assert obs["resources"].shape == (4,)
+        assert "action_mask" in info
         env.close()
 
     def test_step_returns_valid_tuple(self):
@@ -93,5 +94,5 @@ class TestTwoPlayerMode:
     def test_two_player_init(self):
         env = gym.make("rts-ai-v0", seed=42, two_player=True)
         obs, info = env.reset()
-        assert obs["entities"].shape == (64, 10)
+        assert obs["entities"].shape == (64, 17)
         env.close()

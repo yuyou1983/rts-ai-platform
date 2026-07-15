@@ -141,7 +141,7 @@
       "asset": "res://assets/sprites/units/SCV.png",
       "vfx_profile": "zerg_melee",
       "audio_prefix": "SCV",
-      "render_scale": 0.0208,
+      "render_scale": 0.019,
       "selection_radius": 0.688,
       "pivot": [
         0.5,
@@ -505,7 +505,7 @@
       "asset": "res://assets/sprites/units/Drone.png",
       "vfx_profile": "zerg_melee",
       "audio_prefix": "Drone",
-      "render_scale": 0.0107,
+      "render_scale": 0.018,
       "selection_radius": 0.688,
       "pivot": [
         0.5,
@@ -895,7 +895,7 @@
       "asset": "res://assets/sprites/units/Probe.png",
       "vfx_profile": "protoss_psi",
       "audio_prefix": "Probe",
-      "render_scale": 0.0234,
+      "render_scale": 0.02,
       "selection_radius": 0.5,
       "pivot": [
         0.5,
@@ -1276,6 +1276,10 @@
         0,
         -0.28
       ],
+      "footprint": {
+        "w": 4.0,
+        "h": 3.0
+      },
       "fallback": {
         "atlas_rect": [
           1,
@@ -1324,7 +1328,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Refinery": {
       "race": "terran",
@@ -1360,7 +1368,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Barracks": {
       "race": "terran",
@@ -1396,7 +1408,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "EngineeringBay": {
       "race": "terran",
@@ -1432,7 +1448,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "MissileTurret": {
       "race": "terran",
@@ -1468,7 +1488,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Academy": {
       "race": "terran",
@@ -1504,7 +1528,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Bunker": {
       "race": "terran",
@@ -1540,7 +1568,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Factory": {
       "race": "terran",
@@ -1576,7 +1608,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Starport": {
       "race": "terran",
@@ -1612,7 +1648,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "ScienceFacility": {
       "race": "terran",
@@ -1648,7 +1688,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Armory": {
       "race": "terran",
@@ -1684,7 +1728,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "ComstatStation": {
       "race": "terran",
@@ -1720,7 +1768,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "NuclearSilo": {
       "race": "terran",
@@ -1756,7 +1808,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "MachineShop": {
       "race": "terran",
@@ -1792,7 +1848,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "ControlTower": {
       "race": "terran",
@@ -1828,7 +1888,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "PhysicsLab": {
       "race": "terran",
@@ -1864,7 +1928,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "ConvertOps": {
       "race": "terran",
@@ -1900,7 +1968,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Hatchery": {
       "race": "zerg",
@@ -1936,7 +2008,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 4.0,
+        "h": 3.0
+      }
     },
     "Lair": {
       "race": "zerg",
@@ -1972,7 +2048,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 4.0,
+        "h": 3.0
+      }
     },
     "Hive": {
       "race": "zerg",
@@ -2008,7 +2088,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 4.0,
+        "h": 3.0
+      }
     },
     "CreepColony": {
       "race": "zerg",
@@ -2044,7 +2128,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "SunkenColony": {
       "race": "zerg",
@@ -2080,7 +2168,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "SporeColony": {
       "race": "zerg",
@@ -2116,7 +2208,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Extractor": {
       "race": "zerg",
@@ -2152,7 +2248,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "SpawningPool": {
       "race": "zerg",
@@ -2188,7 +2288,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "EvolutionChamber": {
       "race": "zerg",
@@ -2224,7 +2328,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "HydraliskDen": {
       "race": "zerg",
@@ -2260,7 +2368,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Spire": {
       "race": "zerg",
@@ -2296,7 +2408,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "GreaterSpire": {
       "race": "zerg",
@@ -2332,7 +2448,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "QueenNest": {
       "race": "zerg",
@@ -2368,7 +2488,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "NydusCanal": {
       "race": "zerg",
@@ -2404,7 +2528,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "UltraliskCavern": {
       "race": "zerg",
@@ -2440,7 +2568,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "DefilerMound": {
       "race": "zerg",
@@ -2476,7 +2608,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Nexus": {
       "race": "protoss",
@@ -2512,7 +2648,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 4.0,
+        "h": 3.0
+      }
     },
     "Pylon": {
       "race": "protoss",
@@ -2548,7 +2688,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Assimilator": {
       "race": "protoss",
@@ -2584,7 +2728,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Gateway": {
       "race": "protoss",
@@ -2620,7 +2768,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Forge": {
       "race": "protoss",
@@ -2656,7 +2808,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "PhotonCannon": {
       "race": "protoss",
@@ -2692,7 +2848,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "CyberneticsCore": {
       "race": "protoss",
@@ -2728,7 +2888,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "ShieldBattery": {
       "race": "protoss",
@@ -2764,7 +2928,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "RoboticsFacility": {
       "race": "protoss",
@@ -2800,7 +2968,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "Stargate": {
       "race": "protoss",
@@ -2836,7 +3008,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 3.0,
+        "h": 2.0
+      }
     },
     "CitadelOfAdun": {
       "race": "protoss",
@@ -2872,7 +3048,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "RoboticsSupportBay": {
       "race": "protoss",
@@ -2908,7 +3088,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "FleetBeacon": {
       "race": "protoss",
@@ -2944,7 +3128,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "TemplarArchives": {
       "race": "protoss",
@@ -2980,7 +3168,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "Observatory": {
       "race": "protoss",
@@ -3016,7 +3208,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     },
     "ArbiterTribunal": {
       "race": "protoss",
@@ -3052,7 +3248,11 @@
       "selection_ring_offset": [
         0,
         0.1
-      ]
+      ],
+      "footprint": {
+        "w": 2.0,
+        "h": 2.0
+      }
     }
   },
   "spell_visuals": {

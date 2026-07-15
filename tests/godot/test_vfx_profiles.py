@@ -14,10 +14,27 @@ PRESENTATION_MANIFEST = REPO_ROOT / "godot" / "resources" / "presentation_manife
 UNITS_DATA = REPO_ROOT / "data" / "units" / "units.json"
 FEEL_CONFIG = REPO_ROOT / "godot" / "resources" / "feel" / "control_feel_config.json"
 VFX_MANAGER = REPO_ROOT / "godot" / "scripts" / "vfx_manager.gd"
+COMBAT_VISUAL_CONTROLLER = REPO_ROOT / "godot" / "scripts" / "combat_visual_controller.gd"
 
 REQUIRED_PROFILE_KEYS = {"attack", "hit", "death", "projectile", "tracer", "priority"}
 VALID_PROJECTILE_TYPES = {"hitscan", "ballistic", "melee", "stream", "psi", "none"}
 VALID_VFX_PROFILE_VALUES = VALID_PROJECTILE_TYPES | {"none"}  # "none" is a sentinel
+
+# Phase 3 additions — timing keys required for projectile-carrying profiles
+TIMING_KEYS = {"projectile_speed_tiles_per_second", "muzzle_offset_tiles", "impact_offset_tiles"}
+PROJECTILE_TYPES_WITH_SPEED = {"hitscan", "ballistic", "stream"}
+
+# Required 8 core profiles per Phase 3 spec
+REQUIRED_CORE_PROFILES = {
+    "terran_ballistic",
+    "terran_explosive",
+    "terran_flame",
+    "zerg_melee",
+    "zerg_acid",
+    "zerg_spore",
+    "protoss_psi",
+    "protoss_phase",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -108,8 +125,8 @@ def test_profile_projectile_values_are_valid() -> None:
         )
 
 
-def test_profile_priority_is_int_between_1_and_5() -> None:
-    """Each profile's 'priority' must be an integer in [1, 5]."""
+def test_profile_priority_is_int_between_1_and_3() -> None:
+    """Each profile's 'priority' must be an integer in [1, 3]."""
     catalog = _load_json(VFX_CATALOG)
     profiles = catalog.get("profiles", {})
     for name, profile in profiles.items():
@@ -117,9 +134,99 @@ def test_profile_priority_is_int_between_1_and_5() -> None:
         assert isinstance(priority, int), (
             f"Profile '{name}' priority is {type(priority).__name__}, expected int"
         )
-        assert 1 <= priority <= 5, (
-            f"Profile '{name}' priority={priority} out of range [1, 5]"
+        assert 1 <= priority <= 3, (
+            f"Profile '{name}' priority={priority} out of range [1, 3]"
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests — Phase 3: timing fields
+# ---------------------------------------------------------------------------
+
+
+def test_each_profile_has_timing_fields() -> None:
+    """Every profile must have projectile_speed_tiles_per_second, muzzle_offset_tiles,
+    and impact_offset_tiles."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    for name, profile in profiles.items():
+        missing = TIMING_KEYS - set(profile.keys())
+        assert not missing, f"Profile '{name}' missing timing keys: {missing}"
+
+
+def test_projectile_profiles_have_positive_speed() -> None:
+    """Profiles whose projectile type implies a visible projectile must have
+    projectile_speed_tiles_per_second > 0.0."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    for name, profile in profiles.items():
+        proj_type = profile["projectile"]
+        speed = float(profile["projectile_speed_tiles_per_second"])
+        if proj_type in PROJECTILE_TYPES_WITH_SPEED:
+            assert speed > 0.0, (
+                f"Profile '{name}' has projectile='{proj_type}' but "
+                f"projectile_speed_tiles_per_second={speed} (must be > 0)"
+            )
+
+
+def test_melee_and_none_profiles_have_zero_speed() -> None:
+    """Profiles with projectile='melee' or 'none' must have
+    projectile_speed_tiles_per_second == 0.0."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    for name, profile in profiles.items():
+        proj_type = profile["projectile"]
+        if proj_type in ("melee", "none"):
+            speed = float(profile["projectile_speed_tiles_per_second"])
+            assert speed == 0.0, (
+                f"Profile '{name}' has projectile='{proj_type}' but "
+                f"projectile_speed_tiles_per_second={speed} (must be 0.0)"
+            )
+
+
+def test_muzzle_offset_is_non_negative() -> None:
+    """muzzle_offset_tiles must be >= 0.0 for all profiles."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    for name, profile in profiles.items():
+        offset = float(profile["muzzle_offset_tiles"])
+        assert offset >= 0.0, (
+            f"Profile '{name}' muzzle_offset_tiles={offset} (must be >= 0.0)"
+        )
+
+
+def test_impact_offset_is_non_negative() -> None:
+    """impact_offset_tiles must be >= 0.0 for all profiles."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    for name, profile in profiles.items():
+        offset = float(profile["impact_offset_tiles"])
+        assert offset >= 0.0, (
+            f"Profile '{name}' impact_offset_tiles={offset} (must be >= 0.0)"
+        )
+
+
+def test_all_8_core_profiles_exist() -> None:
+    """The 8 core weapon profiles required by Phase 3 must all exist."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    missing = REQUIRED_CORE_PROFILES - set(profiles.keys())
+    assert not missing, f"Missing core profiles: {sorted(missing)}"
+
+
+def test_core_profiles_have_distinct_priorities() -> None:
+    """Among the 8 core profiles, there must be at least 2 distinct priority values
+    to allow the VFX cap system to meaningfully differentiate."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    core_priorities = {
+        profiles[p]["priority"]
+        for p in REQUIRED_CORE_PROFILES
+        if p in profiles
+    }
+    assert len(core_priorities) >= 2, (
+        f"Core profiles must have at least 2 distinct priority values, found: {core_priorities}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +350,7 @@ def test_vfx_limits_values_are_reasonable() -> None:
 
 def test_profiles_have_priority_values() -> None:
     """Every profile in vfx_catalog['profiles'] must have a 'priority' key
-    with an integer value between 1 and 5 (inclusive)."""
+    with an integer value between 1 and 3 (inclusive)."""
     catalog = _load_json(VFX_CATALOG)
     profiles = catalog.get("profiles", {})
     assert profiles, "vfx_catalog has no profiles to validate"
@@ -253,23 +360,23 @@ def test_profiles_have_priority_values() -> None:
         assert isinstance(priority, int), (
             f"Profile '{name}' priority is {type(priority).__name__}, expected int"
         )
-        assert 1 <= priority <= 5, (
-            f"Profile '{name}' priority={priority} outside range [1, 5]"
+        assert 1 <= priority <= 3, (
+            f"Profile '{name}' priority={priority} outside range [1, 3]"
         )
 
 
 def test_priority_distribution_has_low_and_high() -> None:
-    """Among the profiles, there must be at least one with priority <= 2
-    and at least one with priority >= 4 to ensure meaningful cap
+    """Among the profiles, there must be at least one with priority == 1
+    and at least one with priority >= 3 to ensure meaningful cap
     differentiation (effects can be sorted by importance)."""
     catalog = _load_json(VFX_CATALOG)
     profiles = catalog.get("profiles", {})
     priorities = {p["priority"] for p in profiles.values() if "priority" in p}
-    assert any(p <= 2 for p in priorities), (
-        "No profile with priority <= 2 found — cap system cannot differentiate low-priority effects"
+    assert any(p == 1 for p in priorities), (
+        "No profile with priority == 1 found — cap system cannot differentiate low-priority effects"
     )
-    assert any(p >= 4 for p in priorities), (
-        "No profile with priority >= 4 found — cap system cannot differentiate high-priority effects"
+    assert any(p >= 3 for p in priorities), (
+        "No profile with priority >= 3 found — cap system cannot differentiate high-priority effects"
     )
 
 
@@ -429,3 +536,60 @@ def test_draw_tracer_exists_in_vfx_manager() -> None:
     assert re.search(r"func\s+_draw_tracer\s*\(", gd_text), (
         "vfx_manager.gd does not contain a definition for '_draw_tracer'"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests — Phase 3: combat_visual_controller.gd
+# ---------------------------------------------------------------------------
+
+
+def test_combat_visual_controller_file_exists() -> None:
+    """combat_visual_controller.gd must exist."""
+    assert COMBAT_VISUAL_CONTROLLER.exists(), (
+        f"Required file missing: {COMBAT_VISUAL_CONTROLLER}"
+    )
+
+
+def test_combat_visual_controller_has_spawn_combat_event_caller() -> None:
+    """combat_visual_controller.gd must call vfx_manager.spawn_combat_event."""
+    assert COMBAT_VISUAL_CONTROLLER.exists(), f"Required file missing: {COMBAT_VISUAL_CONTROLLER}"
+    gd_text = COMBAT_VISUAL_CONTROLLER.read_text(encoding="utf-8")
+    assert "spawn_combat_event" in gd_text, (
+        "combat_visual_controller.gd does not reference spawn_combat_event"
+    )
+
+
+def test_combat_visual_controller_has_event_types() -> None:
+    """combat_visual_controller.gd must define all 6 required event types."""
+    assert COMBAT_VISUAL_CONTROLLER.exists(), f"Required file missing: {COMBAT_VISUAL_CONTROLLER}"
+    gd_text = COMBAT_VISUAL_CONTROLLER.read_text(encoding="utf-8")
+    required_events = {
+        "attack_started",
+        "projectile_fired",
+        "hit_confirmed",
+        "shield_hit",
+        "unit_died",
+        "building_damaged",
+    }
+    for event_type in required_events:
+        assert event_type in gd_text, (
+            f"combat_visual_controller.gd missing event type: '{event_type}'"
+        )
+
+
+def test_spawn_combat_event_exists_in_vfx_manager() -> None:
+    """vfx_manager.gd must contain a function definition for spawn_combat_event."""
+    assert VFX_MANAGER.exists(), f"Required file missing: {VFX_MANAGER}"
+    gd_text = VFX_MANAGER.read_text(encoding="utf-8")
+    assert re.search(r"func\s+spawn_combat_event\s*\(", gd_text), (
+        "vfx_manager.gd does not contain a definition for 'spawn_combat_event'"
+    )
+
+
+def test_required_combat_profiles_exist() -> None:
+    """The six combat profiles used by _COMBAT_PAIRS must all exist in vfx_catalog.json."""
+    catalog = _load_json(VFX_CATALOG)
+    profiles = catalog.get("profiles", {})
+    required = ["terran_ballistic", "terran_explosive", "terran_flame", "zerg_melee", "zerg_acid", "protoss_psi"]
+    for name in required:
+        assert name in profiles, f"VFX profile '{name}' missing from vfx_catalog.json"

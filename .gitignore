@@ -42,3 +42,17 @@ train/output/**/training_curves.csv
 train/output/**/summary.json
 train/output/
 train/models/
+
+# CodeBuddy sensitive
+tools/.codebuddy/
+tools/.codebuddy_last_runtime.json
+tools/codebuddy_config.json
+tools/codebuddy_cookies.json
+
+# Training output (checkpoints, logs)
+train/output/
+logs/
+
+# Temp scripts
+train_ppo.py
+analysis_v9_best.py

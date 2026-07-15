@@ -4,6 +4,10 @@ extends Node
 ## Camera Controller for the RTS game.
 ## Handles WASD/Arrow movement, mouse edge scrolling, scroll wheel zoom,
 ## middle-click drag pan, and F-key camera follow.
+##
+## Phase 1: Camera speed is expressed in screen-space (fraction of viewport
+## traversed per second), converted to world units every frame so the
+## perceived speed is stable regardless of zoom or window size.
 
 # ── Signals ──────────────────────────────────────────────────────────────────
 signal camera_position_changed(position: Vector2)
@@ -11,9 +15,7 @@ signal zoom_changed(zoom: Vector2)
 
 # ── Exports ──────────────────────────────────────────────────────────────────
 @export_group("Movement")
-@export var keyboard_speed: float = 500.0
 @export var edge_scroll_margin: float = 20.0
-@export var edge_scroll_speed: float = 400.0
 
 @export_group("Zoom")
 @export var min_zoom: float = 2.0
@@ -28,6 +30,16 @@ signal zoom_changed(zoom: Vector2)
 
 # ── Config ───────────────────────────────────────────────────────────────────
 var _config: Dictionary = {}
+var _baseline_config: Dictionary = {}
+
+## Screen-space speeds (fraction of visible viewport width per second)
+var keyboard_screen_per_second: float = 0.85
+var edge_screen_per_second: float = 0.75
+var edge_ramp_px: float = 28.0
+
+## Zoom presets from sc1_feel_baseline.json
+var _zoom_presets: Dictionary = {"gameplay": 1.0, "inspection": 1.35, "debug_overview": 0.65}
+var _default_zoom_preset: String = "gameplay"
 
 func _load_config() -> Dictionary:
 	var path: String = "res://resources/feel/control_feel_config.json"
@@ -47,6 +59,23 @@ func _load_config() -> Dictionary:
 		return {}
 	return json.data
 
+func _load_baseline_config() -> Dictionary:
+	var path: String = "res://resources/feel/sc1_feel_baseline.json"
+	if not ResourceLoader.exists(path):
+		return {}
+	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		push_warning("Failed to open sc1_feel_baseline.json")
+		return {}
+	var text: String = f.get_as_text()
+	f.close()
+	var json: JSON = JSON.new()
+	var err: int = json.parse(text)
+	if err != OK:
+		push_warning("JSON parse error in sc1_feel_baseline.json: " + json.get_error_message())
+		return {}
+	return json.data
+
 # ── Internal State ───────────────────────────────────────────────────────────
 var _camera: Camera2D
 var _target_zoom: Vector2 = Vector2.ONE
@@ -59,37 +88,68 @@ var _entity_data_provider: Callable
 
 func _ready() -> void:
 	_config = _load_config()
+	_baseline_config = _load_baseline_config()
+
+	# Load screen-space speeds from sc1_feel_baseline.json, fallback to control_feel_config.json
+	if _baseline_config.has("camera"):
+		var bc: Dictionary = _baseline_config["camera"]
+		keyboard_screen_per_second = float(bc.get("keyboard_screen_per_second", keyboard_screen_per_second))
+		edge_screen_per_second = float(bc.get("edge_screen_per_second", edge_screen_per_second))
+		edge_ramp_px = float(bc.get("edge_ramp_px", edge_ramp_px))
+		_default_zoom_preset = str(bc.get("default_zoom_preset", _default_zoom_preset))
+		if bc.has("zoom_presets"):
+			_zoom_presets = bc["zoom_presets"]
+	elif _config.has("camera"):
+		# Fallback: derive screen-space speed from old world-unit speed
+		var c: Dictionary = _config["camera"]
+		# Use old values as fallback; they won't be screen-correct but maintain compat
+		keyboard_screen_per_second = float(c.get("keyboard_screen_per_second", keyboard_screen_per_second))
+		edge_screen_per_second = float(c.get("edge_screen_per_second", edge_screen_per_second))
+		edge_scroll_margin = float(c.get("edge_scroll_margin", edge_scroll_margin))
+
 	if _config.has("camera"):
 		var c: Dictionary = _config["camera"]
-		keyboard_speed = float(c.get("keyboard_speed", keyboard_speed))
-		edge_scroll_margin = float(c.get("edge_scroll_margin", edge_scroll_margin))
-		edge_scroll_speed = float(c.get("edge_scroll_speed", edge_scroll_speed))
 		min_zoom = float(c.get("min_zoom", min_zoom))
 		max_zoom = float(c.get("max_zoom", max_zoom))
 		zoom_step = float(c.get("zoom_step", zoom_step))
 		zoom_lerp_speed = float(c.get("zoom_lerp_speed", zoom_lerp_speed))
+
 	set_process(true)
 	set_process_input(true)
+
+## Convert a screen-space speed (fraction of visible viewport width per second)
+## to world units per second, based on current zoom and viewport size.
+func _screen_speed_to_world(screen_per_second: float) -> float:
+	var vp_size: Vector2 = get_viewport().get_visible_rect().size
+	var visible_world_w: float = vp_size.x / maxf(_camera.zoom.x, 0.001)
+	return visible_world_w * screen_per_second
 
 func setup(camera: Camera2D) -> void:
 	_camera = camera
 	_camera.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
 	_camera.position_smoothing_enabled = false
-	_target_zoom = _camera.zoom
+
+	# Use the default zoom preset (gameplay) — fixed, not derived from map size
+	var preset_zoom: float = float(_zoom_presets.get(_default_zoom_preset, 1.0))
+
 	# Calculate minimum zoom so viewport always fits inside map
-	# For 64x64 map on 1280x720: min_zoom = max(1280/64, 720/64) = max(20, 11.25) = 20
-	# At zoom=20: viewport sees 64x36 tiles → map fills width exactly
-	# Zoom=10 would show 128x72 (bigger than map) — NOT allowed
 	var vp := get_viewport().get_visible_rect().size
 	var min_zoom_x := vp.x / maxf(map_width, 1.0)
 	var min_zoom_y := vp.y / maxf(map_height, 1.0)
 	var dynamic_min := maxf(min_zoom_x, min_zoom_y)
-	# Start at the minimum zoom (fullest overview of the map)
-	var start_zoom := maxf(dynamic_min, min_zoom)
+	# Use the larger of: preset zoom (scaled to be meaningful) or dynamic min
+	# The preset is a *multiplier* on a baseline, so we need a base zoom.
+	# For a 64x64 map on 1280x720, min zoom = 20. We treat "gameplay=1.0" as
+	# the minimum zoom for normal play, and apply the preset as a ratio.
+	var base_zoom := maxf(dynamic_min, min_zoom)
+	var start_zoom := base_zoom * preset_zoom
+	# Clamp to valid range
+	start_zoom = clampf(start_zoom, maxf(dynamic_min, min_zoom), max_zoom)
 	_target_zoom = Vector2(start_zoom, start_zoom)
 	_camera.zoom = _target_zoom
-	keyboard_speed *= float(_target_zoom.x)
-	edge_scroll_speed *= float(_target_zoom.x)
+
+	# NOTE: No more `keyboard_speed *= zoom` or `edge_scroll_speed *= zoom`.
+	# Speed is now screen-space, converted per-frame via _screen_speed_to_world.
 
 func _process(delta: float) -> void:
 	if _camera == null:
@@ -138,30 +198,39 @@ func _input(event: InputEvent) -> void:
 
 # ── Keyboard Movement ───────────────────────────────────────────────────────
 func _handle_keyboard_movement(delta: float) -> void:
+	var world_speed: float = _screen_speed_to_world(keyboard_screen_per_second)
 	var dt := delta
 	if Input.is_action_pressed("move_camera_up"):
-		_camera.position.y -= keyboard_speed * dt
+		_camera.position.y -= world_speed * dt
 	if Input.is_action_pressed("move_camera_down"):
-		_camera.position.y += keyboard_speed * dt
+		_camera.position.y += world_speed * dt
 	if Input.is_action_pressed("move_camera_left"):
-		_camera.position.x -= keyboard_speed * dt
+		_camera.position.x -= world_speed * dt
 	if Input.is_action_pressed("move_camera_right"):
-		_camera.position.x += keyboard_speed * dt
+		_camera.position.x += world_speed * dt
 
 # ── Edge Scroll ──────────────────────────────────────────────────────────────
 func _handle_edge_scroll(delta: float) -> void:
 	var mpos := _get_viewport_mouse_position()
 	var vp_size := get_viewport().get_visible_rect().size
-	var speed := edge_scroll_speed * delta
+	var world_speed: float = _screen_speed_to_world(edge_screen_per_second)
 
+	# Left edge with ramp
 	if mpos.x < edge_scroll_margin:
-		_camera.position.x -= speed
+		var left_strength: float = clampf((edge_scroll_margin - mpos.x) / edge_ramp_px, 0.0, 1.0)
+		_camera.position.x -= world_speed * left_strength * delta
+	# Right edge with ramp
 	if mpos.x > vp_size.x - edge_scroll_margin:
-		_camera.position.x += speed
+		var right_strength: float = clampf((mpos.x - (vp_size.x - edge_scroll_margin)) / edge_ramp_px, 0.0, 1.0)
+		_camera.position.x += world_speed * right_strength * delta
+	# Top edge with ramp
 	if mpos.y < edge_scroll_margin:
-		_camera.position.y -= speed
+		var top_strength: float = clampf((edge_scroll_margin - mpos.y) / edge_ramp_px, 0.0, 1.0)
+		_camera.position.y -= world_speed * top_strength * delta
+	# Bottom edge with ramp
 	if mpos.y > vp_size.y - edge_scroll_margin:
-		_camera.position.y += speed
+		var bottom_strength: float = clampf((mpos.y - (vp_size.y - edge_scroll_margin)) / edge_ramp_px, 0.0, 1.0)
+		_camera.position.y += world_speed * bottom_strength * delta
 
 # ── Middle-click Drag ────────────────────────────────────────────────────────
 func _handle_middle_drag() -> void:

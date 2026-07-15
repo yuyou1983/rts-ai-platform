@@ -1,1 +1,202 @@
-{"schema_version": 1, "camera": {"keyboard_speed": 620.0, "edge_scroll_margin": 24.0, "edge_scroll_speed": 520.0, "middle_drag_sensitivity": 1.0, "min_zoom": 1.6, "max_zoom": 7.5, "zoom_step": 0.35, "zoom_lerp_speed": 12.0, "follow_smooth_speed": 8.0, "map_edge_clamp_padding": 1.0}, "selection": {"drag_threshold_px": 5.0, "click_slop_px": 6.0, "double_click_interval": 0.35, "max_selection_size": 12, "ctrl_behavior": "add", "shift_behavior": "toggle", "building_priority": true, "formation_spacing": 0.8}, "command_feedback": {"ground_ping_duration": 0.32, "ground_ping_color": "#44ff88", "attack_ping_duration": 0.38, "attack_ping_color": "#ff4444", "invalid_ping_duration": 0.22, "invalid_ping_color": "#aa6666"}, "control_group_feedback": {"assign_flash_duration": 0.5, "empty_group_hint_duration": 0.8}, "vfx_limits": {"max_active_effects": 64, "max_death_effects": 16, "max_projectiles": 32}, "vfx_defaults": {"effect": {"lifetime": 0.2, "radius": 0.5, "scale": 1.0, "rings": 1, "color": [1.0, 1.0, 1.0, 1.0], "secondary_color": [1.0, 0.2, 0.1, 0.7], "priority": 1}, "tracer": {"default_lifetime": 0.08, "arc_lifetime": 0.25, "beam_lifetime": 0.25, "cone_lifetime": 0.15, "default_color": [1.0, 1.0, 1.0, 1.0]}, "muzzle_offset": 0.55, "shell_impact_damage_threshold": 18.0}}
+{
+  "schema_version": 1,
+  "camera": {
+    "keyboard_speed": 620.0,
+    "edge_scroll_margin": 24.0,
+    "edge_scroll_speed": 520.0,
+    "middle_drag_sensitivity": 1.0,
+    "min_zoom": 1.6,
+    "max_zoom": 7.5,
+    "zoom_step": 0.35,
+    "zoom_lerp_speed": 12.0,
+    "follow_smooth_speed": 8.0,
+    "map_edge_clamp_padding": 1.0
+  },
+  "selection": {
+    "drag_threshold_px": 5.0,
+    "click_slop_px": 6.0,
+    "double_click_interval": 0.35,
+    "max_selection_size": 12,
+    "ctrl_behavior": "add",
+    "shift_behavior": "toggle",
+    "building_priority": true,
+    "formation_spacing": 0.8
+  },
+  "command_feedback": {
+    "ground_ping_duration": 0.32,
+    "ground_ping_color": "#44ff88",
+    "attack_ping_duration": 0.38,
+    "attack_ping_color": "#ff4444",
+    "invalid_ping_duration": 0.22,
+    "invalid_ping_color": "#aa6666"
+  },
+  "control_group_feedback": {
+    "assign_flash_duration": 0.5,
+    "empty_group_hint_duration": 0.8
+  },
+  "vfx_limits": {
+    "max_active_effects": 64,
+    "max_death_effects": 16,
+    "max_projectiles": 32
+  },
+  "vfx_defaults": {
+    "effect": {
+      "lifetime": 0.2,
+      "radius": 0.5,
+      "scale": 1.0,
+      "rings": 1,
+      "color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "secondary_color": [
+        1.0,
+        0.2,
+        0.1,
+        0.7
+      ],
+      "priority": 1
+    },
+    "tracer": {
+      "default_lifetime": 0.08,
+      "arc_lifetime": 0.25,
+      "beam_lifetime": 0.25,
+      "cone_lifetime": 0.15,
+      "default_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "muzzle_offset": 0.55,
+    "shell_impact_damage_threshold": 18.0
+  },
+  "construction": {
+    "ghost_alpha": 0.45,
+    "breath_speed": 3.0,
+    "breath_amplitude": 0.1,
+    "fade_in_speed": 3.0
+  },
+  "selection_ring": {
+    "inner_width": 0.045,
+    "outer_width": 0.08,
+    "dash_segments": 6,
+    "dash_gap_ratio": 0.4,
+    "rotation_speed": 0.5,
+    "shadow_alpha": 0.15,
+    "terran_color": [
+      0.3,
+      0.75,
+      1.0
+    ],
+    "zerg_color": [
+      0.85,
+      0.25,
+      0.35
+    ],
+    "protoss_color": [
+      0.85,
+      0.75,
+      0.2
+    ]
+  },
+  "animation": {
+    "settle_duration": 0.15,
+    "recovery_duration": 0.2,
+    "death_fade_duration": 0.4,
+    "build_anim_fps": 4.0,
+    "normal_fps": 8.0,
+    "pop_speed_multiplier": 1.5,
+    "pop_duration": 0.3
+  },
+  "terrain": {
+    "palette": [
+      [
+        0.08,
+        0.14,
+        0.12
+      ],
+      [
+        0.12,
+        0.2,
+        0.14
+      ],
+      [
+        0.18,
+        0.38,
+        0.14
+      ],
+      [
+        0.22,
+        0.44,
+        0.16
+      ],
+      [
+        0.42,
+        0.5,
+        0.16
+      ],
+      [
+        0.5,
+        0.54,
+        0.18
+      ],
+      [
+        0.42,
+        0.3,
+        0.16
+      ],
+      [
+        0.36,
+        0.24,
+        0.14
+      ],
+      [
+        0.52,
+        0.5,
+        0.48
+      ]
+    ],
+    "shadow_intensity": 0.25,
+    "contour_color": [
+      0.35,
+      0.25,
+      0.12,
+      0.55
+    ],
+    "contour_width": 0.08,
+    "cliff_color": [
+      0.9,
+      0.12,
+      0.08,
+      0.72
+    ],
+    "cliff_width": 0.25
+  },
+  "resource_visuals": {
+    "mineral_textures": [
+      "res://assets/sc1_generated/MineralFieldType1.png",
+      "res://assets/sc1_generated/MineralFieldType2.png",
+      "res://assets/sc1_generated/MineralFieldType3.png"
+    ],
+    "gas_texture": "res://assets/sc1_generated/VespeneGeyser.png",
+    "resource_scale": 0.022
+  },
+  "visual_preset": {
+    "mode": "sc1_like",
+    "debug_grid_default": false,
+    "debug_elevation_default": false,
+    "selection_ring_style": "simple"
+  },
+  "terrain_mode": "height_debug",
+  "test_mode": {
+    "hide_game_hud": true,
+    "force_fog_visible": true,
+    "neutral_team_tint": true,
+    "show_minimap": false,
+    "show_world_grid": false
+  }
+}

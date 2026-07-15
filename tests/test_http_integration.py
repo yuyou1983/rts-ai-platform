@@ -57,22 +57,24 @@ def _count_player_entities(state: dict, player: int, entity_type: str) -> int:
 
 
 def _count_player_buildings(state: dict, player: int, building_type: str) -> int:
-    """Count buildings of a specific type owned by a player (includes constructing)."""
+    """Count completed buildings of a given type for a player."""
+    bt_lower = building_type.lower()
     return sum(
-        1
-        for e in state.get("entities", {}).values()
+        1 for e in state.get("entities", {}).values()
         if e.get("owner") == player
         and e.get("entity_type") == "building"
-        and e.get("building_type") == building_type
+        and e.get("building_type", "").lower() == bt_lower
+        and not e.get("is_constructing", False)
     )
 
 
 def _player_has_building(state: dict, player: int, building_type: str) -> bool:
     """Check if a player has at least one completed building of the given type."""
+    bt_lower = building_type.lower()
     return any(
         e.get("owner") == player
         and e.get("entity_type") == "building"
-        and e.get("building_type") == building_type
+        and e.get("building_type", "").lower() == bt_lower
         and not e.get("is_constructing", False)
         for e in state.get("entities", {}).values()
     )

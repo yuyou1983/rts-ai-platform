@@ -7,8 +7,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 6001,
     proxy: {
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/ws': { target: 'ws://localhost:8000', ws: true },
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        ws: true,  // enable WebSocket proxying for /api/* (covers /api/sim/ws)
+      },
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+      },
     },
   },
 });

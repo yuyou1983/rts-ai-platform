@@ -129,23 +129,114 @@ func spawn_death(unit_name: String, entity_type: String, owner: int, pos: Vector
 	_spawn_effect(effect_name, pos, owner, is_death)
 
 
+func spawn_combat_event(event: Dictionary) -> void:
+	## Accept a normalized combat event from CombatVisualController
+	## and dispatch to the appropriate visual effect.
+	var profile_name: String = str(event.get("vfx_profile", "none"))
+	var event_type: String = str(event.get("event_type", ""))
+	var source_pos: Vector2 = event.get("source_pos", Vector2.ZERO)
+	var target_pos: Vector2 = event.get("target_pos", Vector2.ZERO)
+	var owner: int = int(event.get("owner", 0))
+	var damage: float = float(event.get("damage", 0.0))
+
+	# Map event_type → effect
+	match event_type:
+		"attack_started":
+			var effect_name: String = _lookup_profile_effect(profile_name, "attack", "muzzle_flash_small")
+			# Apply muzzle offset from profile timing
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var muzzle_offset: float = float(profile.get("muzzle_offset_tiles", _muzzle_offset))
+			var dir := target_pos - source_pos
+			var muzzle_pos := source_pos
+			if dir.length_squared() > 0.001:
+				muzzle_pos = source_pos + dir.normalized() * muzzle_offset
+			_spawn_effect(effect_name, muzzle_pos, owner, false)
+			# Also spawn tracer for the attack
+			spawn_tracer(profile_name, owner, muzzle_pos, target_pos)
+
+		"projectile_fired":
+			# For ballistic projectiles, the "fire" event creates a visible tracer
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var muzzle_offset: float = float(profile.get("muzzle_offset_tiles", _muzzle_offset))
+			var dir := target_pos - source_pos
+			var fire_pos := source_pos
+			if dir.length_squared() > 0.001:
+				fire_pos = source_pos + dir.normalized() * muzzle_offset
+			spawn_tracer(profile_name, owner, fire_pos, target_pos)
+
+		"hit_confirmed":
+			var fallback := "hit_spark"
+			var effect_name: String = _lookup_profile_effect(profile_name, "hit", fallback)
+			# Apply impact offset from profile timing
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var impact_offset: float = float(profile.get("impact_offset_tiles", 0.0))
+			var hit_pos := target_pos
+			if impact_offset != 0.0:
+				var dir := source_pos - target_pos
+				if dir.length_squared() > 0.001:
+					hit_pos = target_pos + dir.normalized() * impact_offset
+			var is_death := false
+			var effect := _make_effect(effect_name, hit_pos, owner, is_death)
+			# Override priority from profile if available
+			var priority: int = int(profile.get("priority", _eff_priority))
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"shield_hit":
+			var effect_name: String = _lookup_profile_effect(profile_name, "hit", "shield_hit")
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var priority: int = int(profile.get("priority", _eff_priority))
+			var effect := _make_effect(effect_name, target_pos, owner, false)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"unit_died":
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var fallback := "hit_spark"
+			var effect_name: String = _lookup_profile_effect(profile_name, "death", fallback)
+			var is_death := true
+			var priority: int = int(profile.get("priority", _eff_priority))
+			var effect := _make_effect(effect_name, target_pos, owner, is_death)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"building_damaged":
+			var effect_name: String = _lookup_profile_effect(profile_name, "hit", "shell_impact")
+			var profile: Dictionary = _catalog.get("profiles", {}).get(profile_name, {})
+			var priority: int = int(profile.get("priority", _eff_priority))
+			var effect := _make_effect(effect_name, target_pos, owner, false)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		_:  # Unknown event types silently ignored
+			pass
+
+
 func spawn_tracer(vfx_profile: String, owner: int, from_pos: Vector2, to_pos: Vector2) -> void:
 	var profiles: Dictionary = _catalog.get("profiles", {})
 	if not profiles.has(vfx_profile):
 		return
 	var profile: Dictionary = profiles[vfx_profile]
 	var tracer_style: String = str(profile.get("tracer_style", "none"))
-	if tracer_style.nocasecmp_to("none") == 0:
+	if tracer_style.casecmp_to("none") == 0:
 		return
 	var tracer_color = profile.get("tracer_color", _tr_default_color)
 
 	# Determine lifetime based on style
 	var lifetime: float = _tr_default_lifetime
-	if tracer_style.nocasecmp_to("arc") == 0:
+	if tracer_style.casecmp_to("arc") == 0:
 		lifetime = _tr_arc_lifetime
-	elif tracer_style.nocasecmp_to("beam") == 0:
+	elif tracer_style.casecmp_to("beam") == 0:
 		lifetime = _tr_beam_lifetime
-	elif tracer_style.nocasecmp_to("cone") == 0:
+	elif tracer_style.casecmp_to("cone") == 0:
 		lifetime = _tr_cone_lifetime
 
 	var tracer: Dictionary = {
@@ -378,25 +469,25 @@ func _draw_tracer(tracer: Dictionary) -> void:
 	color.a *= alpha
 	var style: String = str(tracer.get("style", "none"))
 
-	if style.nocasecmp_to("flicker") == 0:
+	if style.casecmp_to("flicker") == 0:
 		# Instant hit-scan line
 		draw_line(from_pos, to_pos, color, 2.0, true)
-	elif style.nocasecmp_to("slash") == 0:
+	elif style.casecmp_to("slash") == 0:
 		# Melee arc
 		draw_arc(from_pos, 0.4, 0.0, PI * 0.7, 8, color, 2.5, true)
-	elif style.nocasecmp_to("flash") == 0:
+	elif style.casecmp_to("flash") == 0:
 		# Psi flash — expanding circle at midpoint
 		var mid := from_pos + (to_pos - from_pos) * 0.5
 		draw_circle(mid, 0.3 * alpha, color)
-	elif style.nocasecmp_to("arc") == 0:
+	elif style.casecmp_to("arc") == 0:
 		# 3-segment polyline with upward arc
 		var mid := (from_pos + to_pos) * 0.5 + Vector2(0, -0.5)
 		var points := PackedVector2Array([from_pos, mid, to_pos])
 		draw_polyline(points, color, 1.5, true)
-	elif style.nocasecmp_to("beam") == 0:
+	elif style.casecmp_to("beam") == 0:
 		# Phase beam — thick line
 		draw_line(from_pos, to_pos, color, 3.0, true)
-	elif style.nocasecmp_to("cone") == 0:
+	elif style.casecmp_to("cone") == 0:
 		# Shotgun cone — 3 short lines fanning from from_pos
 		var dir := (to_pos - from_pos).normalized()
 		var base_angle := dir.angle()
@@ -409,7 +500,7 @@ func _draw_tracer(tracer: Dictionary) -> void:
 		# -15°
 		var dir_minus := Vector2.RIGHT.rotated(base_angle - deg_to_rad(15.0))
 		draw_line(from_pos, from_pos + dir_minus * length, color, 2.0, true)
-	elif style.nocasecmp_to("none") == 0:
+	elif style.casecmp_to("none") == 0:
 		pass
 	# Unknown styles silently ignored
 

@@ -1,10 +1,12 @@
 extends Node2D
 
 ## Renders fog-of-war tiles based on SimCore visibility data.
-## 0=unexplored (black), 1=explored (dark, terrain only), 2=visible (clear)
+## Three-state fog (SC1-style):
+##   0 = unexplored (black, alpha 0.92)
+##   1 = explored    (dark shroud, alpha 0.55)
+##   2 = visible     (transparent, alpha 0.0)
 ##
-## Sprint 4: Smooth gradient at fog edges, explored shows terrain but not units,
-## unexplored is fully dark, current vision shows everything.
+## Edge smoothing is preserved at reduced amplitude (blend_factor 0.15).
 
 var _tile_size: int = 1  # TILE_SIZE=1, world coords ARE tile coords
 var _fog_data: PackedByteArray = []
@@ -12,7 +14,7 @@ var _width: int = 0
 var _height: int = 0
 
 # Gradient rendering: we compute alpha per tile with neighbor-aware blending
-# for smooth edges between fog states.
+# for smooth edges — but at reduced amplitude to avoid modern gradient fog.
 const GRADIENT_RADIUS := 1  ## How many tiles to consider for gradient smoothing
 
 func update_fog(fog_tiles: PackedByteArray, width: int, height: int) -> void:
@@ -58,21 +60,21 @@ func _draw() -> void:
 			var py: float = gy * tile_h
 
 			# Choose color based on state:
-			# 0 (unexplored): fully dark black
-			# 1 (explored): dark with slight visibility (terrain visible, units hidden)
-			# 2 (visible): fully clear (no fog drawn)
+			# 0 (unexplored): black
+			# 1 (explored): dark shroud with slight blue tint
+			# 2 (visible): don't draw (alpha should be ~0)
 			var color: Color
 			match state_val:
 				0:
-					color = Color(0.02, 0.02, 0.05, alpha)
+					color = Color(0.0, 0.0, 0.0, alpha)
 				1:
-					color = Color(0.02, 0.02, 0.05, alpha * 0.55)
+					color = Color(0.03, 0.03, 0.06, alpha)
 				2:
-					# Visible tiles shouldn't have fog, but if gradient
-					# bleeds in from neighbors, use very low alpha
-					color = Color(0.02, 0.02, 0.05, alpha * 0.15)
+					# Visible tiles: no fog drawn
+					# (only residual alpha from neighbor blending)
+					color = Color(0.0, 0.0, 0.0, alpha)
 				_:
-					color = Color(0.02, 0.02, 0.05, alpha)
+					color = Color(0.0, 0.0, 0.0, alpha)
 
 			draw_rect(
 				Rect2(px, py, tile_w + 1.0, tile_h + 1.0),
@@ -80,23 +82,22 @@ func _draw() -> void:
 			)
 
 ## Compute a gradient-smoothed alpha for a fog tile by considering
-## the visibility states of neighboring tiles. This creates smooth
-## transitions at fog boundaries instead of hard edges.
+## the visibility states of neighboring tiles. Reduced blend factor
+## prevents the modern gradient-fog look.
 func _compute_fog_alpha(gx: int, gy: int, state_val: int, fog_grid: Array) -> float:
-	# Base alpha per state
+	# Base alpha per state (SC1 three-state values)
 	var base_alpha: float
 	match state_val:
 		0:
-			base_alpha = 0.88  # unexplored: very dark
+			base_alpha = 0.92  # unexplored: near-black
 		1:
-			base_alpha = 0.50  # explored: dimmed
+			base_alpha = 0.55  # explored: dark shroud
 		2:
-			base_alpha = 0.0   # visible: no fog
+			base_alpha = 0.0   # visible: transparent
 		_:
-			base_alpha = 0.88
+			base_alpha = 0.92
 
-	# If fully visible or fully unexplored with no visible neighbors,
-	# skip gradient calculation for performance
+	# If fully visible with no fog, skip gradient calculation
 	if state_val == 2 and base_alpha <= 0.01:
 		return 0.0
 
@@ -120,10 +121,10 @@ func _compute_fog_alpha(gx: int, gy: int, state_val: int, fog_grid: Array) -> fl
 			var n_val: int = fog_grid[ny][nx]
 			var n_alpha: float
 			match n_val:
-				0: n_alpha = 0.88
-				1: n_alpha = 0.50
+				0: n_alpha = 0.92
+				1: n_alpha = 0.55
 				2: n_alpha = 0.0
-				_: n_alpha = 0.88
+				_: n_alpha = 0.92
 			neighbor_sum += n_alpha
 			neighbor_count += 1
 			if n_val != state_val:
@@ -134,9 +135,9 @@ func _compute_fog_alpha(gx: int, gy: int, state_val: int, fog_grid: Array) -> fl
 		return base_alpha
 
 	# At boundaries: blend between own alpha and neighbor average
-	# for a smooth gradient transition
+	# Reduced blend_factor (0.15) prevents modern gradient fog look
 	var neighbor_avg: float = neighbor_sum / float(neighbor_count) if neighbor_count > 0 else base_alpha
-	var blend_factor := 0.35  # How much to blend with neighbors
+	var blend_factor := 0.15
 	var smoothed := lerpf(base_alpha, neighbor_avg, blend_factor)
 
 	return clampf(smoothed, 0.0, 1.0)

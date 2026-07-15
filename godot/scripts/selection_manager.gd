@@ -346,10 +346,10 @@ static func _calc_formation_grid(center: Vector2, count: int, spacing: float) ->
 	if count == 0:
 		return positions
 
-	var cols: int = int(ceilf(sqrt(float(count))))
+	var cols: int = int(ceil(sqrt(float(count))))
 	var start_offset := Vector2(
 		-(float(cols - 1) * spacing) / 2.0,
-		-(float(ceilf(float(count) / float(cols)) - 1) * spacing) / 2.0
+		-(float(ceil(float(count) / float(cols)) - 1) * spacing) / 2.0
 	)
 
 	for i in range(count):
