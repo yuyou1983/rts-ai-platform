@@ -59,9 +59,9 @@ def test_camera_required_fields_exist(config: dict):
 CAMERA_RANGES = {
     "keyboard_speed": (100.0, 2000.0),
     "edge_scroll_margin": (5.0, 100.0),
-    "min_zoom": (0.5, 5.0),
-    "max_zoom": (5.0, 20.0),
-    "zoom_step": (0.05, 2.0),
+    "min_zoom": (1.0, 20.0),
+    "max_zoom": (40.0, 128.0),
+    "zoom_step": (0.5, 12.0),
     "zoom_lerp_speed": (1.0, 30.0),
 }
 
@@ -69,9 +69,9 @@ CAMERA_RANGES = {
 @pytest.mark.parametrize("field,lo,hi", [
     ("keyboard_speed", 100.0, 2000.0),
     ("edge_scroll_margin", 5.0, 100.0),
-    ("min_zoom", 0.5, 5.0),
-    ("max_zoom", 5.0, 20.0),
-    ("zoom_step", 0.05, 2.0),
+    ("min_zoom", 1.0, 20.0),
+    ("max_zoom", 40.0, 128.0),
+    ("zoom_step", 0.5, 12.0),
     ("zoom_lerp_speed", 1.0, 30.0),
 ], ids=list(CAMERA_RANGES.keys()))
 def test_camera_value_ranges(config: dict, field: str, lo: float, hi: float):

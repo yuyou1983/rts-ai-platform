@@ -36,6 +36,8 @@ const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
 const TerrainRendererScript = preload("res://scripts/terrain_renderer.gd")
 const SC1TilesetRendererScript = preload("res://scripts/sc1_tileset_renderer.gd")
 const InputFeedbackControllerScript = preload("res://scripts/input_feedback_controller.gd")
+const InputIntentRouterScript = preload("res://scripts/input_intent_router.gd")
+const FeelMetricsRecorderScript = preload("res://scripts/feel_metrics_recorder.gd")
 const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 const HUD_FULL_HEIGHT := 480
@@ -169,6 +171,9 @@ var _rally_indicators: Dictionary = {}  # {building_id: RallyPointIndicator}
 
 var _hud_overlay: HUDOverlayRenderer = null  # Delegated HUD overlay renderer
 var _input_feedback_ctrl: InputFeedbackController = null  # Local input feedback
+var _input_intent_router: RefCounted = InputIntentRouterScript.new()
+var _attack_move_targeting: bool = false
+var _feel_metrics: Node = null
 
 # ─── Entity Data Provider ──────────────────────────────────
 var _entity_cache_by_id: Dictionary = {}
@@ -332,9 +337,9 @@ func _ready() -> void:
 	# ─── Sprint 4: Create CameraController ───
 	_cam_ctrl = CameraControllerScript.new()
 	add_child(_cam_ctrl)
+	_cam_ctrl.set_map_size(_map_w, _map_h)
 	_cam_ctrl.setup(_camera)
 	_cam_ctrl.set_entity_data_provider(_get_entity_data)
-	_cam_ctrl.set_map_size(_map_w, _map_h)
 	# Set initial camera position to map center immediately
 	_camera.position = Vector2(_map_w / 2.0, _map_h / 2.0)
 
@@ -489,6 +494,9 @@ func _ready() -> void:
 	_input_feedback_ctrl.name = "InputFeedbackController"
 	add_child(_input_feedback_ctrl)
 	_input_feedback_ctrl.pings_updated.connect(func(): queue_redraw())
+	_feel_metrics = FeelMetricsRecorderScript.new()
+	_feel_metrics.name = "FeelMetricsRecorder"
+	add_child(_feel_metrics)
 
 	# ─── Test Mode Gallery ───
 	_test_gallery = TestModeGallery.new()
@@ -735,6 +743,13 @@ func _ent_at_world_pos(wp: Vector2, radius: float = SELECT_RADIUS) -> Dictionary
 			return e
 	return {}
 
+
+func _ent_at_world_pos_for_selection(world_pos: Vector2) -> Dictionary:
+	var camera_zoom: float = _camera.zoom.x if _camera else 1.0
+	if _selection:
+		return _selection.choose_best_hit(_ents, world_pos, camera_zoom, _visual_radius)
+	return _ent_at_world_pos(world_pos)
+
 func _is_in_fog(e: Dictionary) -> bool:
 	var px: float = float(e.get("px", 0.0))
 	var py: float = float(e.get("py", 0.0))
@@ -789,6 +804,9 @@ func _find_nearest_enemy(from_px: float, from_py: float) -> Dictionary:
 func _input(event: InputEvent) -> void:
 	# Right-click: context action
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		if _attack_move_targeting:
+			_attack_move_targeting = false
+			return
 		if not _replay_mode and not _game_over_shown:
 			_handle_right_click()
 		return
@@ -802,6 +820,9 @@ func _input(event: InputEvent) -> void:
 		if _is_minimap_click(mpos):
 			_handle_minimap_click(mpos)
 			return
+		if _attack_move_targeting:
+			_handle_attack_move_click(_screen_to_world(mpos))
+			return
 		_dragging = true
 		_drag_start = mpos
 		_drag_end = mpos
@@ -810,7 +831,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if _dragging:
 			_dragging = false
-			if _drag_start.distance_to(_drag_end) < 5.0:
+			var pointer_kind: String = _selection.classify_pointer_release(_drag_start, _drag_end) if _selection else ("click" if _drag_start.distance_to(_drag_end) <= 5.0 else "drag")
+			if pointer_kind == "click":
 				_handle_single_click()
 			else:
 				_handle_drag_select()
@@ -824,32 +846,14 @@ func _input(event: InputEvent) -> void:
 		var key: int = event.keycode
 		if key >= KEY_1 and key <= KEY_9:
 			var group_idx: int = key - KEY_1 + 1
-			if _selection:
-				if event.ctrl_pressed:
-					_selection.create_hotkey_group(group_idx)
-					if _input_feedback_ctrl:
-						_input_feedback_ctrl.show_control_group_flash(group_idx, true)
-				elif event.shift_pressed:
-					_selection.add_to_hotkey_group(group_idx)
-					if _input_feedback_ctrl:
-						_input_feedback_ctrl.show_control_group_flash(group_idx, true)
-			else:
-					# Double-tap detection: same key within 0.3s → jump camera
-					var now: float = Time.get_ticks_msec() / 1000.0
-					if _last_group_key == key and (now - _last_group_time) < 0.3:
-						_selection.jump_to_hotkey_group(group_idx)
-						_last_group_key = -1
-						_last_group_time = 0.0
-					else:
-						_selection.select_hotkey_group(group_idx)
-						var recalled_ids: Array = []
-						if _selection:
-							recalled_ids = _selection.get_selected_ids()
-						if recalled_ids.is_empty():
-							if _input_feedback_ctrl:
-								_input_feedback_ctrl.show_control_group_flash(group_idx, false)
-						_last_group_key = key
-						_last_group_time = now
+			_handle_control_group_key(group_idx, event)
+			return
+
+	# Explicit SC1-style attack-move targeting. It must run before AbilityManager
+	# because normal left-click selection consumes mouse presses in this view.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_A:
+		if _has_selected_mobile_units():
+			_attack_move_targeting = true
 			return
 
 	# Ability hotkeys (if AbilityManager is loaded)
@@ -917,6 +921,7 @@ func _input(event: InputEvent) -> void:
 					break  # use first selected building
 			_handle_train(train_type)
 		elif event.keycode == KEY_ESCAPE:
+			_attack_move_targeting = false
 			if _selection:
 				_selection.remove_all_selection()
 			else:
@@ -925,6 +930,101 @@ func _input(event: InputEvent) -> void:
 				_hud.hide_build_panel()
 			_build_mode = false
 			_build_type = ""
+
+
+func _handle_control_group_key(group_idx: int, event: InputEventKey) -> void:
+	if _selection == null:
+		return
+	var metrics_name: String = "control_group_recall_%d" % group_idx
+	if event.ctrl_pressed:
+		metrics_name = "control_group_assign_%d" % group_idx
+	elif event.shift_pressed:
+		metrics_name = "control_group_add_%d" % group_idx
+	var metrics_id: int = _feel_metrics.begin_event(metrics_name, _selection.get_selected_ids().size()) if _feel_metrics else -1
+	if event.ctrl_pressed:
+		_selection.create_hotkey_group(group_idx)
+		if _input_feedback_ctrl:
+			_input_feedback_ctrl.show_control_group_flash(group_idx, true)
+		if _feel_metrics:
+			_feel_metrics.mark_feedback(metrics_id)
+			_feel_metrics.complete_event(metrics_id, "success")
+		return
+	if event.shift_pressed:
+		_selection.add_to_hotkey_group(group_idx)
+		if _input_feedback_ctrl:
+			_input_feedback_ctrl.show_control_group_flash(group_idx, true)
+		if _feel_metrics:
+			_feel_metrics.mark_feedback(metrics_id)
+			_feel_metrics.complete_event(metrics_id, "success")
+		return
+
+	var now: float = Time.get_ticks_msec() / 1000.0
+	if _last_group_key == group_idx and now - _last_group_time <= 0.30:
+		_selection.jump_to_hotkey_group(group_idx)
+		_last_group_key = -1
+		_last_group_time = 0.0
+	else:
+		_selection.select_hotkey_group(group_idx)
+		if _selection.get_selected_ids().is_empty() and _input_feedback_ctrl:
+			_input_feedback_ctrl.show_control_group_flash(group_idx, false)
+		_last_group_key = group_idx
+		_last_group_time = now
+	if _feel_metrics:
+		_feel_metrics.mark_feedback(metrics_id)
+		_feel_metrics.complete_event(metrics_id, "success" if not _selection.get_selected_ids().is_empty() else "empty")
+
+
+func _has_selected_mobile_units() -> bool:
+	var selected_ids: Array = _selection.get_selected_ids() if _selection else _selected.keys()
+	for entity_id in selected_ids:
+		var entity: Dictionary = _get_ent_by_id(str(entity_id))
+		if str(entity.get("type", "")) in ["worker", "soldier", "scout"]:
+			return true
+	return false
+
+
+func _handle_attack_move_click(world_pos: Vector2) -> void:
+	_attack_move_targeting = false
+	var selected_ids: Array = _selection.get_selected_ids() if _selection else _selected.keys()
+	var metrics_id: int = _feel_metrics.begin_event("attack_move", selected_ids.size(), true) if _feel_metrics else -1
+	var moving_ids: Array = []
+	for entity_id in selected_ids:
+		var entity: Dictionary = _get_ent_by_id(str(entity_id))
+		if str(entity.get("type", "")) in ["worker", "soldier", "scout"]:
+			moving_ids.append(str(entity_id))
+	if moving_ids.is_empty():
+		if _input_feedback_ctrl:
+			_input_feedback_ctrl.show_invalid_ping(world_pos)
+		if _feel_metrics:
+			_feel_metrics.mark_feedback(metrics_id)
+			_feel_metrics.complete_event(metrics_id, "empty")
+		return
+
+	# SimCore currently has no attack-move command. Preserve the correct input
+	# semantics and visual language while degrading explicitly to formation move.
+	var formation: Array = _selection.calculate_formation_positions(world_pos, moving_ids.size()) if _selection else _calc_formation_fallback(world_pos, moving_ids.size())
+	var commands: Array = []
+	for index in range(moving_ids.size()):
+		var target: Vector2 = formation[index] if index < formation.size() else world_pos
+		commands.append({
+			"action": "move",
+			"unit_id": moving_ids[index],
+			"target_x": target.x,
+			"target_y": target.y,
+			"issuer": 1,
+		})
+	_bridge.submit_commands(commands)
+	if _feel_metrics:
+		_feel_metrics.mark_command(metrics_id)
+	if _event_bus:
+		for command in commands:
+			_event_bus.emit_command_issued(command)
+	if _input_feedback_ctrl:
+		_input_feedback_ctrl.show_attack_move_ping(world_pos)
+	if _feel_metrics:
+		_feel_metrics.mark_feedback(metrics_id)
+		_feel_metrics.complete_event(metrics_id, "success")
+	_record_apm_action()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _game_over_shown and event is InputEventKey and event.pressed:
@@ -974,17 +1074,10 @@ func _handle_right_click() -> void:
 
 	if selected_ids.is_empty():
 		return
+	var metrics_id: int = _feel_metrics.begin_event("right_click", selected_ids.size(), true) if _feel_metrics else -1
 
 	var screen_pos := get_viewport().get_mouse_position()
 	var world_pos := _screen_to_world(screen_pos)
-	# Diagnostic: compare manual calc vs transform
-	var vp_half := get_viewport().get_visible_rect().size / 2.0
-	var manual := (screen_pos - vp_half) / _camera.zoom + _camera.position
-	var xform := get_canvas_transform().affine_inverse() * screen_pos
-	print("[RIGHT-CLICK] screen=(%d,%d) manual=(%.2f,%.2f) xform=(%.2f,%.2f) cam=(%.2f,%.2f) zoom=%.1f" % [
-		int(screen_pos.x), int(screen_pos.y),
-		manual.x, manual.y, xform.x, xform.y,
-		_camera.position.x, _camera.position.y, _camera.zoom.x])
 	var tgt_world := world_pos  # TILE_SIZE=1, world coords ARE tile coords
 	var clicked_ent := _ent_at_world_pos(world_pos, SELECT_RADIUS * 3.0)
 	var cmds: Array = []
@@ -1017,15 +1110,27 @@ func _handle_right_click() -> void:
 				_set_rally_point(uid, world_pos)
 				if _input_feedback_ctrl:
 					_input_feedback_ctrl.show_ground_ping(world_pos)
+				if _feel_metrics:
+					_feel_metrics.mark_feedback(metrics_id)
+					_feel_metrics.mark_command(metrics_id)
+					_feel_metrics.complete_event(metrics_id, "rally")
 				return
 
-	# Smart context
+	var intent: int = _input_intent_router.resolve_right_click(
+		workers_selected or combat_selected,
+		buildings_selected,
+		workers_selected,
+		clicked_ent,
+		1,
+	)
+	action = InputIntentRouterScript.intent_name(intent)
+
+	# Smart context details
 	if not clicked_ent.is_empty():
-		if clicked_ent.owner != 1 and clicked_ent.owner != 0 and clicked_ent.type != "resource":
-			action = "attack"
+		if action == "attack":
 			if _input_feedback_ctrl:
 				_input_feedback_ctrl.show_attack_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
-		elif clicked_ent.type == "resource" and workers_selected:
+		elif action == "gather":
 			# Gas geyser without refinery → auto-build refinery on it
 			if clicked_ent.resource_type == "gas" and not _has_refinery_on_geyser(clicked_ent.id):
 				action = "build"
@@ -1035,10 +1140,6 @@ func _handle_right_click() -> void:
 				action = "gather"
 				if _input_feedback_ctrl:
 					_input_feedback_ctrl.show_ground_ping(Vector2(float(clicked_ent.px), float(clicked_ent.py)))
-		elif clicked_ent.type == "building" and clicked_ent.owner == 1 and workers_selected:
-			action = "move"
-	elif combat_selected and not workers_selected:
-		action = "attack_nearest"
 
 	if _build_mode and workers_selected:
 		action = "build"
@@ -1062,23 +1163,6 @@ func _handle_right_click() -> void:
 				if _vfx_manager:
 					_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(clicked_ent.px, clicked_ent.py), _vfx_profile_for(e))
 					_emit_attack_indicator(Vector2(e.px, e.py))
-			"attack_nearest":
-				if _is_own_combat(e):
-					var nearest_enemy = _find_nearest_enemy(e.px, e.py)
-					if not nearest_enemy.is_empty():
-						if _input_feedback_ctrl:
-							_input_feedback_ctrl.show_attack_ping(Vector2(float(nearest_enemy.px), float(nearest_enemy.py)))
-						cmds.append({
-							"action": "attack",
-							"attacker_id": uid,
-							"target_id": nearest_enemy.id,
-							"issuer": 1,
-						})
-						if _vfx_manager:
-							_vfx_manager.spawn_attack(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), Vector2(nearest_enemy.px, nearest_enemy.py), _vfx_profile_for(e))
-							_emit_attack_indicator(Vector2(e.px, e.py))
-					else:
-						moving_ids.append(uid)
 			"gather":
 				if e.type == "worker":
 					cmds.append({
@@ -1128,6 +1212,8 @@ func _handle_right_click() -> void:
 
 	if cmds.size() > 0:
 		_bridge.submit_commands(cmds)
+		if _feel_metrics:
+			_feel_metrics.mark_command(metrics_id)
 		_record_apm_action()
 
 	# Also emit via EventBus
@@ -1139,6 +1225,9 @@ func _handle_right_click() -> void:
 	if cmds.is_empty() and not selected_ids.is_empty():
 		if _input_feedback_ctrl:
 			_input_feedback_ctrl.show_invalid_ping(world_pos)
+	if _feel_metrics:
+		_feel_metrics.mark_feedback(metrics_id)
+		_feel_metrics.complete_event(metrics_id, action if not cmds.is_empty() else "empty")
 
 	# Hide build panel after placing
 	if _build_mode and _hud:
@@ -1148,15 +1237,27 @@ func _handle_right_click() -> void:
 
 func _handle_single_click() -> void:
 	var wp := _screen_to_world(_drag_start)
-	var clicked_ent := _ent_at_world_pos(wp)
+	var clicked_ent := _ent_at_world_pos_for_selection(wp)
+	var metrics_id: int = _feel_metrics.begin_event("click_selection", 0) if _feel_metrics else -1
 
 	if _selection:
 		if clicked_ent.is_empty():
 			if not Input.is_key_pressed(KEY_SHIFT):
 				_selection.remove_all_selection()
+			if _feel_metrics:
+				_feel_metrics.mark_feedback(metrics_id)
+				_feel_metrics.complete_event(metrics_id, "empty")
 			return
-		if not Input.is_key_pressed(KEY_SHIFT):
+		var shift_pressed: bool = Input.is_key_pressed(KEY_SHIFT)
+		if not shift_pressed:
 			_selection.remove_all_selection()
+		elif _selection.selection.has(str(clicked_ent.id)):
+			_selection.remove_from_selection(str(clicked_ent.id))
+			_record_apm_action()
+			if _feel_metrics:
+				_feel_metrics.mark_feedback(metrics_id)
+				_feel_metrics.complete_event(metrics_id, "toggle_off")
+			return
 		# Sprint 4: Double-click detection
 		var was_double: bool = _selection.handle_click_with_double_select(clicked_ent.id)
 		if not was_double:
@@ -1166,27 +1267,46 @@ func _handle_single_click() -> void:
 			else:
 				_selection.add_to_selection_bulk([clicked_ent.id])
 		_record_apm_action()
+		if _feel_metrics:
+			_feel_metrics.mark_feedback(metrics_id)
+			_feel_metrics.complete_event(metrics_id, "success")
 	else:
 		# Fallback without SelectionManager
 		if clicked_ent.is_empty():
 			if not Input.is_key_pressed(KEY_SHIFT):
 				_selected.clear()
+			if _feel_metrics:
+				_feel_metrics.mark_feedback(metrics_id)
+				_feel_metrics.complete_event(metrics_id, "empty")
 			return
-		if not Input.is_key_pressed(KEY_SHIFT):
+		var shift_pressed: bool = Input.is_key_pressed(KEY_SHIFT)
+		if not shift_pressed:
 			_selected.clear()
+		elif _selected.has(clicked_ent.id):
+			_selected.erase(clicked_ent.id)
+			_record_apm_action()
+			if _feel_metrics:
+				_feel_metrics.mark_feedback(metrics_id)
+				_feel_metrics.complete_event(metrics_id, "toggle_off")
+			return
 		_selected[clicked_ent.id] = true
 		_record_apm_action()
+		if _feel_metrics:
+			_feel_metrics.mark_feedback(metrics_id)
+			_feel_metrics.complete_event(metrics_id, "success")
 
 func _handle_drag_select() -> void:
+	var metrics_id: int = _feel_metrics.begin_event("drag_selection", 0) if _feel_metrics else -1
 	var tl := _screen_to_world(Vector2(minf(_drag_start.x, _drag_end.x), minf(_drag_start.y, _drag_end.y)))
 	var br := _screen_to_world(Vector2(maxf(_drag_start.x, _drag_end.x), maxf(_drag_start.y, _drag_end.y)))
 	var rect := Rect2(tl, br - tl)
 
 	var selected_ents := _ents_in_world_rect(rect)
-	var own_ids: Array = []
-	for e in selected_ents:
-		if e.owner == 1:
-			own_ids.append(e.id)
+	var own_ids: Array = _selection.filter_owned_in_rect(selected_ents, rect, 1) if _selection else []
+	if _selection == null:
+		for e in selected_ents:
+			if e.owner == 1:
+				own_ids.append(e.id)
 
 	if _selection:
 		if not Input.is_key_pressed(KEY_SHIFT):
@@ -1201,6 +1321,9 @@ func _handle_drag_select() -> void:
 
 	if own_ids.size() > 0:
 		_record_apm_action()
+	if _feel_metrics:
+		_feel_metrics.mark_feedback(metrics_id)
+		_feel_metrics.complete_event(metrics_id, "success" if not own_ids.is_empty() else "empty")
 
 	# Update selectables_on_screen for SelectionManager
 	if _selection:

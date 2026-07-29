@@ -397,6 +397,26 @@ python3 -m pytest tests/godot/ -q
 
 将每项分数记录到 `docs/reports/godot-sc1-feel-gap-report.md` 对应行。
 
+## 操作手感 P1 自动门禁
+
+先运行行为与契约测试：
+
+```bash
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --script scripts/test_operation_feel.gd
+python3 -m pytest tests/godot/test_operation_feel_contract.py -q
+```
+
+期望结果：headless 行为测试全部通过；点选矩阵至少 95%，框选矩阵至少 95%，双分辨率可见世界宽度误差小于 2%。
+
+需要采集真实对局数据时，在 `project.godot` 中临时设置：
+
+```ini
+[debug]
+feel_metrics_enabled=true
+```
+
+运行结束后检查 Godot 用户目录中的 `feel_metrics.jsonl`。验收后恢复为 `false`，避免正式运行持续写盘。人工步骤和评分表见 `docs/reports/godot-operation-feel-qa-2026-07.md`。
+
 ```
 | 评分项 | 得分 | 备注 |
 |--------|------|------|

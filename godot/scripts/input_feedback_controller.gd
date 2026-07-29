@@ -3,14 +3,12 @@ extends Node2D
 
 ## Input Feedback Controller — handles local input feedback visuals only.
 ## Ground pings, attack pings, invalid pings, and control group flashes.
-## All timing data is loaded from sc1_feel_baseline.json's input_feedback section,
-## with fallback to control_feel_config.json's command_feedback + control_group_feedback.
+## All runtime timing data is loaded from control_feel_config.json.
 ##
 ## Uses an internal _canvas (Node2D) for all drawing — never draws directly on game_view.
 
 # ─── Config ─────────────────────────────────────────────────────────────────
 var _feedback_config: Dictionary = {}
-var _baseline_config: Dictionary = {}
 
 # ─── Ping timing (seconds) ─────────────────────────────────────────────────
 var right_click_ping_seconds: float = 0.22
@@ -37,29 +35,11 @@ signal pings_updated()
 
 
 func _ready() -> void:
-	_baseline_config = _load_baseline_config()
 	_feedback_config = _load_feel_config()
 	_apply_config()
 	_canvas = Node2D.new()
 	_canvas.name = "InputFeedbackCanvas"
 	add_child(_canvas)
-
-
-func _load_baseline_config() -> Dictionary:
-	var path: String = "res://resources/feel/sc1_feel_baseline.json"
-	if not ResourceLoader.exists(path):
-		return {}
-	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return {}
-	var text: String = f.get_as_text()
-	f.close()
-	var json: JSON = JSON.new()
-	var err: int = json.parse(text)
-	if err != OK:
-		push_warning("JSON parse error in sc1_feel_baseline.json: " + json.get_error_message())
-		return {}
-	return json.data
 
 
 func _load_feel_config() -> Dictionary:
@@ -80,21 +60,7 @@ func _load_feel_config() -> Dictionary:
 
 
 func _apply_config() -> void:
-	# Priority: sc1_feel_baseline.json > control_feel_config.json > defaults
-	if _baseline_config.has("input_feedback"):
-		var ib: Dictionary = _baseline_config["input_feedback"]
-		right_click_ping_seconds = float(ib.get("right_click_ping_seconds", right_click_ping_seconds))
-		attack_ping_seconds = float(ib.get("attack_ping_seconds", attack_ping_seconds))
-		invalid_ping_seconds = float(ib.get("invalid_ping_seconds", invalid_ping_seconds))
-		control_group_assign_flash_seconds = float(ib.get("control_group_assign_flash_seconds", control_group_assign_flash_seconds))
-		control_group_empty_hint_seconds = float(ib.get("control_group_empty_hint_seconds", control_group_empty_hint_seconds))
-		if ib.has("ground_ping_color"):
-			ground_ping_color = Color.from_string(str(ib["ground_ping_color"]), ground_ping_color)
-		if ib.has("attack_ping_color"):
-			attack_ping_color = Color.from_string(str(ib["attack_ping_color"]), attack_ping_color)
-		if ib.has("invalid_ping_color"):
-			invalid_ping_color = Color.from_string(str(ib["invalid_ping_color"]), invalid_ping_color)
-	elif _feedback_config.has("command_feedback"):
+	if _feedback_config.has("command_feedback"):
 		var cf: Dictionary = _feedback_config["command_feedback"]
 		right_click_ping_seconds = float(cf.get("ground_ping_duration", right_click_ping_seconds))
 		attack_ping_seconds = float(cf.get("attack_ping_duration", attack_ping_seconds))
@@ -106,7 +72,7 @@ func _apply_config() -> void:
 		if cf.has("invalid_ping_color"):
 			invalid_ping_color = Color.from_string(str(cf["invalid_ping_color"]), invalid_ping_color)
 
-	if _baseline_config.is_empty() and _feedback_config.has("control_group_feedback"):
+	if _feedback_config.has("control_group_feedback"):
 		var cg: Dictionary = _feedback_config["control_group_feedback"]
 		control_group_assign_flash_seconds = float(cg.get("assign_flash_duration", control_group_assign_flash_seconds))
 		control_group_empty_hint_seconds = float(cg.get("empty_group_hint_duration", control_group_empty_hint_seconds))
@@ -132,6 +98,17 @@ func show_attack_ping(world_pos: Vector2) -> void:
 		"duration": attack_ping_seconds,
 		"color": attack_ping_color,
 		"type": "attack",
+	})
+	pings_updated.emit()
+
+
+func show_attack_move_ping(world_pos: Vector2) -> void:
+	_active_pings.append({
+		"pos": world_pos,
+		"age": 0.0,
+		"duration": attack_ping_seconds,
+		"color": attack_ping_color,
+		"type": "attack_move",
 	})
 	pings_updated.emit()
 
@@ -196,6 +173,10 @@ func _draw_pings(canvas: CanvasItem) -> void:
 		# Inner glow
 		var fill_color: Color = Color(base_color.r, base_color.g, base_color.b, alpha * 0.25)
 		canvas.draw_circle(pos, radius * 0.4, fill_color)
+		if str(ping.get("type", "")) == "attack_move":
+			var arm: float = radius * 0.65
+			canvas.draw_line(pos + Vector2(-arm, 0.0), pos + Vector2(arm, 0.0), ring_color, 0.08, true)
+			canvas.draw_line(pos + Vector2(0.0, -arm), pos + Vector2(0.0, arm), ring_color, 0.08, true)
 
 
 func _draw_hints(canvas: CanvasItem) -> void:

@@ -39,10 +39,12 @@ func _run_tests() -> void:
 	# 4. Add an attack ping
 	_controller.show_attack_ping(Vector2(5.0, 5.0))
 	_assert(_controller._active_pings.size() == 2, "_active_pings has 2 entries after two pings")
+	_controller.show_attack_move_ping(Vector2(6.0, 6.0))
+	_assert(_controller._active_pings.size() == 3, "_active_pings has 3 entries after attack-move ping")
 
 	# 5. Add an invalid ping
 	_controller.show_invalid_ping(Vector2(0.0, 0.0))
-	_assert(_controller._active_pings.size() == 3, "_active_pings has 3 entries after three pings")
+	_assert(_controller._active_pings.size() == 4, "_active_pings has 4 entries after four pings")
 
 	# 6. Add a control group hint and verify _active_hints is non-empty
 	_controller.show_control_group_flash(1, true)

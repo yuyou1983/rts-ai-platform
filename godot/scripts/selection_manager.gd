@@ -121,6 +121,50 @@ var entity_type_provider: Callable
 var _last_click_time: float = 0.0
 var _last_clicked_id: String = ""
 
+
+## Classify a pointer release using the configured screen-space threshold.
+func classify_pointer_release(start: Vector2, finish: Vector2) -> String:
+	return "click" if start.distance_to(finish) <= drag_threshold_px else "drag"
+
+
+## Convert the minimum screen-space click target into world units while
+## preserving a larger manifest selection radius.
+func click_hit_radius_world(selection_radius: float, camera_zoom: float) -> float:
+	var minimum_world_radius: float = click_slop_px / maxf(camera_zoom, 0.001)
+	return maxf(selection_radius, minimum_world_radius)
+
+
+## Returns the closest candidate in normalized hit-radius space.
+func choose_best_hit(candidates: Array, world_pos: Vector2, camera_zoom: float, radius_provider: Callable) -> Dictionary:
+	var best: Dictionary = {}
+	var best_normalized_distance: float = INF
+	for entity in candidates:
+		var selection_radius: float = float(radius_provider.call(entity))
+		var hit_radius: float = click_hit_radius_world(selection_radius, camera_zoom)
+		var entity_pos := Vector2(float(entity.get("px", 0.0)), float(entity.get("py", 0.0)))
+		var distance: float = world_pos.distance_to(entity_pos)
+		if distance > hit_radius:
+			continue
+		var normalized_distance: float = distance / maxf(hit_radius, 0.001)
+		if normalized_distance < best_normalized_distance:
+			best = entity
+			best_normalized_distance = normalized_distance
+	return best
+
+
+## Returns owned entity IDs inside rect, capped by max_selection_size.
+func filter_owned_in_rect(candidates: Array, rect: Rect2, local_owner: int = 1) -> Array:
+	var ids: Array = []
+	for entity in candidates:
+		if int(entity.get("owner", 0)) != local_owner:
+			continue
+		var entity_pos := Vector2(float(entity.get("px", 0.0)), float(entity.get("py", 0.0)))
+		if rect.has_point(entity_pos):
+			ids.append(str(entity.get("id", "")))
+			if ids.size() >= max_selection_size:
+				break
+	return ids
+
 # ── Selection Methods ───────────────────────────────────────────────────────────
 
 ## Add multiple entity_ids to the selection at once.
