@@ -19,6 +19,63 @@ message GameStateSnapshot {
 
   // Phase D: elevation grid — rows of heights [0..8], packed row-major
   repeated HeightRow  height_map = 10;
+
+  // SC1 combat differentiation: authoritative combat events for this tick.
+  // SimCore owns combat facts; Godot maps weapon_id -> visuals.
+  repeated CombatEvent combat_events = 11;
+}
+
+// ─── 战斗事件类型 (SC1 combat differentiation) ───
+
+enum CombatEventType {
+  COMBAT_EVENT_UNSPECIFIED = 0;
+  ATTACK_STARTED = 1;
+  PROJECTILE_SPAWNED = 2;
+  IMPACT_RESOLVED = 3;
+  UNIT_DESTROYED = 4;
+  SPELL_RESOLVED = 5;
+}
+
+// ─── 权威战斗事件 ───
+// SimCore emits one record per attack/hit/death; Godot consumes it to drive
+// animation, projectile, impact, shield ripple and audio.  No res:// paths,
+// vfx_profile or Godot assets are referenced here (see ADR
+// adr-combat-visual-events).
+
+message CombatEvent {
+  string event_id = 1;            // "tick:sequence" — deterministic per-tick id
+  int32  tick = 2;                // tick the event was resolved
+  CombatEventType event_type = 3; // ATTACK_STARTED, IMPACT_RESOLVED, ...
+  string attacker_id = 4;        // source entity id ("" for spell/env)
+  string target_id = 5;          // destination entity id ("" for miss)
+  string weapon_id = 6;          // semantic weapon id, e.g. "terran_c10_rifle"
+
+  float  source_x = 7;           // attacker position at resolution
+  float  source_y = 8;
+  float  target_x = 9;           // impact / destination position
+  float  target_y = 10;
+
+  string delivery_type = 11;     // melee|hitscan|projectile|chain|area_periodic|tracking
+  string weapon_type = 12;       // normal|explosive|concussive|spells
+  string armor_type = 13;        // light|medium|heavy
+
+  float  base_damage = 14;       // pre-armor base damage for this hit
+  float  final_damage = 15;      // post-armor, post-multiplier damage
+  float  damage_multiplier = 16; // armor-type multiplier applied
+  float  shield_damage = 17;     // damage absorbed by protoss shield
+  float  health_damage = 18;    // damage applied to HP (after shield)
+
+  string projectile_id = 19;    // projectile entity id, "" if hitscan/melee
+  int32  chain_index = 20;       // bounce index (0 = primary), 0 if none
+  bool   is_splash = 21;        // true if this hit is a splash instance
+  float  splash_fraction = 22;  // fraction of primary damage (e.g. 1/3)
+  bool   killed = 23;           // target died from this hit
+  bool   missed = 24;           // attack missed (dodge/blind/high-ground)
+
+  float  armor_value = 25;      // target armor used in final_damage
+  float  shield_armor_value = 26; // protoss shield armor used
+  int32  hit_index = 27;        // index within this attack cycle (0-based)
+  int32  hit_count = 28;        // total hits in this attack cycle
 }
 
 // One row of height values for the elevation grid
