@@ -32,6 +32,7 @@ const HUDScene := preload("res://scenes/hud.tscn")
 const VictoryScene := preload("res://scenes/victory_screen.tscn")
 const RallyPointIndicatorScript = preload("res://scripts/rally_point_indicator.gd")
 const VFXManagerScript = preload("res://scripts/vfx_manager.gd")
+const CombatVisualControllerScript = preload("res://scripts/combat_visual_controller.gd")
 const SpriteLoaderScript = preload("res://scripts/sprite_loader.gd")
 const TerrainRendererScript = preload("res://scripts/terrain_renderer.gd")
 const SC1TilesetRendererScript = preload("res://scripts/sc1_tileset_renderer.gd")
@@ -55,6 +56,8 @@ var _default_font: Font
 var _analysis_written := false
 var _feel_config: Dictionary = {}
 
+# ─── Legacy HP-delta VFX (disabled: combat events drive VFX now) ───
+const LEGACY_HP_DELTA_VFX_ENABLED := false
 # Entity cache
 var _ents: Array = []
 var _prev_hp: Dictionary = {}
@@ -158,6 +161,7 @@ var _resource_visual_cfg: Dictionary = {}  # loaded from control_feel_config.jso
 var _sprite_pool: Dictionary = {}  # entity_id -> Sprite2D
 var _sprite_container: Node2D = null  # parent for all entity sprites
 var _vfx_manager: VFXManager = null
+var _combat_visual_controller: CombatVisualController = null
 var _sprite_loader: SpriteLoader = null
 var _presentation_manifest: Dictionary = {}
 var _map_texture: Texture2D = null
@@ -356,6 +360,12 @@ func _ready() -> void:
 	_vfx_manager = VFXManagerScript.new()
 	_vfx_manager.name = "VFXManager"
 	add_child(_vfx_manager)
+
+	# ─── Combat visual controller (event-driven) ───
+	_combat_visual_controller = CombatVisualControllerScript.new()
+	_combat_visual_controller.name = "CombatVisualController"
+	add_child(_combat_visual_controller)
+	_combat_visual_controller.set_vfx_manager(_vfx_manager)
 
 	# ─── Preload sprite textures (by race ID: 1=Terran, 2=Zerg, 3=Protoss) ───
 	# Terran units
@@ -1725,6 +1735,13 @@ func _visual_radius(e: Dictionary) -> float:
 	return clampf(radius * 0.78, 0.38, 0.72)
 
 func _unit_animation_key(e: Dictionary, frames: SpriteFrames) -> String:
+	# Event-driven action takes priority over target/HP-delta inference.
+	if _combat_visual_controller != null:
+		var event_action := _combat_visual_controller.current_action_for(str(e.get("id", "")))
+		if event_action != "":
+			var ekey: String = _sprite_loader.get_animation_key(event_action, 0)
+			if frames.has_animation(ekey):
+				return ekey
 	var base := "idle"
 	if str(e.get("attack_target_id", "")) != "":
 		base = "attack"
@@ -1788,6 +1805,10 @@ func _parse(state: Dictionary) -> void:
 		}
 		_ents.append(ent_dict)
 		_entity_cache_by_id[str(eid)] = ent_dict
+
+	# ─── Dispatch authoritative combat events to the visual controller ───
+	if _combat_visual_controller != null:
+		_combat_visual_controller.process_combat_events(state.get("combat_events", []))
 
 	# Parse fog-of-war for P1
 	var fog: Dictionary = state.get("fog_of_war", {})
@@ -1884,9 +1905,9 @@ func _parse(state: Dictionary) -> void:
 				var dmg: float = prev - hp
 				if _hud_overlay:
 					_hud_overlay.add_damage_float("-%d" % int(dmg), Vector2(e.px, e.py - 1.2), int(e.owner))
-				if _vfx_manager:
-					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
-					_emit_attack_indicator(Vector2(e.px, e.py))
+			if LEGACY_HP_DELTA_VFX_ENABLED and _vfx_manager:
+				_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
+				_emit_attack_indicator(Vector2(e.px, e.py))
 
 	# ─── Attack flash detection: delegate to HUD overlay ───
 	if _hud_overlay:

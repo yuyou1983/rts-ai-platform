@@ -1,83 +1,84 @@
 class_name CombatVisualController
 extends Node
 
-## Derives combat events from per-frame entity state deltas and dispatches
-## them to VFXManager. Event source priority:
-##   1. SimCore explicit fields (attack_cooldown, attack_target_id, shield)
-##   2. HP / shield delta + attack_target inference
-##   3. Command input feedback fallback (never fakes a hit confirmation)
+## Event-driven combat visual pipeline.
+##
+## Accepts authoritative combat events from SimCore, deduplicates them so
+## HTTP-retry replays don't double-fire VFX, and dispatches visuals via
+## VFXManager. Also exposes the current short-lived per-entity "action"
+## (e.g. "attack") so GameView can pick the right animation frame.
+##
+## The controller is purely event-driven: it no longer infers combat
+## activity from per-frame entity HP/shield deltas or attack cooldowns.
 
 signal combat_event_emitted(event: Dictionary)
 
 const VFX_MANAGER_PATH := "/root/VFXManager"
-const CATALOG_PATH := "res://resources/vfx/vfx_catalog.json"
 
-## Per-entity previous-frame snapshot: { hp, shield, pos, attack_target_id, attack_cooldown }
-var _prev_state: Dictionary = {}
-## VFX profile cache: entity_id → profile_name
-var _profile_cache: Dictionary = {}
-## Reference to VFXManager (resolved lazily)
+## Bounded dedup cache. event_id -> true. When the cache is full the oldest
+## entries are evicted, protecting against HTTP-retry replay without leaking
+## memory over a long session.
+const SEEN_EVENT_MAX := 4096
+var _seen_event_ids: Dictionary = {}
+var _seen_event_order: Array = []  # insertion order, used for eviction
+
+## Short-lived per-entity action with a decay timer.
+## entity_id -> { "action": String, "expires_at_msec": int }
+const ATTACK_ACTION_DECAY_MSEC := 300
+var _entity_actions: Dictionary = {}
+
+## Reference to VFXManager (resolved lazily, or injected by GameView).
 var _vfx_manager: VFXManager = null
-## Catalog profiles (loaded once)
-var _catalog_profiles: Dictionary = {}
 
-# ── Event type constants ──
+# ── Normalized event vocabulary dispatched to VFXManager.spawn_combat_event ──
 const EVENT_ATTACK_STARTED := "attack_started"
 const EVENT_PROJECTILE_FIRED := "projectile_fired"
 const EVENT_HIT_CONFIRMED := "hit_confirmed"
 const EVENT_SHIELD_HIT := "shield_hit"
 const EVENT_UNIT_DIED := "unit_died"
 const EVENT_BUILDING_DAMAGED := "building_damaged"
+const EVENT_SPELL_RESOLVED := "spell_resolved"
 
 
-func _ready() -> void:
-	_load_catalog_profiles()
+## Inject the VFXManager explicitly. Used by GameView when the manager is a
+## sibling node rather than living at /root/VFXManager.
+func set_vfx_manager(vfx: VFXManager) -> void:
+	_vfx_manager = vfx
 
 
-## Main entry point: feed current entity array, derive events, dispatch VFX.
-func process_entities(entities: Array[Dictionary]) -> void:
-	var vfx := _get_vfx_manager()
-	if vfx == null:
+## Main entry point: feed authoritative combat events from SimCore.
+## Iterates events, dedupes by event_id, and dispatches VFX + signal.
+func process_combat_events(events: Array) -> void:
+	if events == null or events.is_empty():
 		return
-
-	var current_map: Dictionary = {}
-	var old_ids: Array = _prev_state.keys()
-	var removed_ids: Array = []
-
-	# Build current entity map
-	for e in entities:
-		var eid: String = str(e.get("id", ""))
-		if eid == "":
+	for ev in events:
+		if not ev is Dictionary:
 			continue
-		current_map[eid] = e
-
-	# Detect removed entities (died this frame)
-	for old_id in old_ids:
-		if not current_map.has(old_id):
-			removed_ids.append(old_id)
-
-	# Process each current entity for delta events
-	for eid in current_map:
-		var cur: Dictionary = current_map[eid]
-		var prev: Dictionary = _prev_state.get(eid, {})
-		_derive_events(eid, cur, prev, vfx)
-
-	# Process removed entities (death events)
-	for dead_id in removed_ids:
-		var prev: Dictionary = _prev_state.get(dead_id, {})
-		_emit_death_event(dead_id, prev, vfx)
-
-	# Update prev_state for next frame
-	_prev_state.clear()
-	for e in entities:
-		var eid: String = str(e.get("id", ""))
+		var eid: String = str(ev.get("event_id", ""))
+		if eid != "" and _seen_event_ids.has(eid):
+			continue
 		if eid != "":
-			_prev_state[eid] = _snapshot(e)
+			_mark_seen(eid)
+		_dispatch_event(ev)
 
 
-## Invalidate caches when presentation manifest reloads.
-func invalidate_profile_cache() -> void:
-	_profile_cache.clear()
+## Returns "attack" if the entity has a recent attack_started action,
+## "" otherwise (or if the action has decayed).
+func current_action_for(entity_id: String) -> String:
+	if entity_id == "" or not _entity_actions.has(entity_id):
+		return ""
+	var entry: Dictionary = _entity_actions[entity_id]
+	if int(entry.get("expires_at_msec", 0)) <= _now_msec():
+		_entity_actions.erase(entity_id)
+		return ""
+	return str(entry.get("action", ""))
+
+
+## Clears the dedup cache and the per-entity action cache.
+func clear_seen_events() -> void:
+	_seen_event_ids.clear()
+	_seen_event_order.clear()
+	_entity_actions.clear()
 
 
 func _get_vfx_manager() -> VFXManager:
@@ -87,226 +88,159 @@ func _get_vfx_manager() -> VFXManager:
 	return _vfx_manager
 
 
-func _load_catalog_profiles() -> void:
-	if not FileAccess.file_exists(CATALOG_PATH):
-		_catalog_profiles = {}
-		return
-	var text := FileAccess.get_file_as_string(CATALOG_PATH)
-	var parsed = JSON.parse_string(text)
-	if parsed is Dictionary:
-		_catalog_profiles = parsed.get("profiles", {})
-	else:
-		_catalog_profiles = {}
+## Dispatch one (already-deduped) combat event to VFX + signal.
+func _dispatch_event(ev: Dictionary) -> void:
+	var event_type: String = str(ev.get("event_type", ""))
+	match event_type:
+		"attack_started":
+			_handle_attack_started(ev)
+		"impact_resolved":
+			_handle_impact_resolved(ev)
+		"unit_destroyed":
+			_handle_unit_destroyed(ev)
+		"projectile_spawned":
+			_handle_projectile_spawned(ev)
+		"spell_resolved":
+			_handle_spell_resolved(ev)
+		_:
+			push_warning("[CombatVisualController] Unknown event_type: %s" % event_type)
 
 
-## Snapshot relevant fields from an entity dict.
-func _snapshot(e: Dictionary) -> Dictionary:
-	return {
-		"hp": float(e.get("health", 0.0)),
-		"shield": float(e.get("shield", 0.0)),
-		"px": float(e.get("px", 0.0)),
-		"py": float(e.get("py", 0.0)),
-		"attack_target_id": str(e.get("attack_target_id", "")),
-		"attack_cooldown": float(e.get("attack_cooldown", 0.0)),
-		"type": str(e.get("type", e.get("entity_type", ""))),
-		"owner": int(e.get("owner", 0)),
-	}
-
-
-## Derive and dispatch combat events for one entity by comparing
-## current snapshot against previous snapshot.
-func _derive_events(eid: String, cur: Dictionary, prev: Dictionary, vfx: VFXManager) -> void:
-	if prev.is_empty():
-		# First frame: no delta to compute, just record state.
-		return
-
-	var cur_hp: float = float(cur.get("health", 0.0))
-	var prev_hp: float = prev.get("hp", 0.0)
-	var cur_shield: float = float(cur.get("shield", 0.0))
-	var prev_shield: float = prev.get("shield", 0.0)
-	var cur_target: String = str(cur.get("attack_target_id", ""))
-	var prev_target: String = prev.get("attack_target_id", "")
-	var cur_cooldown: float = float(cur.get("attack_cooldown", 0.0))
-	var prev_cooldown: float = prev.get("attack_cooldown", 0.0)
-
-	var profile_name: String = _resolve_profile(eid, cur)
-	var source_pos := Vector2(float(cur.get("px", 0.0)), float(cur.get("py", 0.0)))
-
-	# ── Priority 1: SimCore explicit fields ──
-
-	# Attack started: cooldown just started (went from <=0 to >0) with a target
-	if cur_cooldown > 0.0 and prev_cooldown <= 0.0 and cur_target != "":
-		var target_pos := _find_target_pos(cur_target)
-		_dispatch(vfx, {
-			"event_type": EVENT_ATTACK_STARTED,
-			"vfx_profile": profile_name,
-			"source_pos": source_pos,
-			"target_pos": target_pos,
-			"owner": int(cur.get("owner", 0)),
-		})
-
-	# Projectile fired: cooldown just crossed 0 (from >0 to <=0) with target
-	#   This is the moment the sim "fires" the projectile.
-	if prev_cooldown > 0.0 and cur_cooldown <= 0.0 and cur_target != "":
-		var target_pos := _find_target_pos(cur_target)
-		_dispatch(vfx, {
-			"event_type": EVENT_PROJECTILE_FIRED,
-			"vfx_profile": profile_name,
-			"source_pos": source_pos,
-			"target_pos": target_pos,
-			"owner": int(cur.get("owner", 0)),
-		})
-
-	# New attack target acquired (target changed from empty/non-matching)
-	if cur_target != "" and cur_target != prev_target:
-		var target_pos := _find_target_pos(cur_target)
-		_dispatch(vfx, {
-			"event_type": EVENT_ATTACK_STARTED,
-			"vfx_profile": profile_name,
-			"source_pos": source_pos,
-			"target_pos": target_pos,
-			"owner": int(cur.get("owner", 0)),
-		})
-
-	# ── Priority 2: HP / shield delta inference ──
-
-	# Shield hit: shield decreased but HP unchanged
-	if cur_shield < prev_shield and cur_hp >= prev_hp and prev_shield > 0.0:
-		_dispatch(vfx, {
-			"event_type": EVENT_SHIELD_HIT,
-			"vfx_profile": profile_name,
-			"source_pos": source_pos,
-			"target_pos": source_pos,
-			"damage": prev_shield - cur_shield,
-			"owner": int(cur.get("owner", 0)),
-		})
-
-	# Hit confirmed: HP decreased
-	if cur_hp < prev_hp and prev_hp > 0.0:
-		var dmg: float = prev_hp - cur_hp
-		var entity_type: String = str(cur.get("type", cur.get("entity_type", "")))
-		if entity_type == "building":
-			_dispatch(vfx, {
-				"event_type": EVENT_BUILDING_DAMAGED,
-				"vfx_profile": profile_name,
-				"source_pos": source_pos,
-				"target_pos": source_pos,
-				"damage": dmg,
-				"owner": int(cur.get("owner", 0)),
-			})
-		else:
-			# Distinguish shield_hit from hit_confirmed:
-			# If shield also dropped, shield_hit was already emitted above.
-			# If HP dropped without shield change, this is a regular hit.
-			if cur_shield >= prev_shield:
-				_dispatch(vfx, {
-					"event_type": EVENT_HIT_CONFIRMED,
-					"vfx_profile": profile_name,
-					"source_pos": source_pos,
-					"target_pos": source_pos,
-					"damage": dmg,
-					"owner": int(cur.get("owner", 0)),
-				})
-
-	# ── Priority 3: No further fallback — command input is handled by
-	#    input_feedback_controller, not here. We never fake a hit. ──
-
-
-## Emit a death event for a removed entity.
-func _emit_death_event(dead_id: String, prev: Dictionary, vfx: VFXManager) -> void:
-	if prev.is_empty():
-		return
-	var profile_name: String = _resolve_profile(dead_id, prev)
-	var death_pos := Vector2(float(prev.get("px", 0.0)), float(prev.get("py", 0.0)))
-	var entity_type: String = str(prev.get("type", ""))
-	_dispatch(vfx, {
-		"event_type": EVENT_UNIT_DIED if entity_type != "building" else EVENT_BUILDING_DAMAGED,
-		"vfx_profile": profile_name,
-		"source_pos": death_pos,
-		"target_pos": death_pos,
-		"owner": int(prev.get("owner", 0)),
+func _handle_attack_started(ev: Dictionary) -> void:
+	var attacker_id: String = str(ev.get("attacker_id", ""))
+	if attacker_id != "":
+		_entity_actions[attacker_id] = {
+			"action": "attack",
+			"expires_at_msec": _now_msec() + ATTACK_ACTION_DECAY_MSEC,
+		}
+	var source_pos := Vector2(float(ev.get("source_x", 0.0)), float(ev.get("source_y", 0.0)))
+	var target_pos := Vector2(float(ev.get("target_x", source_pos.x)), float(ev.get("target_y", source_pos.y)))
+	_emit({
+		"event_type": EVENT_ATTACK_STARTED,
+		"vfx_profile": _profile_for_event(ev),
+		"source_pos": source_pos,
+		"target_pos": target_pos,
+		"owner": int(ev.get("owner", 0)),
+		"weapon_id": str(ev.get("weapon_id", "")),
 	})
 
 
-## Dispatch a normalized combat event to VFXManager and emit signal.
-func _dispatch(vfx: VFXManager, event: Dictionary) -> void:
-	combat_event_emitted.emit(event)
-	vfx.spawn_combat_event(event)
+func _handle_impact_resolved(ev: Dictionary) -> void:
+	# Misses produce no impact VFX.
+	if bool(ev.get("missed", false)):
+		return
+	var shield_damage: float = float(ev.get("shield_damage", 0.0))
+	var is_splash: bool = bool(ev.get("is_splash", false))
+	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
+	var source_pos := Vector2(float(ev.get("source_x", target_pos.x)), float(ev.get("source_y", target_pos.y)))
+	var final_damage: float = float(ev.get("final_damage", 0.0))
+	# Splash impacts use an explosive profile when we have no explicit one.
+	var profile := _profile_for_event(ev)
+	if is_splash and profile == "":
+		profile = "terran_explosive"
+	var out := {
+		"vfx_profile": profile,
+		"source_pos": source_pos,
+		"target_pos": target_pos,
+		"owner": int(ev.get("owner", 0)),
+		"damage": final_damage,
+		"weapon_id": str(ev.get("weapon_id", "")),
+		"is_splash": is_splash,
+	}
+	# shield_damage > 0 → shield hit; otherwise a regular health hit.
+	if shield_damage > 0.0:
+		out["event_type"] = EVENT_SHIELD_HIT
+	else:
+		out["event_type"] = EVENT_HIT_CONFIRMED
+	_emit(out)
 
 
-## Resolve the VFX profile name for an entity. Uses cache then falls back
-## to presentation manifest lookup.
-func _resolve_profile(eid: String, entity: Dictionary) -> String:
-	if _profile_cache.has(eid):
-		return _profile_cache[eid]
-
-	var entity_type: String = str(entity.get("type", entity.get("entity_type", "")))
-	var unit_name: String = _resolve_unit_name(entity)
-
-	# Try catalog profiles directly
-	if _catalog_profiles.has(unit_name):
-		_profile_cache[eid] = unit_name
-		return unit_name
-
-	# Try presentation manifest
-	var manifest_path := "res://resources/presentation_manifest.json"
-	if FileAccess.file_exists(manifest_path):
-		var text := FileAccess.get_file_as_string(manifest_path)
-		var parsed = JSON.parse_string(text)
-		if parsed is Dictionary:
-			var section_key := "building_visuals" if entity_type == "building" else "unit_visuals"
-			var section: Dictionary = parsed.get(section_key, {})
-			var entry: Dictionary = section.get(unit_name, {})
-			if entry.has("vfx_profile"):
-				var pname: String = str(entry["vfx_profile"])
-				_profile_cache[eid] = pname
-				return pname
-
-	# Fallback: try common profiles by entity type
-	var fallback: String = _fallback_profile(entity_type, entity)
-	_profile_cache[eid] = fallback
-	return fallback
+func _handle_unit_destroyed(ev: Dictionary) -> void:
+	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
+	_emit({
+		"event_type": EVENT_UNIT_DIED,
+		"vfx_profile": _profile_for_event(ev),
+		"source_pos": target_pos,
+		"target_pos": target_pos,
+		"owner": int(ev.get("owner", 0)),
+		"entity_id": str(ev.get("target_id", "")),
+	})
 
 
-func _resolve_unit_name(entity: Dictionary) -> String:
-	var entity_type: String = str(entity.get("type", entity.get("entity_type", "")))
-	if entity_type == "building":
-		return "building"
-	var visual_id: String = str(entity.get("unit_type", entity.get("type", "")))
-	if visual_id == "":
-		visual_id = str(entity.get("entity_type", ""))
-	return visual_id
+func _handle_projectile_spawned(ev: Dictionary) -> void:
+	var source_pos := Vector2(float(ev.get("source_x", 0.0)), float(ev.get("source_y", 0.0)))
+	var target_pos := Vector2(float(ev.get("target_x", source_pos.x)), float(ev.get("target_y", source_pos.y)))
+	_emit({
+		"event_type": EVENT_PROJECTILE_FIRED,
+		"vfx_profile": _profile_for_event(ev),
+		"source_pos": source_pos,
+		"target_pos": target_pos,
+		"owner": int(ev.get("owner", 0)),
+		"weapon_id": str(ev.get("weapon_id", "")),
+	})
 
 
-func _fallback_profile(entity_type: String, entity: Dictionary) -> String:
-	match entity_type:
-		"building":
-			return "building_hit"
-		_:
-			var unit_name: String = _resolve_unit_name(entity).to_lower()
-			if unit_name.find("marine") >= 0 or unit_name.find("ghost") >= 0 or unit_name.find("vulture") >= 0:
-				return "terran_ballistic"
-			if unit_name.find("tank") >= 0 or unit_name.find("goliath") >= 0:
-				return "terran_explosive"
-			if unit_name.find("firebat") >= 0:
-				return "terran_flame"
-			if unit_name.find("zergling") >= 0:
-				return "zerg_melee"
-			if unit_name.find("hydra") >= 0:
-				return "zerg_acid"
-			if unit_name.find("mutalisk") >= 0 or unit_name.find("spore") >= 0:
-				return "zerg_spore"
-			if unit_name.find("zealot") >= 0 or unit_name.find("dark") >= 0:
-				return "protoss_psi"
-			if unit_name.find("dragoon") >= 0:
-				return "protoss_phase"
-			return "terran_ballistic"  # safe default
+func _handle_spell_resolved(ev: Dictionary) -> void:
+	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
+	var source_pos := Vector2(float(ev.get("source_x", target_pos.x)), float(ev.get("source_y", target_pos.y)))
+	_emit({
+		"event_type": EVENT_SPELL_RESOLVED,
+		"vfx_profile": _profile_for_event(ev),
+		"source_pos": source_pos,
+		"target_pos": target_pos,
+		"owner": int(ev.get("owner", 0)),
+		"spell_id": str(ev.get("spell_id", ev.get("weapon_id", ""))),
+		"damage": float(ev.get("final_damage", 0.0)),
+	})
 
 
-## Find the world position of a target entity by its ID.
-func _find_target_pos(target_id: String) -> Vector2:
-	# Look in prev_state first (target may still be there)
-	if _prev_state.has(target_id):
-		var ps: Dictionary = _prev_state[target_id]
-		return Vector2(float(ps.get("px", 0.0)), float(ps.get("py", 0.0)))
-	return Vector2.ZERO
+## Emit a normalized combat event to the signal and to VFXManager (if present).
+func _emit(out: Dictionary) -> void:
+	combat_event_emitted.emit(out)
+	var vfx := _get_vfx_manager()
+	if vfx != null and is_instance_valid(vfx):
+		vfx.spawn_combat_event(out)
+
+
+## Record an event_id as seen, evicting the oldest entries when the cache is full.
+func _mark_seen(eid: String) -> void:
+	_seen_event_ids[eid] = true
+	_seen_event_order.append(eid)
+	if _seen_event_order.size() > SEEN_EVENT_MAX:
+		var overflow: int = _seen_event_order.size() - SEEN_EVENT_MAX
+		for _i in range(overflow):
+			var old_id: String = _seen_event_order[0]
+			_seen_event_order.pop_front()
+			_seen_event_ids.erase(old_id)
+
+
+func _now_msec() -> int:
+	return Time.get_ticks_msec()
+
+
+## Resolve a VFX profile name from an event's weapon_id hint. VFXManager
+## falls back to default effects for unknown/empty profiles, so a miss here
+## is always safe.
+func _profile_for_event(ev: Dictionary) -> String:
+	var weapon_id: String = str(ev.get("weapon_id", "")).to_lower()
+	if weapon_id == "":
+		return ""
+	if weapon_id.find("flame") >= 0 or weapon_id.find("firebat") >= 0:
+		return "terran_flame"
+	if weapon_id.find("c10") >= 0 or weapon_id.find("rifle") >= 0 or weapon_id.find("ghost") >= 0:
+		return "terran_ballistic"
+	if weapon_id.find("tank") >= 0 or weapon_id.find("siege") >= 0 or weapon_id.find("arc") >= 0:
+		return "terran_explosive"
+	if weapon_id.find("vulture") >= 0 or weapon_id.find("grenade") >= 0:
+		return "terran_ballistic"
+	if weapon_id.find("melee") >= 0 or weapon_id.find("zergling") >= 0 or weapon_id.find("claw") >= 0:
+		return "zerg_melee"
+	if weapon_id.find("acid") >= 0 or weapon_id.find("hydra") >= 0 or weapon_id.find("spit") >= 0:
+		return "zerg_acid"
+	if weapon_id.find("spore") >= 0 or weapon_id.find("muta") >= 0:
+		return "zerg_spore"
+	if weapon_id.find("psi") >= 0 or weapon_id.find("zealot") >= 0 or weapon_id.find("dark") >= 0:
+		return "protoss_psi"
+	if weapon_id.find("phase") >= 0 or weapon_id.find("dragoon") >= 0:
+		return "protoss_phase"
+	return ""
