@@ -26,6 +26,61 @@ logger = logging.getLogger(__name__)
 # Type alias: agent_factory(player_id) -> agent with .decide(obs)
 AgentFactory = Callable[[int], Any]
 
+# ─── SC1 combat differentiation: event-type string → proto enum ───
+# Combat events emitted by the engine carry a lowercase ``event_type``
+# string (e.g. "attack_started"); the proto enum uses the same names
+# uppercased.  This map bridges the two representations.
+_EVENT_TYPE_TO_PROTO = {
+    "attack_started": state_pb2.ATTACK_STARTED,
+    "projectile_spawned": state_pb2.PROJECTILE_SPAWNED,
+    "impact_resolved": state_pb2.IMPACT_RESOLVED,
+    "unit_destroyed": state_pb2.UNIT_DESTROYED,
+    "spell_resolved": state_pb2.SPELL_RESOLVED,
+}
+
+
+def _append_combat_events(proto_snapshot, events: list[dict]) -> None:
+    """Append combat event dicts onto a GameStateSnapshot proto.
+
+    ``events`` is the list-of-dicts shape produced by the engine's
+    ``resolve_combat`` (and surfaced via ``engine.combat_events_this_tick``).
+    Unknown ``event_type`` values raise ValueError to surface schema drift
+    early rather than silently dropping events.
+    """
+    for event in events:
+        event_type = event["event_type"]
+        if event_type not in _EVENT_TYPE_TO_PROTO:
+            raise ValueError(f"Unknown combat event type: {event_type}")
+        ce = proto_snapshot.combat_events.add()
+        ce.event_id = event.get("event_id", "")
+        ce.tick = int(event.get("tick", 0))
+        ce.event_type = _EVENT_TYPE_TO_PROTO[event_type]
+        ce.attacker_id = event.get("attacker_id", "")
+        ce.target_id = event.get("target_id", "")
+        ce.weapon_id = event.get("weapon_id", "")
+        ce.source_x = float(event.get("source_x", 0.0))
+        ce.source_y = float(event.get("source_y", 0.0))
+        ce.target_x = float(event.get("target_x", 0.0))
+        ce.target_y = float(event.get("target_y", 0.0))
+        ce.delivery_type = event.get("delivery_type", "")
+        ce.weapon_type = event.get("weapon_type", "")
+        ce.armor_type = event.get("armor_type", "")
+        ce.base_damage = float(event.get("base_damage", 0.0))
+        ce.final_damage = float(event.get("final_damage", 0.0))
+        ce.damage_multiplier = float(event.get("damage_multiplier", 0.0))
+        ce.shield_damage = float(event.get("shield_damage", 0.0))
+        ce.health_damage = float(event.get("health_damage", 0.0))
+        ce.projectile_id = event.get("projectile_id", "")
+        ce.chain_index = int(event.get("chain_index", 0))
+        ce.is_splash = bool(event.get("is_splash", False))
+        ce.splash_fraction = float(event.get("splash_fraction", 1.0))
+        ce.killed = bool(event.get("killed", False))
+        ce.missed = bool(event.get("missed", False))
+        ce.armor_value = float(event.get("armor_value", 0.0))
+        ce.shield_armor_value = float(event.get("shield_armor_value", 0.0))
+        ce.hit_index = int(event.get("hit_index", 0))
+        ce.hit_count = int(event.get("hit_count", 1))
+
 
 class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
     """gRPC service implementation backed by SimCore engine."""
@@ -106,7 +161,10 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
             self._auto_task.cancel()
             self._auto_task = None
 
-        return self._state_to_snapshot(state)
+        # SC1 combat differentiation: surface this tick's combat events so
+        # the gRPC/HTTP/replay pipeline can drive Godot visuals.  GetState
+        # and StartGame intentionally omit combat_events (avoid stale replay).
+        return self._state_to_snapshot(state, combat_events=self.engine.combat_events_this_tick)
 
     async def GetState(self, request, context):
         """Return current game state."""
@@ -202,8 +260,18 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
     # ─── Conversion helpers ──────────────────────────────────
 
     @staticmethod
-    def _state_to_snapshot(state) -> state_pb2.GameStateSnapshot:
-        """Convert GameState to protobuf snapshot."""
+    def _state_to_snapshot(state, combat_events: list[dict] | None = None) -> state_pb2.GameStateSnapshot:
+        """Convert GameState to protobuf snapshot.
+
+        Args:
+            state: GameState to serialize.
+            combat_events: Optional list of combat event dicts (from
+                ``engine.combat_events_this_tick``).  When provided, the
+                events are appended to ``snap.combat_events``.  StartGame
+                and GetState callers pass ``None`` (the default) so the
+                snapshot carries no combat events — only Step() injects the
+                current tick's authoritative combat facts.
+        """
         if state is None:
             return state_pb2.GameStateSnapshot()
         snap = state_pb2.GameStateSnapshot(
@@ -283,6 +351,9 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
         if hasattr(state, "player_races") and isinstance(state.player_races, dict):
             for pid, race in state.player_races.items():
                 snap.config.player_races[str(pid)] = race
+        # ── SC1 combat differentiation: authoritative combat events ──
+        if combat_events:
+            _append_combat_events(snap, combat_events)
         return snap
 
     @staticmethod
@@ -326,6 +397,11 @@ class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):
         # Fill GameConfig from replay dict
         proto.config.map_width = snap.get("map_width", 64)
         proto.config.map_height = snap.get("map_height", 64)
+        # ── SC1 combat differentiation: replay combat events ──
+        # Replay snapshots store combat_events as a list of dicts (same
+        # shape as engine.combat_events_this_tick); forward them so V1
+        # replays streamed via GetReplay carry authoritative combat facts.
+        _append_combat_events(proto, snap.get("combat_events", []))
         return proto
 
 

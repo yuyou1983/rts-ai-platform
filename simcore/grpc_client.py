@@ -39,7 +39,7 @@ class SimCoreClient:
         self._stub = None
 
     async def start_game(
-        self, seed: int = 42, max_ticks: int = 10000, tick_rate: float = 20.0,
+        self, seed: int = 42, max_ticks: int = 10000, tick_rate: float = 10.0,
         enable_elevation: bool = True, player_races: dict | None = None,
     ) -> dict:
         """Start a new game, return state dict."""
@@ -156,4 +156,40 @@ class SimCoreClient:
             "map_width": snapshot.config.map_width,
             "map_height": snapshot.config.map_height,
             "player_races": dict(snapshot.config.player_races),
+            # ── SC1 combat differentiation: authoritative combat events ──
+            # event_type is normalized back to the lowercase string the
+            # engine uses (e.g. "attack_started") via CombatEventType.Name.
+            "combat_events": [
+                {
+                    "event_id": e.event_id,
+                    "tick": e.tick,
+                    "event_type": state_pb2.CombatEventType.Name(e.event_type).lower(),
+                    "attacker_id": e.attacker_id,
+                    "target_id": e.target_id,
+                    "weapon_id": e.weapon_id,
+                    "source_x": e.source_x,
+                    "source_y": e.source_y,
+                    "target_x": e.target_x,
+                    "target_y": e.target_y,
+                    "delivery_type": e.delivery_type,
+                    "weapon_type": e.weapon_type,
+                    "armor_type": e.armor_type,
+                    "base_damage": e.base_damage,
+                    "final_damage": e.final_damage,
+                    "damage_multiplier": e.damage_multiplier,
+                    "shield_damage": e.shield_damage,
+                    "health_damage": e.health_damage,
+                    "projectile_id": e.projectile_id,
+                    "chain_index": e.chain_index,
+                    "is_splash": e.is_splash,
+                    "splash_fraction": e.splash_fraction,
+                    "killed": e.killed,
+                    "missed": e.missed,
+                    "armor_value": e.armor_value,
+                    "shield_armor_value": e.shield_armor_value,
+                    "hit_index": e.hit_index,
+                    "hit_count": e.hit_count,
+                }
+                for e in snapshot.combat_events
+            ],
         }

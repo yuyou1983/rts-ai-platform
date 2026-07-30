@@ -555,6 +555,12 @@ class SimCore:
         # ── Attach events_this_tick if event log is enabled ─────
         if self.enable_event_log:
             step_snapshot["events_this_tick"] = events_this_tick
+        # ── Attach combat events (SC1 combat differentiation) ─────
+        # combat_events is the local list populated by resolve_combat();
+        # _combat_events_this_tick is set earlier to a copy of it.  We
+        # serialize a fresh shallow copy per event so the replay snapshot
+        # owns its own dicts.
+        step_snapshot["combat_events"] = [dict(e) for e in combat_events]
         self._replay.append(step_snapshot)
 
         # ── Replay V2 recording (feature-flagged) ────────────────
