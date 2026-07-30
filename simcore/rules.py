@@ -17,6 +17,12 @@ from pathlib import Path
 from typing import Any
 
 from simcore.state import GameState
+from simcore.combat_events import (
+    append_combat_event,
+    ATTACK_STARTED,
+    IMPACT_RESOLVED,
+    UNIT_DESTROYED,
+)
 
 # ─── Constants ───────────────────────────────────────────────
 
@@ -224,6 +230,21 @@ def calculate_damage(
     return max(min_damage, raw_damage)
 
 
+def get_damage_multiplier(weapon_type: str, target_armor_type: str) -> float:
+    """Return the SC1 size multiplier (0.25–1.0) for weapon vs armor type.
+
+    This is purely the damage-matrix percentage divided by 100 — it does NOT
+    include armor reduction, shield absorption, or any other modifiers.
+    """
+    data = _load_damage_matrix()
+    matrix = data.get("damageMatrix", [[100, 50, 25], [50, 75, 100], [100, 100, 100]])
+    attack_idx = _WEAPON_TYPE_MAP.get(weapon_type, 2)
+    armor_idx = _ARMOR_TYPE_MAP.get(target_armor_type, 1)
+    if 0 <= attack_idx < len(matrix) and 0 <= armor_idx < len(matrix[attack_idx]):
+        return matrix[attack_idx][armor_idx] / 100.0
+    return 1.0
+
+
 def get_armor_type(entity: dict[str, Any]) -> str:
     """Determine armor type for an entity.
 
@@ -297,6 +318,7 @@ def _apply_splash(
     tick: int,
     to_remove: set[str],
     kill_feed: "KillFeed",
+    combat_events: list[dict] | None = None,
 ) -> None:
     """Apply splash damage to entities near the primary target.
 
@@ -368,6 +390,41 @@ def _apply_splash(
             fought[eid] = {**ent_latest, "health": new_health}
 
         kill_feed.record_damage(attacker_owner, splash_dmg)
+
+        # Emit splash impact event
+        if combat_events is not None:
+            splash_mult = get_damage_multiplier(weapon_type, target_armor_type)
+            killed_s = new_health <= 0
+            append_combat_event(
+                combat_events,
+                tick=tick,
+                event_type=IMPACT_RESOLVED,
+                attacker_id=attacker_id,
+                target_id=eid,
+                weapon_id=attacker.get("weapon_id_ground", "") or attacker.get("unit_type", "").lower() or "unknown",
+                source_x=attacker.get("pos_x", 0.0),
+                source_y=attacker.get("pos_y", 0.0),
+                target_x=ent_latest.get("pos_x", 0.0),
+                target_y=ent_latest.get("pos_y", 0.0),
+                delivery_type="splash",
+                weapon_type=weapon_type,
+                armor_type=target_armor_type,
+                base_damage=round(base_dmg * frac, 4),
+                final_damage=round(splash_dmg, 4),
+                damage_multiplier=splash_mult,
+                shield_damage=round(splash_dmg - health_dmg, 4) if shield > 0 else 0.0,
+                health_damage=round(splash_dmg - (min(shield, splash_dmg) if shield > 0 else 0), 4),
+                chain_index=0,
+                is_splash=True,
+                splash_fraction=frac,
+                killed=killed_s,
+                missed=False,
+                armor_value=target_armor,
+                shield_armor_value=0.0,
+                hit_index=0,
+                hit_count=1,
+            )
+
         if new_health <= 0:
             to_remove.add(eid)
             kill_feed.record_kill(attacker_owner, ent_owner)
@@ -586,6 +643,7 @@ def resolve_combat(
     tick: int,
     kill_feed: KillFeed | None = None,
     tile_map: Any | None = None,
+    combat_events: list[dict] | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Resolve all combat: explicit attack commands + auto-attack with priority.
 
@@ -699,6 +757,32 @@ def resolve_combat(
             target_armor = target.get("armor", 0)
             target_armor_type = get_armor_type(target)
             dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
+            size_mult = get_damage_multiplier(weapon_type, target_armor_type)
+
+            # Determine weapon_id for this attacker
+            tgt_domain = target.get("domain", "ground")
+            if target.get("entity_type") == "building":
+                tgt_domain = "ground"
+            weapon_id = e.get("weapon_id_air" if tgt_domain == "air" else "weapon_id_ground", "") or e.get("unit_type", "").lower() or "unknown"
+            delivery_type = e.get("delivery_type", "hitscan")
+            if combat_events is not None:
+                append_combat_event(
+                    combat_events,
+                    tick=tick,
+                    event_type=ATTACK_STARTED,
+                    attacker_id=uid,
+                    target_id=tid,
+                    weapon_id=weapon_id,
+                    source_x=e.get("pos_x", 0.0),
+                    source_y=e.get("pos_y", 0.0),
+                    target_x=target.get("pos_x", 0.0),
+                    target_y=target.get("pos_y", 0.0),
+                    delivery_type=delivery_type,
+                    weapon_type=weapon_type,
+                    armor_type=target_armor_type,
+                    base_damage=float(base_dmg),
+                    hit_count=e.get("hit_count", 1),
+                )
 
             # High ground hit/miss check
             hit = True
@@ -720,10 +804,13 @@ def resolve_combat(
                     fought[tid] = {**target, "health": new_health, "shields": new_shield,
                                    "last_hit_tick": tick}
                 else:
+                    shield_dmg = 0
+                    health_dmg = dmg
                     new_health = target["health"] - dmg
                     fought[tid] = {**target, "health": new_health}
                 kill_feed.record_damage(e.get("owner", 0), dmg)
-                if new_health <= 0:
+                killed = new_health <= 0
+                if killed:
                     to_remove.add(tid)
                     kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
                     # Clear any units targeting the dead entity
@@ -731,9 +818,83 @@ def resolve_combat(
                         if e2.get("attack_target_id") == tid:
                             fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
 
+                # Emit impact_resolved for primary target
+                if combat_events is not None:
+                    append_combat_event(
+                        combat_events,
+                        tick=tick,
+                        event_type=IMPACT_RESOLVED,
+                        attacker_id=uid,
+                        target_id=tid,
+                        weapon_id=weapon_id,
+                        source_x=e.get("pos_x", 0.0),
+                        source_y=e.get("pos_y", 0.0),
+                        target_x=target.get("pos_x", 0.0),
+                        target_y=target.get("pos_y", 0.0),
+                        delivery_type=delivery_type,
+                        weapon_type=weapon_type,
+                        armor_type=target_armor_type,
+                        base_damage=float(base_dmg),
+                        final_damage=round(float(dmg), 4),
+                        damage_multiplier=size_mult,
+                        shield_damage=round(float(shield_dmg), 4),
+                        health_damage=round(float(health_dmg), 4),
+                        chain_index=0,
+                        is_splash=False,
+                        splash_fraction=1.0,
+                        killed=killed,
+                        missed=False,
+                        armor_value=float(target_armor),
+                        shield_armor_value=0.0,
+                        hit_index=0,
+                        hit_count=e.get("hit_count", 1),
+                    )
+                    if killed:
+                        append_combat_event(
+                            combat_events,
+                            tick=tick,
+                            event_type=UNIT_DESTROYED,
+                            attacker_id=uid,
+                            target_id=tid,
+                            weapon_id=weapon_id,
+                        )
+
                 # ── Splash damage ──
                 _apply_splash(fought, uid, e, tid, base_dmg, weapon_type,
-                              tick, to_remove, kill_feed)
+                              tick, to_remove, kill_feed,
+                              combat_events=combat_events)
+            else:
+                # Missed — emit impact_resolved with missed=True
+                if combat_events is not None:
+                    append_combat_event(
+                        combat_events,
+                        tick=tick,
+                        event_type=IMPACT_RESOLVED,
+                        attacker_id=uid,
+                        target_id=tid,
+                        weapon_id=weapon_id,
+                        source_x=e.get("pos_x", 0.0),
+                        source_y=e.get("pos_y", 0.0),
+                        target_x=target.get("pos_x", 0.0),
+                        target_y=target.get("pos_y", 0.0),
+                        delivery_type=delivery_type,
+                        weapon_type=weapon_type,
+                        armor_type=target_armor_type,
+                        base_damage=float(base_dmg),
+                        final_damage=0.0,
+                        damage_multiplier=size_mult,
+                        shield_damage=0.0,
+                        health_damage=0.0,
+                        chain_index=0,
+                        is_splash=False,
+                        splash_fraction=1.0,
+                        killed=False,
+                        missed=True,
+                        armor_value=float(target_armor),
+                        shield_armor_value=0.0,
+                        hit_index=0,
+                        hit_count=e.get("hit_count", 1),
+                    )
 
             # Reset cooldown timer after attack attempt (hit or miss)
             fought[uid] = {**fought[uid], "cooldown_timer": 0}
@@ -822,6 +983,28 @@ def resolve_combat(
                 target_armor = target.get("armor", 0)
                 target_armor_type = get_armor_type(target)
                 dmg = calculate_damage(base_dmg, weapon_type, target_armor, target_armor_type)
+                size_mult = get_damage_multiplier(weapon_type, target_armor_type)
+
+                weapon_id = e.get("weapon_id_air" if tgt_domain == "air" else "weapon_id_ground", "") or e.get("unit_type", "").lower() or "unknown"
+                delivery_type = e.get("delivery_type", "hitscan")
+                if combat_events is not None:
+                    append_combat_event(
+                        combat_events,
+                        tick=tick,
+                        event_type=ATTACK_STARTED,
+                        attacker_id=eid,
+                        target_id=best_target,
+                        weapon_id=weapon_id,
+                        source_x=e.get("pos_x", 0.0),
+                        source_y=e.get("pos_y", 0.0),
+                        target_x=target.get("pos_x", 0.0),
+                        target_y=target.get("pos_y", 0.0),
+                        delivery_type=delivery_type,
+                        weapon_type=weapon_type,
+                        armor_type=target_armor_type,
+                        base_damage=float(base_dmg),
+                        hit_count=e.get("hit_count", 1),
+                    )
 
                 # High ground hit/miss check
                 hit = True
@@ -843,16 +1026,93 @@ def resolve_combat(
                         fought[best_target] = {**target, "health": new_health, "shields": new_shield,
                                                "last_hit_tick": tick}
                     else:
+                        shield_dmg = 0
+                        health_dmg = dmg
                         new_health = target["health"] - dmg
                         fought[best_target] = {**target, "health": new_health}
                     kill_feed.record_damage(e.get("owner", 0), dmg)
-                    if new_health <= 0:
+                    killed = new_health <= 0
+                    if killed:
                         to_remove.add(best_target)
                         kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
 
+                    # Emit impact_resolved
+                    if combat_events is not None:
+                        append_combat_event(
+                            combat_events,
+                            tick=tick,
+                            event_type=IMPACT_RESOLVED,
+                            attacker_id=eid,
+                            target_id=best_target,
+                            weapon_id=weapon_id,
+                            source_x=e.get("pos_x", 0.0),
+                            source_y=e.get("pos_y", 0.0),
+                            target_x=target.get("pos_x", 0.0),
+                            target_y=target.get("pos_y", 0.0),
+                            delivery_type=delivery_type,
+                            weapon_type=weapon_type,
+                            armor_type=target_armor_type,
+                            base_damage=float(base_dmg),
+                            final_damage=round(float(dmg), 4),
+                            damage_multiplier=size_mult,
+                            shield_damage=round(float(shield_dmg), 4),
+                            health_damage=round(float(health_dmg), 4),
+                            chain_index=0,
+                            is_splash=False,
+                            splash_fraction=1.0,
+                            killed=killed,
+                            missed=False,
+                            armor_value=float(target_armor),
+                            shield_armor_value=0.0,
+                            hit_index=0,
+                            hit_count=e.get("hit_count", 1),
+                        )
+                        if killed:
+                            append_combat_event(
+                                combat_events,
+                                tick=tick,
+                                event_type=UNIT_DESTROYED,
+                                attacker_id=eid,
+                                target_id=best_target,
+                                weapon_id=weapon_id,
+                            )
+
                     # ── Splash damage ──
                     _apply_splash(fought, eid, e, best_target, base_dmg, weapon_type,
-                                  tick, to_remove, kill_feed)
+                                  tick, to_remove, kill_feed,
+                                  combat_events=combat_events)
+                else:
+                    # Missed
+                    if combat_events is not None:
+                        append_combat_event(
+                            combat_events,
+                            tick=tick,
+                            event_type=IMPACT_RESOLVED,
+                            attacker_id=eid,
+                            target_id=best_target,
+                            weapon_id=weapon_id,
+                            source_x=e.get("pos_x", 0.0),
+                            source_y=e.get("pos_y", 0.0),
+                            target_x=target.get("pos_x", 0.0),
+                            target_y=target.get("pos_y", 0.0),
+                            delivery_type=delivery_type,
+                            weapon_type=weapon_type,
+                            armor_type=target_armor_type,
+                            base_damage=float(base_dmg),
+                            final_damage=0.0,
+                            damage_multiplier=size_mult,
+                            shield_damage=0.0,
+                            health_damage=0.0,
+                            chain_index=0,
+                            is_splash=False,
+                            splash_fraction=1.0,
+                            killed=False,
+                            missed=True,
+                            armor_value=float(target_armor),
+                            shield_armor_value=0.0,
+                            hit_index=0,
+                            hit_count=e.get("hit_count", 1),
+                        )
 
                 # Reset cooldown after auto-attack attempt
                 fought[eid] = {**fought.get(eid, e), "cooldown_timer": 0}

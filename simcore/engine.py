@@ -235,6 +235,9 @@ class SimCore:
         if self._state is None:
             raise RuntimeError("SimCore not initialized. Call initialize() first.")
 
+        # Always clear combat events — even if terminal
+        self._combat_events_this_tick: list[dict] = []
+
         # If the game is already over, return the terminal state unchanged.
         if self._state.is_terminal:
             return self._state
@@ -335,10 +338,12 @@ class SimCore:
 
         # ── 6. Combat (detect COMBAT_HIT and UNIT_DESTROYED) ────
         pre_combat_entities = {eid: dict(e) for eid, e in entities.items()}
+        combat_events: list[dict] = []
         entities, resources = resolve_combat(
             entities, temp_state.resources, other_cmds, self._tick,
             kill_feed=self.rule_engine.kill_feed,
             tile_map=self._tile_map,
+            combat_events=combat_events,
         )
         # Detect combat events by comparing HP / entity presence
         if self.enable_event_log:
@@ -457,6 +462,9 @@ class SimCore:
 
         # 9. Process projectiles
         entities = process_projectiles(entities, self._tick)
+
+        # ── Save combat events for this tick (after combat + projectiles + spells) ──
+        self._combat_events_this_tick = [dict(event) for event in combat_events]
 
         # 11. Apply upgrade effects (from completed upgrades)
         # Read __completed_upgrades__ that may have been written by construction.py section 7
@@ -606,6 +614,15 @@ class SimCore:
     def tick(self) -> int:
         """Current tick number."""
         return self._tick
+
+    @property
+    def combat_events_this_tick(self) -> list[dict]:
+        """Combat events emitted during the most recent step().
+
+        Returns a copy of the internal list.  Empty if step() hasn't been
+        called or no combat occurred.
+        """
+        return [dict(event) for event in getattr(self, "_combat_events_this_tick", [])]
 
     @property
     def state(self) -> GameState | None:
