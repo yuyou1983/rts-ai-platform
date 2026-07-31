@@ -1905,9 +1905,9 @@ func _parse(state: Dictionary) -> void:
 				var dmg: float = prev - hp
 				if _hud_overlay:
 					_hud_overlay.add_damage_float("-%d" % int(dmg), Vector2(e.px, e.py - 1.2), int(e.owner))
-			if LEGACY_HP_DELTA_VFX_ENABLED and _vfx_manager:
-				_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
-				_emit_attack_indicator(Vector2(e.px, e.py))
+				if LEGACY_HP_DELTA_VFX_ENABLED and _vfx_manager:
+					_vfx_manager.spawn_hit(_visual_unit_name(e), e.owner, Vector2(e.px, e.py), dmg, _vfx_profile_for(e))
+					_emit_attack_indicator(Vector2(e.px, e.py))
 
 	# ─── Attack flash detection: delegate to HUD overlay ───
 	if _hud_overlay:
