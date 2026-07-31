@@ -498,3 +498,149 @@ def test_combat_visual_controller_spell_event_includes_weapon_id() -> None:
     assert '"weapon_id": spell_id' in spell_block or '"weapon_id":' in spell_block, (
         "_handle_spell_resolved must set weapon_id for weapon visual lookup"
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 12 — 12-unit resource gate
+#
+# Verify that all 12 representative SC1 combat units have the full chain of
+# resources wired end-to-end:
+#   presentation_manifest.unit_visuals  → sprite_frames_config.units
+#   → attack/cast animation frames     → on-disk asset PNGs
+#   → weapon_visual_catalog weapon IDs ↔ data/combat/weapons.json
+# ---------------------------------------------------------------------------
+
+# The 12 representative SC1 combat units (display names used by presentation_manifest
+# and sprite_frames_config).
+COMBAT_UNIT_NAMES = {
+    "Marine", "Firebat", "Vulture", "Tank",
+    "Zergling", "Hydralisk", "Mutalisk", "Ultralisk",
+    "Zealot", "Dragoon", "Templar", "Reaver",
+}
+
+# Weapon ID → unit display name (cross-reference catalog ↔ manifest ↔ assets).
+WEAPON_TO_UNIT: dict[str, str] = {
+    "terran_c10_rifle": "Marine",
+    "terran_flame_thrower": "Firebat",
+    "terran_fragmentation_grenade": "Vulture",
+    "terran_arclite_cannon": "Tank",
+    "zerg_claws": "Zergling",
+    "zerg_needle_spines": "Hydralisk",
+    "zerg_glave_wurm": "Mutalisk",
+    "zerg_kaiser_blades": "Ultralisk",
+    "protoss_psi_blades": "Zealot",
+    "protoss_phase_disruptor": "Dragoon",
+    "protoss_psionic_storm": "Templar",
+    "protoss_scarab": "Reaver",
+}
+
+TEMPLAR_UNIT = "Templar"
+
+PRESENTATION_MANIFEST = REPO_ROOT / "godot" / "resources" / "presentation_manifest.json"
+SPRITE_FRAMES_CONFIG = REPO_ROOT / "godot" / "resources" / "sprite_frames_config.json"
+
+
+class TestResourceGate:
+    """Task 12 resource gate — all 12 combat units must have visual, sprite-frame,
+    animation, and on-disk asset resources, and their weapon IDs must match
+    weapons.json bijectively."""
+
+    def test_presentation_manifest_has_all_12_combat_units(self) -> None:
+        """presentation_manifest.unit_visuals must define entries for all 12 units."""
+        manifest = _load_json(PRESENTATION_MANIFEST)
+        unit_visuals = manifest.get("unit_visuals", {})
+        assert isinstance(unit_visuals, dict), (
+            "presentation_manifest.unit_visuals is not a dict"
+        )
+        missing = COMBAT_UNIT_NAMES - set(unit_visuals.keys())
+        assert not missing, (
+            f"presentation_manifest.unit_visuals missing combat units: {sorted(missing)}"
+        )
+
+    def test_sprite_frames_config_has_all_12_combat_units(self) -> None:
+        """sprite_frames_config.units must define entries for all 12 units."""
+        cfg = _load_json(SPRITE_FRAMES_CONFIG)
+        units = cfg.get("units", {})
+        assert isinstance(units, dict), "sprite_frames_config.units is not a dict"
+        missing = COMBAT_UNIT_NAMES - set(units.keys())
+        assert not missing, (
+            f"sprite_frames_config.units missing combat units: {sorted(missing)}"
+        )
+
+    def test_non_templar_units_have_attack_animation_frames(self) -> None:
+        """Each non-Templar combat unit must have an 'attack' animation with >0 frames."""
+        cfg = _load_json(SPRITE_FRAMES_CONFIG)
+        units = cfg["units"]
+        non_templar = COMBAT_UNIT_NAMES - {TEMPLAR_UNIT}
+        for unit in sorted(non_templar):
+            assert unit in units, f"Unit '{unit}' missing from sprite_frames_config"
+            anims = units[unit].get("animations", {})
+            assert "attack" in anims, f"Unit '{unit}' has no 'attack' animation"
+            assert anims["attack"] > 0, (
+                f"Unit '{unit}' attack animation has {anims['attack']} frames "
+                f"(expected >0)"
+            )
+
+    def test_templar_has_cast_animation_frames(self) -> None:
+        """Templar must have a 'cast' animation with >0 frames (uses cast, not attack)."""
+        cfg = _load_json(SPRITE_FRAMES_CONFIG)
+        units = cfg["units"]
+        assert TEMPLAR_UNIT in units, "Templar missing from sprite_frames_config"
+        anims = units[TEMPLAR_UNIT].get("animations", {})
+        assert "cast" in anims, "Templar has no 'cast' animation"
+        assert anims["cast"] > 0, (
+            f"Templar cast animation has {anims['cast']} frames (expected >0)"
+        )
+
+    def test_asset_files_for_all_12_units_exist_on_disk(self) -> None:
+        """Every combat unit's asset (referenced via presentation_manifest) must
+        exist on disk under godot/assets/."""
+        manifest = _load_json(PRESENTATION_MANIFEST)
+        unit_visuals = manifest["unit_visuals"]
+        missing_assets: list[str] = []
+        for unit in sorted(COMBAT_UNIT_NAMES):
+            entry = unit_visuals.get(unit, {})
+            asset = entry.get("asset", "")
+            assert asset, f"Unit '{unit}' has no 'asset' path in presentation_manifest"
+            # res://assets/... -> godot/assets/...
+            asset_path = REPO_ROOT / "godot" / asset.removeprefix("res://")
+            if not asset_path.exists():
+                missing_assets.append(f"{unit}: {asset_path}")
+        assert not missing_assets, (
+            "Missing on-disk assets for combat units:\n  "
+            + "\n  ".join(missing_assets)
+        )
+
+    def test_weapon_visual_catalog_ids_match_weapons_json(self) -> None:
+        """All 12 weapon IDs in weapon_visual_catalog.json must match the weapon IDs
+        in data/combat/weapons.json bijectively."""
+        catalog = _load_json(WEAPON_VISUAL_CATALOG)
+        catalog_keys = {k for k in catalog if not k.startswith("_")}
+        weapons_data = _load_json(WEAPONS_DATA)
+        weapon_ids = _weapon_ids_from_weapons_json(weapons_data)
+        missing_in_catalog = weapon_ids - catalog_keys
+        extra_in_catalog = catalog_keys - weapon_ids
+        assert not missing_in_catalog, (
+            f"Weapon IDs in weapons.json but missing from visual catalog: "
+            f"{sorted(missing_in_catalog)}"
+        )
+        assert not extra_in_catalog, (
+            f"Weapon IDs in visual catalog but not in weapons.json: "
+            f"{sorted(extra_in_catalog)}"
+        )
+
+    def test_every_catalog_weapon_maps_to_a_manifest_unit(self) -> None:
+        """Each weapon_id in the visual catalog must map to a unit_visuals entry
+        carrying the same weapon_id (proves catalog ↔ manifest wiring)."""
+        manifest = _load_json(PRESENTATION_MANIFEST)
+        unit_visuals = manifest["unit_visuals"]
+        for weapon_id, unit_name in sorted(WEAPON_TO_UNIT.items()):
+            assert unit_name in unit_visuals, (
+                f"Weapon '{weapon_id}' maps to unit '{unit_name}' which is not in "
+                f"presentation_manifest.unit_visuals"
+            )
+            entry = unit_visuals[unit_name]
+            assert entry.get("weapon_id") == weapon_id, (
+                f"Unit '{unit_name}' weapon_id={entry.get('weapon_id')!r}, "
+                f"expected {weapon_id!r}"
+            )

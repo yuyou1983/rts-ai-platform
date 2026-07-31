@@ -42,6 +42,27 @@ REQUIRED_B_KEYS = ["atlas_rect", "pivot", "health_bar_offset", "fallback",
 REQUIRED_U_KEYS = ["pivot", "health_bar_offset", "fallback",
                    "selection_ring_offset", "render_scale", "selection_radius"]
 
+# Task 12 — 12 representative SC1 combat units and their weapon IDs.
+COMBAT_UNIT_NAMES = [
+    "Marine", "Firebat", "Vulture", "Tank",
+    "Zergling", "Hydralisk", "Mutalisk", "Ultralisk",
+    "Zealot", "Dragoon", "Templar", "Reaver",
+]
+COMBAT_WEAPON_IDS: dict[str, str] = {
+    "Marine": "terran_c10_rifle",
+    "Firebat": "terran_flame_thrower",
+    "Vulture": "terran_fragmentation_grenade",
+    "Tank": "terran_arclite_cannon",
+    "Zergling": "zerg_claws",
+    "Hydralisk": "zerg_needle_spines",
+    "Mutalisk": "zerg_glave_wurm",
+    "Ultralisk": "zerg_kaiser_blades",
+    "Zealot": "protoss_psi_blades",
+    "Dragoon": "protoss_phase_disruptor",
+    "Templar": "protoss_psionic_storm",
+    "Reaver": "protoss_scarab",
+}
+
 
 def _png_size(path: Path) -> tuple[int, int]:
     header = path.read_bytes()[:24]
@@ -175,6 +196,72 @@ def check_atlas_vs_png() -> list[str]:
     return issues
 
 
+def check_combat_unit_resource_gate() -> list[str]:
+    """Task 12 — verify all 12 representative SC1 combat units have the full
+    resource chain: manifest visual entry, expected weapon_id, on-disk asset,
+    sprite_frames_config entry, and the correct attack/cast animation frames.
+
+    Reports any missing assets, calling out Templar specifically because its
+    original extraction assets are a known gap (Templar uses 'cast' not 'attack').
+    A non-empty return list means a critical resource is missing → main() exits
+    non-zero.
+    """
+    issues: list[str] = []
+    m = json.loads(MANIFEST.read_text())
+    cfg = json.loads(FRAMES_CFG.read_text())
+
+    unit_visuals = m.get("unit_visuals", {})
+    units_cfg = cfg.get("units", {})
+
+    for unit in COMBAT_UNIT_NAMES:
+        # 1) manifest visual entry exists
+        if unit not in unit_visuals:
+            issues.append(f"combat unit {unit} missing from presentation_manifest.unit_visuals")
+            continue
+        udata = unit_visuals[unit]
+
+        # 2) weapon_id matches the expected SC1 weapon
+        expected_weapon = COMBAT_WEAPON_IDS[unit]
+        if udata.get("weapon_id") != expected_weapon:
+            issues.append(
+                f"combat unit {unit} weapon_id={udata.get('weapon_id')!r}, "
+                f"expected {expected_weapon!r}"
+            )
+
+        # 3) on-disk asset exists
+        asset = udata.get("asset", "")
+        if not asset:
+            issues.append(f"combat unit {unit} has no 'asset' path")
+        else:
+            p = _res_path(asset)
+            if not p.exists():
+                issues.append(f"combat unit {unit} asset missing on disk: {p}")
+
+        # 4) sprite_frames_config entry exists
+        if unit not in units_cfg:
+            issues.append(f"combat unit {unit} missing from sprite_frames_config.units")
+            continue
+        anims = units_cfg[unit].get("animations", {})
+
+        # 5) animation frames: non-Templar needs 'attack', Templar needs 'cast'
+        if unit == "Templar":
+            cast_frames = anims.get("cast", 0)
+            if cast_frames <= 0:
+                issues.append(
+                    f"combat unit Templar has no 'cast' animation frames "
+                    f"(got {cast_frames}) — original extraction assets may be missing"
+                )
+        else:
+            attack_frames = anims.get("attack", 0)
+            if attack_frames <= 0:
+                issues.append(
+                    f"combat unit {unit} has no 'attack' animation frames "
+                    f"(got {attack_frames})"
+                )
+
+    return issues
+
+
 def check_hardcode_drift() -> list[str]:
     """对比 manifest 和 game_view.gd 硬编码，报告偏差。"""
     issues: list[str] = []
@@ -207,6 +294,7 @@ def main() -> int:
     all_issues.extend(check_manifest())
     all_issues.extend(check_atlas_vs_png())
     all_issues.extend(check_hardcode_drift())
+    all_issues.extend(check_combat_unit_resource_gate())
 
     if all_issues:
         print(f"FAIL — {len(all_issues)} issue(s):")
@@ -216,6 +304,7 @@ def main() -> int:
 
     print("OK — manifest structure valid, atlas in bounds, abstract→visual consistent")
     print("     (hardcode drift checks passed — no divergent overrides)")
+    print("     (12-unit combat resource gate passed — all visual/sprite/asset/weapon IDs OK)")
     return 0
 
 
