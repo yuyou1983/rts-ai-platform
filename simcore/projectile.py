@@ -7,22 +7,33 @@ Projectile types:
   - plasma:  arcing projectile (Reaver scarab)
   - spore:   seeking spore (Spore Colony)
 
-On hit: apply damage, check kill, spawn effect marker.
-Projectiles with no valid target self-destruct after 30 ticks.
+On hit: resolve damage via combat_resolution.resolve_weapon_impact(), check kill,
+emit combat events.  Projectiles with no valid target self-destruct after 30 ticks.
+
+Deterministic IDs: ``proj_{tick}_{seq}`` — no global counter, reproducible across
+runs and replay-safe.
 """
 from __future__ import annotations
 
 import math
 from typing import Any
 
+from simcore.combat_events import (
+    PROJECTILE_SPAWNED,
+    append_combat_event,
+)
+from simcore.combat_resolution import (
+    KillFeed,
+    resolve_weapon_impact,
+)
+
 # ─── Constants ───────────────────────────────────────────────
 
 PROJECTILE_SELF_DESTRUCT_TICKS = 30
 PROJECTILE_HIT_DISTANCE = 1.5  # world units to count as "arrived"
 
-# ─── Creation ────────────────────────────────────────────────
 
-_next_proj_id: int = 0
+# ─── Creation ────────────────────────────────────────────────
 
 
 def create_projectile(
@@ -34,12 +45,28 @@ def create_projectile(
     damage: float,
     damage_type: str,
     projectile_type: str = "bullet",
+    *,
+    tick: int = 0,
+    seq: int = 0,
+    weapon_id: str = "",
+    weapon_type: str = "normal",
+    attacker_id: str = "",
 ) -> dict[str, Any]:
-    """Create a new projectile entity dict."""
-    global _next_proj_id
-    _next_proj_id += 1
+    """Create a new projectile entity dict with a deterministic ID.
+
+    Args:
+        tick: Current simulation tick (for deterministic ID).
+        seq: Per-tick sequence number (for deterministic ID).
+        weapon_id: Weapon identifier for combat event emission.
+        weapon_type: Damage type for size multiplier lookup.
+        attacker_id: ID of the firing unit (for kill attribution).
+
+    Returns:
+        Projectile entity dict.
+    """
+    proj_id = f"proj_{tick}_{seq}" if tick > 0 else f"proj_{seq}"
     return {
-        "id": f"proj_{_next_proj_id}",
+        "id": proj_id,
         "owner": owner,
         "pos_x": pos_x,
         "pos_y": pos_y,
@@ -48,6 +75,9 @@ def create_projectile(
         "damage": damage,
         "damage_type": damage_type,
         "projectile_type": projectile_type,
+        "weapon_id": weapon_id,
+        "weapon_type": weapon_type,
+        "attacker_id": attacker_id,
         "age": 0,
         "alive": True,
         "effect": "",
@@ -56,18 +86,36 @@ def create_projectile(
 
 # ─── Processing ──────────────────────────────────────────────
 
+
 def process_projectiles(
     entities: dict[str, Any],
     tick: int,
+    *,
+    combat_events: list[dict] | None = None,
+    kill_feed: KillFeed | None = None,
 ) -> dict[str, Any]:
     """Advance all projectiles, resolve hits, remove spent/old projectiles.
 
-    Returns updated entities dict (including any new effect markers and
-    with dead targets removed).
+    Damage resolution is delegated to ``resolve_weapon_impact`` — this function
+    does NOT apply damage directly.  This ensures shield, armor, size multiplier,
+    and combat event emission all go through the single unified path.
+
+    Args:
+        entities: Entity dict (mutated via copy-on-write).
+        tick: Current simulation tick.
+        combat_events: Event list to append to (or None to skip events).
+        kill_feed: KillFeed tracker (or None to skip).
+
+    Returns:
+        Updated entities dict (including any new effect markers and
+        with dead targets removed).
     """
     result = dict(entities)
     to_remove: set[str] = set()
     new_effects: dict[str, Any] = {}
+
+    if kill_feed is None:
+        kill_feed = KillFeed()
 
     # Collect all projectile entities
     projectiles = {
@@ -98,14 +146,29 @@ def process_projectiles(
             }
             continue
 
-        # For instant types (bullet, laser), immediately hit
-        ptype = proj.get("projectile_type", "bullet")
-        if ptype in ("bullet", "laser"):
-            # Instant hit
-            new_health = target["health"] - proj["damage"]
-            result[target_id] = {**target, "health": new_health}
-            if new_health <= 0:
-                to_remove.add(target_id)
+        attacker_id = proj.get("attacker_id", "")
+        weapon_id = proj.get("weapon_id", "") or proj.get("damage_type", "unknown")
+        weapon_type = proj.get("weapon_type", "normal")
+        base_damage = proj.get("damage", 0)
+        proj_type = proj.get("projectile_type", "bullet")
+
+        # For instant types (bullet, laser), immediately resolve impact
+        if proj_type in ("bullet", "laser"):
+            result, hit_removed = resolve_weapon_impact(
+                result,
+                attacker_id=attacker_id,
+                target_id=target_id,
+                weapon_id=weapon_id,
+                weapon_type=weapon_type,
+                base_damage=base_damage,
+                tick=tick,
+                combat_events=combat_events,
+                kill_feed=kill_feed,
+                delivery_type="projectile",
+                attacker_pos=(proj.get("pos_x", 0.0), proj.get("pos_y", 0.0)),
+                target_pos=(target.get("pos_x", 0.0), target.get("pos_y", 0.0)),
+            )
+            to_remove.update(hit_removed)
             # Effect marker on target
             new_effects[f"fx_{pid}"] = {
                 "id": f"fx_{pid}",
@@ -127,11 +190,22 @@ def process_projectiles(
         dist = math.sqrt(dx * dx + dy * dy)
 
         if dist <= PROJECTILE_HIT_DISTANCE:
-            # Hit the target
-            new_health = target["health"] - proj["damage"]
-            result[target_id] = {**target, "health": new_health}
-            if new_health <= 0:
-                to_remove.add(target_id)
+            # Hit the target — resolve via unified path
+            result, hit_removed = resolve_weapon_impact(
+                result,
+                attacker_id=attacker_id,
+                target_id=target_id,
+                weapon_id=weapon_id,
+                weapon_type=weapon_type,
+                base_damage=base_damage,
+                tick=tick,
+                combat_events=combat_events,
+                kill_feed=kill_feed,
+                delivery_type="projectile",
+                attacker_pos=(proj.get("pos_x", 0.0), proj.get("pos_y", 0.0)),
+                target_pos=(target.get("pos_x", 0.0), target.get("pos_y", 0.0)),
+            )
+            to_remove.update(hit_removed)
             new_effects[f"fx_{pid}"] = {
                 "id": f"fx_{pid}",
                 "owner": 0,

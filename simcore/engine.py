@@ -460,8 +460,13 @@ class SimCore:
                                    building_type=post_e.get("building_type", ""))
                     )
 
-        # 9. Process projectiles
-        entities = process_projectiles(entities, self._tick)
+        # 9. Process projectiles (pass combat_events + kill_feed so projectile
+        #    hits go through resolve_weapon_impact → unified event emission)
+        entities = process_projectiles(
+            entities, self._tick,
+            combat_events=combat_events,
+            kill_feed=self.rule_engine.kill_feed,
+        )
 
         # ── Save combat events for this tick (after combat + projectiles + spells) ──
         self._combat_events_this_tick = [dict(event) for event in combat_events]
