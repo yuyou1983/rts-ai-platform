@@ -23,6 +23,15 @@ from simcore.combat_events import (
     IMPACT_RESOLVED,
     UNIT_DESTROYED,
 )
+# Re-export unified combat resolution for backward compatibility.
+# These were originally defined in rules.py but now live in combat_resolution.py.
+from simcore.combat_resolution import (  # noqa: F401
+    calculate_damage,
+    get_damage_multiplier,
+    get_armor_type,
+    KillFeed,
+    resolve_weapon_impact,
+)
 
 # ─── Constants ───────────────────────────────────────────────
 
