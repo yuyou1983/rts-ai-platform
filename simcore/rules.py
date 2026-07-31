@@ -450,6 +450,173 @@ def _apply_splash(
                     fought[uid2] = {**fought.get(uid2, e2), "attack_target_id": "", "is_idle": True}
 
 
+# ─── Chain (Bounce) Weapon Logic ──────────────────────────────
+
+_CHAIN_WEAPONS: dict[str, dict] | None = None
+
+
+def _load_chain_weapons() -> dict[str, dict]:
+    """Load chain weapon definitions from data/combat/weapons.json."""
+    global _CHAIN_WEAPONS
+    if _CHAIN_WEAPONS is not None:
+        return _CHAIN_WEAPONS
+    _CHAIN_WEAPONS = {}
+    import json as _json
+    import os as _os
+    _path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "data", "combat", "weapons.json",
+    )
+    if _os.path.exists(_path):
+        with open(_path) as f:
+            _data = _json.load(f)
+        for wid, w in _data.items():
+            if w.get("chain_fractions") and len(w["chain_fractions"]) > 1:
+                _CHAIN_WEAPONS[wid] = {
+                    "fractions": w["chain_fractions"],
+                    "radius": w.get("chain_radius_world", 3),
+                }
+    return _CHAIN_WEAPONS
+
+
+def _apply_chain(
+    fought: dict[str, Any],
+    attacker_id: str,
+    attacker: dict[str, Any],
+    target_id: str,
+    base_dmg: float,
+    weapon_type: str,
+    weapon_id: str,
+    tick: int,
+    to_remove: set[str],
+    kill_feed: "KillFeed",
+    combat_events: list[dict] | None = None,
+) -> None:
+    """Apply chain (bounce) damage after primary target is hit.
+
+    SC1 Mutalisk glave wurm bounces to nearby enemy targets.
+    Each bounce deals a fraction of the base damage.
+    Target selection is deterministic: sorted by (distance, entity_id).
+    """
+    chain_data = _load_chain_weapons().get(weapon_id)
+    if chain_data is None:
+        return
+
+    fractions = chain_data["fractions"]
+    radius = chain_data["radius"]
+    attacker_owner = attacker.get("owner", 0)
+
+    # Primary target already damaged — start from bounce index 1
+    # The primary target's position is the bounce origin
+    prev_eid = target_id
+    prev_x = fought[target_id].get("pos_x", 0)
+    prev_y = fought[target_id].get("pos_y", 0)
+    already_hit = {target_id}
+
+    for chain_idx in range(1, len(fractions)):
+        frac = fractions[chain_idx]
+        # Find nearest valid enemy target within radius
+        candidates = []
+        for eid, ent in list(fought.items()):
+            if eid in already_hit or eid in to_remove:
+                continue
+            if ent.get("entity_type") == "resource":
+                continue
+            if ent.get("health", 0) <= 0:
+                continue
+            # Only enemy targets
+            if ent.get("owner", 0) == attacker_owner:
+                continue
+            ex = ent.get("pos_x", 0)
+            ey = ent.get("pos_y", 0)
+            dx = ex - prev_x
+            dy = ey - prev_y
+            dist = (dx * dx + dy * dy) ** 0.5
+            if dist <= radius:
+                candidates.append((dist, eid, ent))
+
+        if not candidates:
+            break
+
+        # Deterministic selection: sort by (distance, entity_id)
+        candidates.sort(key=lambda c: (c[0], c[1]))
+        _, bounce_eid, bounce_ent = candidates[0]
+        already_hit.add(bounce_eid)
+
+        # Calculate damage for this bounce
+        bounce_base = base_dmg * frac
+        target_armor = bounce_ent.get("armor", 0)
+        target_armor_type = get_armor_type(bounce_ent)
+        size_mult = get_damage_multiplier(weapon_type, target_armor_type)
+
+        # Apply shield-then-health (SC1: shield takes full, no mult/armor)
+        shield = bounce_ent.get("shields", bounce_ent.get("shield", 0))
+        if shield > 0:
+            shield_dmg = min(shield, bounce_base)
+            remaining = bounce_base - shield_dmg
+            if remaining > 0:
+                health_dmg = max(0.5, remaining * size_mult - target_armor)
+            else:
+                health_dmg = 0
+            new_shield = shield - shield_dmg
+            new_health = bounce_ent["health"] - health_dmg
+            fought[bounce_eid] = {**bounce_ent, "health": new_health, "shields": new_shield,
+                                  "last_hit_tick": tick}
+            final_dmg = shield_dmg + health_dmg
+        else:
+            shield_dmg = 0
+            health_dmg = calculate_damage(bounce_base, weapon_type, target_armor, target_armor_type)
+            new_health = bounce_ent["health"] - health_dmg
+            fought[bounce_eid] = {**bounce_ent, "health": new_health}
+            final_dmg = health_dmg
+
+        kill_feed.record_damage(attacker_owner, final_dmg)
+        killed = new_health <= 0
+        if killed:
+            to_remove.add(bounce_eid)
+            kill_feed.record_kill(attacker_owner, bounce_ent.get("owner", 0))
+            for uid2, e2 in list(fought.items()):
+                if e2.get("attack_target_id") == bounce_eid:
+                    fought[uid2] = {**fought.get(uid2, e2), "attack_target_id": "", "is_idle": True}
+
+        # Emit chain impact event
+        if combat_events is not None:
+            append_combat_event(
+                combat_events,
+                tick=tick,
+                event_type=IMPACT_RESOLVED,
+                attacker_id=attacker_id,
+                target_id=bounce_eid,
+                weapon_id=weapon_id,
+                source_x=prev_x,
+                source_y=prev_y,
+                target_x=bounce_ent.get("pos_x", 0.0),
+                target_y=bounce_ent.get("pos_y", 0.0),
+                delivery_type="chain",
+                weapon_type=weapon_type,
+                armor_type=target_armor_type,
+                base_damage=round(bounce_base, 4),
+                final_damage=round(final_dmg, 4),
+                damage_multiplier=size_mult,
+                shield_damage=round(float(shield_dmg), 4),
+                health_damage=round(float(health_dmg), 4),
+                chain_index=chain_idx,
+                is_splash=False,
+                splash_fraction=round(frac, 6),
+                killed=killed,
+                missed=False,
+                armor_value=float(target_armor),
+                shield_armor_value=0.0,
+                hit_index=0,
+                hit_count=1,
+            )
+
+        # Update bounce origin to this target for next bounce
+        prev_x = bounce_ent.get("pos_x", 0)
+        prev_y = bounce_ent.get("pos_y", 0)
+        prev_eid = bounce_eid
+
+
 # ─── Combat Kill Tracking ───────────────────────────────────
 
 class KillFeed:
@@ -888,6 +1055,10 @@ def resolve_combat(
                 _apply_splash(fought, uid, e, tid, base_dmg, weapon_type,
                               tick, to_remove, kill_feed,
                               combat_events=combat_events)
+                # ── Chain (bounce) damage ──
+                _apply_chain(fought, uid, e, tid, base_dmg, weapon_type,
+                             weapon_id, tick, to_remove, kill_feed,
+                             combat_events=combat_events)
             else:
                 # Missed — emit impact_resolved with missed=True
                 if combat_events is not None:

@@ -556,3 +556,238 @@ class TestTerranCombatScenarios:
         # 40 damage, 80 shield → shield absorbs 40, 0 health damage
         assert impacts[0]["shield_damage"] == 40.0
         assert impacts[0]["health_damage"] == 0.0
+
+
+# ── Tests: Zerg combat scenarios (Task 9) ─────────────────────────────────
+
+
+class TestZergCombatScenarios:
+    """Integration tests: 4 Zerg units produce correct combat events."""
+
+    def _make_entity(
+        self,
+        uid: str,
+        owner: int = 1,
+        unit_type: str = "Zergling",
+        health: float = 100,
+        shields: float = 0,
+        armor: int = 0,
+        armor_type: str = "medium",
+        pos: tuple[float, float] = (0.0, 0.0),
+        attack_ground: float = 5,
+        weapon_type_ground: str = "normal",
+        weapon_id_ground: str = "zerg_claws",
+        attack_range: float = 1.5,
+        cooldown_ground: int = 3,
+        delivery_type: str = "melee",
+        hit_count: int = 1,
+        domain: str = "ground",
+    ) -> dict:
+        return {
+            "id": uid,
+            "owner": owner,
+            "unit_type": unit_type,
+            "entity_type": "soldier" if unit_type not in ("Vulture", "Mutalisk") else "scout",
+            "health": health,
+            "max_health": health,
+            "shields": shields,
+            "shield": shields,
+            "armor": armor,
+            "armor_type": armor_type,
+            "pos_x": pos[0],
+            "pos_y": pos[1],
+            "attack_ground": attack_ground,
+            "weapon_type_ground": weapon_type_ground,
+            "weapon_id_ground": weapon_id_ground,
+            "attack_range_ground": attack_range,
+            "cooldown_ground": cooldown_ground,
+            "cooldown_timer": 99,
+            "delivery_type": delivery_type,
+            "hit_count": hit_count,
+            "domain": domain,
+            "is_idle": False,
+            "attack_target_id": "",
+        }
+
+    def test_zergling_vs_marine_melee(self):
+        """Zergling → Marine: melee normal, one impact."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "zerg1": self._make_entity(
+                "zerg1", owner=1, unit_type="Zergling",
+                attack_ground=5, weapon_type_ground="normal",
+                weapon_id_ground="zerg_claws",
+                attack_range=1.5, cooldown_ground=3,
+                delivery_type="melee", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "mar1": self._make_entity(
+                "mar1", owner=2, unit_type="Marine",
+                health=40, armor=0, armor_type="light",
+                pos=(1.0, 0.0),
+            ),
+        }
+        entities["zerg1"]["attack_target_id"] = "mar1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "zerg_claws"
+        assert len(impacts) == 1
+        assert impacts[0]["weapon_id"] == "zerg_claws"
+        # Normal vs light: 100%, no armor → 5 damage
+        assert impacts[0]["final_damage"] == 5.0
+        assert result["mar1"]["health"] == 35  # 40 - 5 = 35
+
+    def test_hydralisk_vs_dragoon_projectile(self):
+        """Hydralisk → Dragoon: explosive needle projectile."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "hyd1": self._make_entity(
+                "hyd1", owner=1, unit_type="Hydralisk",
+                attack_ground=10, weapon_type_ground="explosive",
+                weapon_id_ground="zerg_needle_spines",
+                attack_range=4, cooldown_ground=6,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "drag1": self._make_entity(
+                "drag1", owner=2, unit_type="Dragoon",
+                health=100, shields=80, armor=1, armor_type="heavy",
+                pos=(3.0, 0.0),
+            ),
+        }
+        entities["hyd1"]["attack_target_id"] = "drag1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "zerg_needle_spines"
+        assert len(impacts) == 1
+        assert impacts[0]["weapon_id"] == "zerg_needle_spines"
+        # Explosive vs heavy: 100% multiplier
+        # Shield absorbs full 10, no health damage
+        assert impacts[0]["shield_damage"] == 10.0
+        assert impacts[0]["health_damage"] == 0.0
+
+    def test_mutalisk_chain_bounce(self):
+        """Mutalisk → 3 targets: chain_index 0/1/2 with correct fractions."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "mut1": self._make_entity(
+                "mut1", owner=1, unit_type="Mutalisk",
+                attack_ground=9, weapon_type_ground="normal",
+                weapon_id_ground="zerg_glave_wurm",
+                attack_range=3, cooldown_ground=13,
+                delivery_type="chain", hit_count=1,
+                pos=(0.0, 0.0),
+                domain="air",
+            ),
+            "t1": self._make_entity(
+                "t1", owner=2, unit_type="Marine",
+                health=40, armor_type="light",
+                pos=(2.0, 0.0),
+            ),
+            "t2": self._make_entity(
+                "t2", owner=2, unit_type="Marine",
+                health=40, armor_type="light",
+                pos=(2.5, 0.5),
+            ),
+            "t3": self._make_entity(
+                "t3", owner=2, unit_type="Marine",
+                health=40, armor_type="light",
+                pos=(3.0, 1.0),
+            ),
+        }
+        entities["mut1"]["attack_target_id"] = "t1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "zerg_glave_wurm"
+
+        # Chain should produce 3 impacts with chain_index 0, 1, 2
+        assert len(impacts) == 3, f"Expected 3 chain impacts, got {len(impacts)}"
+
+        # Chain indices in order
+        chain_indices = [e["chain_index"] for e in impacts]
+        assert chain_indices == [0, 1, 2], f"Chain indices: {chain_indices}"
+
+        # Chain fractions match weapons.json
+        fractions = [round(e["splash_fraction"], 6) for e in impacts]
+        assert fractions == [1.0, 0.333333, 0.111111], f"Fractions: {fractions}"
+
+        # All impacts share the same weapon_id
+        for imp in impacts:
+            assert imp["weapon_id"] == "zerg_glave_wurm"
+
+        # 3 distinct targets
+        target_ids = {e["target_id"] for e in impacts}
+        assert len(target_ids) == 3, f"Expected 3 distinct targets, got {target_ids}"
+
+    def test_ultralisk_vs_zealot_melee(self):
+        """Ultralisk → Zealot: heavy melee, no projectile."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "ult1": self._make_entity(
+                "ult1", owner=1, unit_type="Ultralisk",
+                attack_ground=20, weapon_type_ground="explosive",
+                weapon_id_ground="zerg_kaiser_blades",
+                attack_range=1.5, cooldown_ground=6,
+                delivery_type="melee", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "zeal1": self._make_entity(
+                "zeal1", owner=2, unit_type="Zealot",
+                health=100, shields=60, armor=1, armor_type="light",
+                pos=(1.0, 0.0),
+            ),
+        }
+        entities["ult1"]["attack_target_id"] = "zeal1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "zerg_kaiser_blades"
+        assert len(impacts) == 1
+        assert impacts[0]["weapon_id"] == "zerg_kaiser_blades"
+        # Explosive vs light (Zealot armor_type=light): 50% multiplier on health
+        # Shield absorbs full 20, no health damage
+        assert impacts[0]["shield_damage"] == 20.0
+        assert impacts[0]["health_damage"] == 0.0
