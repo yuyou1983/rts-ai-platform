@@ -431,3 +431,71 @@ feel_metrics_enabled=true
 | basic combat readability | | |
 | building footprint clarity | | |
 ```
+
+## SC1 Combat Differentiation Verification
+
+### CombatEvent checking
+
+Use the Test Mode diagnostics overlay (`combat_diagnostics_overlay.gd`) to inspect
+combat events in real time. The overlay shows:
+
+- Attacker/target entity IDs
+- Weapon ID and weapon type (normal/explosive/concussive)
+- Armor type (light/medium/heavy)
+- Base damage, damage multiplier, shield/health/final damage
+- Splash fraction or chain index
+- Event tick and unique event ID
+
+### 12-unit Test Mode presets
+
+Available in Test Mode → combat gallery → preset buttons:
+
+| # | Matchup | Key Check |
+|---|---------|-----------|
+| 1 | Marine vs Zergling | Concussive vs light, 6 dmg |
+| 2 | Firebat vs 3 Zerglings | Concussive splash 16+8 |
+| 3 | Vulture vs Zealot | Concussive vs shield |
+| 4 | Tank vs Dragoon | 2-hit explosive vs shield |
+| 5 | Hydralisk vs Dragoon | Explosive vs heavy shield |
+| 6 | Mutalisk vs 3 Marines | Chain bounce 1.0/0.333/0.111 |
+| 7 | Zealot vs Marine | 2-hit normal 8+8 |
+| 8 | Dragoon vs Ultralisk | Explosive vs heavy, armor |
+| 9 | Templar Storm | Spell resolved + periodic |
+| 10 | Reaver vs Zerglings | Scarab splash + ammo |
+
+### Formal gameplay matchups
+
+| Matchup | Units |
+|---------|-------|
+| Marine vs Zergling | 8 vs 12 |
+| Firebat vs Zergling | 6 vs 16 |
+| Vulture vs Zealot | 4 vs 8 |
+| Tank vs Dragoon | 3 vs 6 |
+| Hydralisk vs Dragoon | 8 vs 6 |
+| Mutalisk vs Marine | 6 vs 10 |
+| Zealot vs Marine | 8 vs 12 |
+| Dragoon vs Ultralisk | 6 vs 3 |
+| Templar Storm vs Marine | 2 vs group |
+| Reaver vs Zergling | 3 vs group |
+
+### Replay event consistency
+
+Combat events are deterministic: same seed + same commands → identical event
+sequence. Verified via subprocess tests with `PYTHONHASHSEED=1` vs `999`
+(see `tests/integration/test_combat_visual_events_e2e.py`).
+
+### Performance caps
+
+Test Mode 30v30 (60 units, 30 seconds):
+- Active VFX effects ≤ max_active_effects
+- Active projectiles ≤ max_projectiles
+- No orphan projectiles
+- No duplicate event playback
+- HP bars, selection circles, unit bodies remain identifiable
+
+### Test counts
+
+- Python: 1430 passed, 1 skipped
+- Godot diagnostics: 51/51 passed
+- Godot combat event pipeline: PASS
+- Resource verification: OK (12-unit gate passed)

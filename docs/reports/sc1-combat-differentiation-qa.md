@@ -8,12 +8,14 @@
 - Presentation verification: OK — manifest structure valid, atlas in bounds
 
 ## Test Counts (current)
-- Python tests: **1417** PASS, 0 failures
+- Python tests: **1430** PASS, 1 skipped, 0 failures
 - Godot diagnostics tests: **51** PASS (Task 11 Test Mode combat diagnostics layer)
   - Headless slice script: `godot/scripts/test_sc1_combat_slice.gd -- --diagnostics`
   - 10 matchup presets: Marine/Zergling, Firebat splash, Vulture/Zealot,
     Tank 2-hit, Hydralisk, Mutalisk chain, Zealot 2-hit, Dragoon/Ultralisk,
     Templar storm, Reaver splash
+- E2E integration tests: **6** PASS (Task 13)
+  - Combat event pipeline, determinism (subprocess PYTHONHASHSEED), 3-race completeness
 
 ## Automated Gates
 | Gate | Target | Result | Status |
