@@ -550,12 +550,16 @@ class TestTerranCombatScenarios:
 
         assert len(attacks) == 1
         assert attacks[0]["weapon_id"] == "terran_arclite_cannon"
-        assert len(impacts) == 1
-        assert impacts[0]["weapon_id"] == "terran_arclite_cannon"
-        # Explosive vs heavy: 100% multiplier
-        # 40 damage, 80 shield → shield absorbs 40, 0 health damage
-        assert impacts[0]["shield_damage"] == 40.0
+        # Tank hit_count=2: two impacts of 20 each (total 40)
+        assert len(impacts) == 2
+        for imp in impacts:
+            assert imp["weapon_id"] == "terran_arclite_cannon"
+        # Explosive vs heavy: 100% multiplier, shield absorbs full per-hit
+        # Hit 1: shield 80→60, Hit 2: shield 60→40, 0 health damage
+        assert impacts[0]["shield_damage"] == 20.0
         assert impacts[0]["health_damage"] == 0.0
+        assert impacts[1]["shield_damage"] == 20.0
+        assert impacts[1]["health_damage"] == 0.0
 
 
 # ── Tests: Zerg combat scenarios (Task 9) ─────────────────────────────────
@@ -791,3 +795,192 @@ class TestZergCombatScenarios:
         # Shield absorbs full 20, no health damage
         assert impacts[0]["shield_damage"] == 20.0
         assert impacts[0]["health_damage"] == 0.0
+
+
+# ── Tests: Protoss combat scenarios (Task 10) ────────────────────────────
+
+
+class TestProtossCombatScenarios:
+    """Integration tests: 4 Protoss units produce correct combat events."""
+
+    def _make_entity(
+        self,
+        uid: str,
+        owner: int = 1,
+        unit_type: str = "Zealot",
+        health: float = 100,
+        shields: float = 0,
+        armor: int = 0,
+        armor_type: str = "medium",
+        pos: tuple[float, float] = (0.0, 0.0),
+        attack_ground: float = 16,
+        weapon_type_ground: str = "normal",
+        weapon_id_ground: str = "protoss_psi_blades",
+        attack_range: float = 1.5,
+        cooldown_ground: int = 9,
+        delivery_type: str = "melee",
+        hit_count: int = 1,
+        domain: str = "ground",
+    ) -> dict:
+        return {
+            "id": uid,
+            "owner": owner,
+            "unit_type": unit_type,
+            "entity_type": "soldier",
+            "health": health,
+            "max_health": health,
+            "shields": shields,
+            "shield": shields,
+            "armor": armor,
+            "armor_type": armor_type,
+            "pos_x": pos[0],
+            "pos_y": pos[1],
+            "attack_ground": attack_ground,
+            "weapon_type_ground": weapon_type_ground,
+            "weapon_id_ground": weapon_id_ground,
+            "attack_range_ground": attack_range,
+            "cooldown_ground": cooldown_ground,
+            "cooldown_timer": 99,
+            "delivery_type": delivery_type,
+            "hit_count": hit_count,
+            "domain": domain,
+            "is_idle": False,
+            "attack_target_id": "",
+        }
+
+    def test_zealot_double_hit(self):
+        """Zealot → Marine: hit_count=2, two impact events in one cycle."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "zeal1": self._make_entity(
+                "zeal1", owner=1, unit_type="Zealot",
+                attack_ground=16, weapon_type_ground="normal",
+                weapon_id_ground="protoss_psi_blades",
+                attack_range=1.5, cooldown_ground=9,
+                delivery_type="melee", hit_count=2,
+                pos=(0.0, 0.0),
+            ),
+            "mar1": self._make_entity(
+                "mar1", owner=2, unit_type="Marine",
+                health=40, armor=0, armor_type="light",
+                pos=(1.0, 0.0),
+            ),
+        }
+        entities["zeal1"]["attack_target_id"] = "mar1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "protoss_psi_blades"
+        # Zealot hits twice per attack cycle
+        assert len(impacts) == 2, f"Expected 2 impacts (hit_count=2), got {len(impacts)}"
+        # Each hit does 8 damage (total 16)
+        for imp in impacts:
+            assert imp["weapon_id"] == "protoss_psi_blades"
+            assert imp["hit_index"] in (0, 1)
+        # Total damage = 16 (8 per hit, normal vs light = 100%, no armor)
+        total_dmg = sum(e["health_damage"] + e["shield_damage"] for e in impacts)
+        assert total_dmg == 16.0, f"Total damage {total_dmg} != 16"
+
+    def test_dragoon_vs_shielded_target(self):
+        """Dragoon → Dragoon: explosive phase orb, shield/health split."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "drag1": self._make_entity(
+                "drag1", owner=1, unit_type="Dragoon",
+                attack_ground=20, weapon_type_ground="explosive",
+                weapon_id_ground="protoss_phase_disruptor",
+                attack_range=4, cooldown_ground=13,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "drag2": self._make_entity(
+                "drag2", owner=2, unit_type="Dragoon",
+                health=100, shields=15, armor=1, armor_type="heavy",
+                pos=(3.0, 0.0),
+            ),
+        }
+        entities["drag1"]["attack_target_id"] = "drag2"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "protoss_phase_disruptor"
+        assert len(impacts) == 1
+        # Shield absorbs 15, remaining 5 goes to health
+        # Explosive vs heavy: 100% multiplier, armor 1 → 5*1.0 - 1 = 4
+        assert impacts[0]["shield_damage"] == 15.0
+        assert impacts[0]["health_damage"] == 4.0
+
+    def test_reaver_splash_damage(self):
+        """Reaver → clustered Marines: scarab with splash."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "reaver1": {**self._make_entity(
+                "reaver1", owner=1, unit_type="Reaver",
+                attack_ground=20, weapon_type_ground="normal",
+                weapon_id_ground="protoss_scarab",
+                attack_range=8, cooldown_ground=9,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ), "scarab_count": 5},
+            "m1": self._make_entity(
+                "m1", owner=2, unit_type="Marine",
+                health=40, armor=0, armor_type="light",
+                pos=(7.0, 0.0),
+            ),
+            "m2": self._make_entity(
+                "m2", owner=2, unit_type="Marine",
+                health=40, armor=0, armor_type="light",
+                pos=(7.0, 1.0),
+            ),
+            "m3": self._make_entity(
+                "m3", owner=2, unit_type="Marine",
+                health=40, armor=0, armor_type="light",
+                pos=(8.0, 0.5),
+            ),
+        }
+        entities["reaver1"]["attack_target_id"] = "m1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "protoss_scarab"
+        # Primary hit + at least one splash
+        assert len(impacts) >= 2, f"Expected splash impacts, got {len(impacts)}"
+        # Primary impact
+        primary = [e for e in impacts if not e.get("is_splash")]
+        assert len(primary) >= 1
+        # Splash impacts
+        splash = [e for e in impacts if e.get("is_splash")]
+        assert len(splash) >= 1
+        # All impacts use scarab weapon
+        for imp in impacts:
+            assert imp["weapon_id"] == "protoss_scarab"

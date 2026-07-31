@@ -977,79 +977,87 @@ def resolve_combat(
                 hit = roll < int(hit_chance * 100)
 
             if hit:
-                # SC1 shield mechanic: shield absorbs full base damage (no
-                # armor reduction, no size multiplier).  Only the remainder
-                # that penetrates the shield goes to health with armor and
-                # size multiplier applied.
-                shield = target.get("shields", target.get("shield", 0))
-                if shield > 0:
-                    shield_dmg = min(shield, base_dmg)
-                    remaining = base_dmg - shield_dmg
-                    if remaining > 0:
-                        health_dmg = max(0.5, remaining * size_mult - target_armor)
-                    else:
-                        health_dmg = 0
-                    new_shield = shield - shield_dmg
-                    new_health = target["health"] - health_dmg
-                    fought[tid] = {**target, "health": new_health, "shields": new_shield,
-                                   "last_hit_tick": tick}
-                    final_dmg = shield_dmg + health_dmg
-                else:
-                    shield_dmg = 0
-                    health_dmg = dmg
-                    new_health = target["health"] - dmg
-                    fought[tid] = {**target, "health": new_health}
-                    final_dmg = dmg
-                kill_feed.record_damage(e.get("owner", 0), final_dmg)
-                killed = new_health <= 0
-                if killed:
-                    to_remove.add(tid)
-                    kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
-                    # Clear any units targeting the dead entity
-                    for uid2, e2 in list(fought.items()):
-                        if e2.get("attack_target_id") == tid:
-                            fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
+                # ── Multi-hit loop (Zealot hit_count=2, etc.) ──
+                hit_count = e.get("hit_count", 1)
+                per_hit_dmg = base_dmg / hit_count if hit_count > 0 else base_dmg
+                for hit_idx in range(hit_count):
+                    # Re-read current target state (may have been modified by previous hit)
+                    cur_target = fought.get(tid, target)
+                    if cur_target.get("health", 0) <= 0:
+                        break  # target already dead from a previous hit
 
-                # Emit impact_resolved for primary target
-                if combat_events is not None:
-                    append_combat_event(
-                        combat_events,
-                        tick=tick,
-                        event_type=IMPACT_RESOLVED,
-                        attacker_id=uid,
-                        target_id=tid,
-                        weapon_id=weapon_id,
-                        source_x=e.get("pos_x", 0.0),
-                        source_y=e.get("pos_y", 0.0),
-                        target_x=target.get("pos_x", 0.0),
-                        target_y=target.get("pos_y", 0.0),
-                        delivery_type=delivery_type,
-                        weapon_type=weapon_type,
-                        armor_type=target_armor_type,
-                        base_damage=float(base_dmg),
-                        final_damage=round(float(final_dmg), 4),
-                        damage_multiplier=size_mult,
-                        shield_damage=round(float(shield_dmg), 4),
-                        health_damage=round(float(health_dmg), 4),
-                        chain_index=0,
-                        is_splash=False,
-                        splash_fraction=1.0,
-                        killed=killed,
-                        missed=False,
-                        armor_value=float(target_armor),
-                        shield_armor_value=0.0,
-                        hit_index=0,
-                        hit_count=e.get("hit_count", 1),
-                    )
+                    cur_shield = cur_target.get("shields", cur_target.get("shield", 0))
+                    if cur_shield > 0:
+                        shield_dmg = min(cur_shield, per_hit_dmg)
+                        remaining = per_hit_dmg - shield_dmg
+                        if remaining > 0:
+                            health_dmg = max(0.5, remaining * size_mult - target_armor)
+                        else:
+                            health_dmg = 0
+                        new_shield = cur_shield - shield_dmg
+                        new_health = cur_target["health"] - health_dmg
+                        fought[tid] = {**cur_target, "health": new_health, "shields": new_shield,
+                                       "last_hit_tick": tick}
+                        final_dmg = shield_dmg + health_dmg
+                    else:
+                        shield_dmg = 0
+                        health_dmg = calculate_damage(per_hit_dmg, weapon_type,
+                                                     target_armor, target_armor_type)
+                        new_health = cur_target["health"] - health_dmg
+                        fought[tid] = {**cur_target, "health": new_health}
+                        final_dmg = health_dmg
+
+                    kill_feed.record_damage(e.get("owner", 0), final_dmg)
+                    killed = new_health <= 0
                     if killed:
+                        to_remove.add(tid)
+                        kill_feed.record_kill(e.get("owner", 0), target.get("owner", 0))
+                        for uid2, e2 in list(fought.items()):
+                            if e2.get("attack_target_id") == tid:
+                                fought[uid2] = {**e2, "attack_target_id": "", "is_idle": True}
+
+                    # Emit impact_resolved for this hit
+                    if combat_events is not None:
                         append_combat_event(
                             combat_events,
                             tick=tick,
-                            event_type=UNIT_DESTROYED,
+                            event_type=IMPACT_RESOLVED,
                             attacker_id=uid,
                             target_id=tid,
                             weapon_id=weapon_id,
+                            source_x=e.get("pos_x", 0.0),
+                            source_y=e.get("pos_y", 0.0),
+                            target_x=cur_target.get("pos_x", 0.0),
+                            target_y=cur_target.get("pos_y", 0.0),
+                            delivery_type=delivery_type,
+                            weapon_type=weapon_type,
+                            armor_type=target_armor_type,
+                            base_damage=float(per_hit_dmg),
+                            final_damage=round(float(final_dmg), 4),
+                            damage_multiplier=size_mult,
+                            shield_damage=round(float(shield_dmg), 4),
+                            health_damage=round(float(health_dmg), 4),
+                            chain_index=0,
+                            is_splash=False,
+                            splash_fraction=1.0,
+                            killed=killed,
+                            missed=False,
+                            armor_value=float(target_armor),
+                            shield_armor_value=0.0,
+                            hit_index=hit_idx,
+                            hit_count=hit_count,
                         )
+                        if killed:
+                            append_combat_event(
+                                combat_events,
+                                tick=tick,
+                                event_type=UNIT_DESTROYED,
+                                attacker_id=uid,
+                                target_id=tid,
+                                weapon_id=weapon_id,
+                            )
+                    if killed:
+                        break  # target dead, no more hits
 
                 # ── Splash damage ──
                 _apply_splash(fought, uid, e, tid, base_dmg, weapon_type,
