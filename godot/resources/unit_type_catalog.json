@@ -29,6 +29,7 @@
     "production_building": "Barracks",
     "presentation_key": "Marine",
     "vfx_profile": "terran_ballistic",
+    "weapon_id": "terran_c10_rifle",
     "selection_class": "small",
     "test_mode_group": "terran_units"
   },
@@ -42,6 +43,7 @@
     "production_building": "Barracks",
     "presentation_key": "Firebat",
     "vfx_profile": "terran_flame",
+    "weapon_id": "terran_flame_thrower",
     "selection_class": "small",
     "test_mode_group": "terran_units"
   },
@@ -81,6 +83,7 @@
     "production_building": "Factory",
     "presentation_key": "Vulture",
     "vfx_profile": "terran_ballistic",
+    "weapon_id": "terran_fragmentation_grenade",
     "selection_class": "large",
     "test_mode_group": "terran_units"
   },
@@ -94,6 +97,7 @@
     "production_building": "Factory",
     "presentation_key": "Tank",
     "vfx_profile": "terran_explosive",
+    "weapon_id": "terran_arclite_cannon",
     "selection_class": "large",
     "test_mode_group": "terran_units"
   },
@@ -211,6 +215,7 @@
     "production_building": "Hatchery",
     "presentation_key": "Zergling",
     "vfx_profile": "zerg_melee",
+    "weapon_id": "zerg_claws",
     "selection_class": "small",
     "test_mode_group": "zerg_units"
   },
@@ -224,6 +229,7 @@
     "production_building": "Hatchery",
     "presentation_key": "Hydralisk",
     "vfx_profile": "zerg_acid",
+    "weapon_id": "zerg_needle_spines",
     "selection_class": "small",
     "test_mode_group": "zerg_units"
   },
@@ -250,6 +256,7 @@
     "production_building": "Hatchery",
     "presentation_key": "Ultralisk",
     "vfx_profile": "zerg_melee",
+    "weapon_id": "zerg_kaiser_blades",
     "selection_class": "large",
     "test_mode_group": "zerg_units"
   },
@@ -328,6 +335,7 @@
     "production_building": "Hatchery",
     "presentation_key": "Mutalisk",
     "vfx_profile": "zerg_spore",
+    "weapon_id": "zerg_glave_wurm",
     "selection_class": "air",
     "test_mode_group": "zerg_units"
   },
@@ -406,6 +414,7 @@
     "production_building": "Gateway",
     "presentation_key": "Zealot",
     "vfx_profile": "protoss_psi",
+    "weapon_id": "protoss_psi_blades",
     "selection_class": "small",
     "test_mode_group": "protoss_units"
   },
@@ -419,6 +428,7 @@
     "production_building": "Gateway",
     "presentation_key": "Dragoon",
     "vfx_profile": "protoss_phase",
+    "weapon_id": "protoss_phase_disruptor",
     "selection_class": "large",
     "test_mode_group": "protoss_units"
   },
@@ -432,6 +442,7 @@
     "production_building": "Gateway",
     "presentation_key": "Templar",
     "vfx_profile": "none",
+    "weapon_id": "protoss_psionic_storm",
     "selection_class": "small",
     "test_mode_group": "protoss_units"
   },
@@ -484,6 +495,7 @@
     "production_building": "RoboticsFacility",
     "presentation_key": "Reaver",
     "vfx_profile": "protoss_phase",
+    "weapon_id": "protoss_scarab",
     "selection_class": "large",
     "test_mode_group": "protoss_units"
   },

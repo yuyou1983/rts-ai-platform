@@ -15,12 +15,16 @@ const CombatVisualControllerScript := preload("res://scripts/combat_visual_contr
 
 
 ## Minimal fake VFX sink. Subclasses VFXManager so it satisfies the
-## controller's typed _vfx_manager slot, but overrides spawn_combat_event to
-## just record the dispatched events (no rendering, no catalog access).
+## controller's typed _vfx_manager slot, but overrides spawn_combat_event and
+## spawn_weapon_event to just record the dispatched events (no rendering,
+## no catalog access).
 class FakeVFXSink extends VFXManager:
 	var received: Array = []
 
 	func spawn_combat_event(event: Dictionary) -> void:
+		received.append(event)
+
+	func spawn_weapon_event(event: Dictionary, visual: Dictionary) -> void:
 		received.append(event)
 
 

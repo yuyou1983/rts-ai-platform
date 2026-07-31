@@ -5,10 +5,12 @@ extends Node2D
 ## Effects are intentionally short and high-contrast, matching RTS readability.
 
 const CATALOG_PATH := "res://resources/vfx/vfx_catalog.json"
+const WEAPON_VISUAL_CATALOG_PATH := "res://resources/vfx/weapon_visual_catalog.json"
 const FEEL_CONFIG_PATH := "res://resources/feel/control_feel_config.json"
 const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 var _catalog: Dictionary = {}
+var _weapon_visuals: Dictionary = {}
 var _effects: Array[Dictionary] = []
 var _projectiles: Array[Dictionary] = []
 var _textures: Dictionary = {}
@@ -43,8 +45,27 @@ var _shell_impact_dmg_threshold: float = 18.0
 func _ready() -> void:
 	z_index = 20
 	_load_catalog()
+	_load_weapon_visual_catalog()
 	_load_feel_config()
 	_load_unit_profiles()
+
+
+func _load_weapon_visual_catalog() -> void:
+	if not FileAccess.file_exists(WEAPON_VISUAL_CATALOG_PATH):
+		push_warning("[VFXManager] Missing weapon visual catalog: %s" % WEAPON_VISUAL_CATALOG_PATH)
+		_weapon_visuals = {}
+		return
+	var text := FileAccess.get_file_as_string(WEAPON_VISUAL_CATALOG_PATH)
+	var parsed = JSON.parse_string(text)
+	if parsed is Dictionary:
+		# Top-level may include a "_meta" key; store only weapon entries.
+		for key in parsed:
+			if key.begins_with("_"):
+				continue
+			_weapon_visuals[key] = parsed[key]
+	else:
+		push_warning("[VFXManager] Invalid weapon visual catalog JSON: %s" % WEAPON_VISUAL_CATALOG_PATH)
+		_weapon_visuals = {}
 
 
 func _process(delta: float) -> void:
@@ -218,6 +239,155 @@ func spawn_combat_event(event: Dictionary) -> void:
 
 		_:  # Unknown event types silently ignored
 			pass
+
+
+func spawn_weapon_event(event: Dictionary, visual: Dictionary) -> void:
+	## Dispatch VFX for a single combat event using a weapon-visual catalog entry.
+	## `event` carries source_pos/target_pos/owner/event_type/damage/shielded just like
+	## spawn_combat_event. `visual` is the per-weapon entry from
+	## weapon_visual_catalog.json (animation_action, launch_effect, projectile_style,
+	## impact_effect, shield_impact_effect, death_effect, audio_cue, priority).
+	## Falls back to the legacy vfx_profile system when `visual` is empty.
+	if visual.is_empty():
+		spawn_combat_event(event)
+		return
+
+	var event_type: String = str(event.get("event_type", ""))
+	var source_pos: Vector2 = event.get("source_pos", Vector2.ZERO)
+	var target_pos: Vector2 = event.get("target_pos", Vector2.ZERO)
+	var owner: int = int(event.get("owner", 0))
+	var damage: float = float(event.get("damage", 0.0))
+	var shielded: bool = bool(event.get("shielded", false))
+	var projectile_style: String = str(visual.get("projectile_style", "none"))
+	var priority: int = int(visual.get("priority", _eff_priority))
+
+	# Compute muzzle position once for launch/tracer styles.
+	var muzzle_pos := source_pos
+	var dir := target_pos - source_pos
+	if dir.length_squared() > 0.001:
+		muzzle_pos = source_pos + dir.normalized() * _muzzle_offset
+
+	match event_type:
+		"attack_started", "projectile_fired", "launch":
+			var launch_effect: String = str(visual.get("launch_effect", "muzzle_flash_small"))
+			_spawn_effect(launch_effect, muzzle_pos, owner, false)
+			_spawn_projectile_for_style(projectile_style, visual, owner, muzzle_pos, target_pos)
+
+		"hit_confirmed":
+			var impact_name: String
+			if shielded:
+				impact_name = str(visual.get("shield_impact_effect", "shield_hit"))
+			else:
+				impact_name = str(visual.get("impact_effect", "hit_spark"))
+			if damage >= _shell_impact_dmg_threshold and impact_name == "hit_spark":
+				impact_name = "shell_impact"
+			var effect := _make_effect(impact_name, target_pos, owner, false)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"shield_hit":
+			var shield_name: String = str(visual.get("shield_impact_effect", "shield_hit"))
+			var effect := _make_effect(shield_name, target_pos, owner, false)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"unit_died":
+			var death_name: String = str(visual.get("death_effect", "hit_spark"))
+			var effect := _make_effect(death_name, target_pos, owner, true)
+			effect["priority"] = priority
+			_enforce_cap(effect)
+			_effects.append(effect)
+			queue_redraw()
+
+		"spell_resolved":
+			# Spell launch effect at the target tile (where the spell manifests).
+			var spell_launch: String = str(visual.get("launch_effect", "psi_storm_cast"))
+			_spawn_effect(spell_launch, target_pos, owner, false)
+			_spawn_projectile_for_style(projectile_style, visual, owner, target_pos, target_pos)
+
+		# Unknown event types silently ignored (legacy parity)
+
+
+func get_weapon_visual(weapon_id: String) -> Dictionary:
+	## Return the weapon-visual catalog entry for `weapon_id`, or an empty dict.
+	return _weapon_visuals.get(weapon_id, {})
+
+
+func _spawn_projectile_for_style(style: String, visual: Dictionary, owner: int, from_pos: Vector2, to_pos: Vector2) -> void:
+	## Spawn the visible tracer/projectile appropriate to a weapon's projectile_style.
+	## All 12 catalog styles are handled; "none" produces no tracer.
+	match style:
+		"hitscan_tracer":
+			_append_tracer(from_pos, to_pos, "flicker", _tr_default_lifetime, [1.0, 0.9, 0.5, 0.9], owner)
+
+		"flame_cone":
+			_append_tracer(from_pos, to_pos, "cone", _tr_cone_lifetime, [1.0, 0.4, 0.1, 0.7], owner)
+
+		"grenade_arc":
+			_append_tracer(from_pos, to_pos, "arc", _tr_arc_lifetime, [1.0, 0.8, 0.4, 0.85], owner)
+
+		"tank_shell":
+			# Heavier, longer arc with a bigger impact flash at the muzzle.
+			_append_tracer(from_pos, to_pos, "arc", _tr_arc_lifetime * 1.2, [1.0, 0.6, 0.2, 0.8], owner)
+			_spawn_effect("shell_impact", from_pos, owner, false)
+
+		"needle_spine":
+			_append_tracer(from_pos, to_pos, "arc", _tr_arc_lifetime, [0.5, 1.0, 0.2, 0.8], owner)
+
+		"glave_chain":
+			# Chain weapon: primary arc plus a secondary bounce tracer toward an
+			# offset point to suggest the glave ricocheting.
+			_append_tracer(from_pos, to_pos, "arc", _tr_arc_lifetime, [0.6, 1.0, 0.4, 0.85], owner)
+			var bounce_to := to_pos + Vector2(0.6, -0.3)
+			_append_tracer(to_pos, bounce_to, "arc", _tr_arc_lifetime * 0.6, [0.5, 0.9, 0.3, 0.7], owner)
+
+		"phase_orb":
+			_append_tracer(from_pos, to_pos, "beam", _tr_beam_lifetime, [0.5, 0.8, 1.0, 0.9], owner)
+
+		"storm_area":
+			# Area spell: no tracer, instead a lingering tick effect at the target tile.
+			_spawn_effect(str(visual.get("impact_effect", "psi_storm_tick")), to_pos, owner, false)
+
+		"scarab_tracking":
+			# Tracking ground projectile: slow arc toward target.
+			_append_tracer(from_pos, to_pos, "arc", _tr_arc_lifetime * 1.3, [1.0, 0.7, 0.3, 0.85], owner)
+
+		"melee_slash":
+			_append_tracer(from_pos, to_pos, "slash", _tr_default_lifetime, [1.0, 1.0, 1.0, 0.9], owner)
+
+		"heavy_melee_arc":
+			# Bigger melee swing with an extra impact spark at the target.
+			_append_tracer(from_pos, to_pos, "slash", _tr_default_lifetime * 1.5, [0.5, 1.0, 0.3, 0.9], owner)
+			_spawn_effect(str(visual.get("impact_effect", "kaiser_impact")), to_pos, owner, false)
+
+		"none":
+			pass  # No projectile / tracer for weapons with no visible delivery.
+
+		_:
+			# Unknown style falls back to a generic hitscan tracer.
+			_append_tracer(from_pos, to_pos, "flicker", _tr_default_lifetime, _tr_default_color, owner)
+
+
+func _append_tracer(from_pos: Vector2, to_pos: Vector2, style: String, lifetime: float, color_array: Array, owner: int) -> void:
+	## Helper: build and append a tracer dict directly (bypasses profile lookup).
+	var tracer: Dictionary = {
+		"from": from_pos,
+		"to": to_pos,
+		"age": 0.0,
+		"lifetime": lifetime,
+		"style": style,
+		"color": _array_to_color(color_array),
+		"owner": owner,
+		"progress": 0.0,
+	}
+	_projectiles.append(tracer)
+	if _projectiles.size() >= _max_projectiles:
+		_projectiles.remove_at(0)
+	queue_redraw()
 
 
 func spawn_tracer(vfx_profile: String, owner: int, from_pos: Vector2, to_pos: Vector2) -> void:

@@ -183,22 +183,33 @@ func _handle_projectile_spawned(ev: Dictionary) -> void:
 func _handle_spell_resolved(ev: Dictionary) -> void:
 	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
 	var source_pos := Vector2(float(ev.get("source_x", target_pos.x)), float(ev.get("source_y", target_pos.y)))
+	var spell_id: String = str(ev.get("spell_id", ev.get("weapon_id", "")))
 	_emit({
 		"event_type": EVENT_SPELL_RESOLVED,
 		"vfx_profile": _profile_for_event(ev),
 		"source_pos": source_pos,
 		"target_pos": target_pos,
 		"owner": int(ev.get("owner", 0)),
-		"spell_id": str(ev.get("spell_id", ev.get("weapon_id", ""))),
+		"spell_id": spell_id,
+		"weapon_id": spell_id,
 		"damage": float(ev.get("final_damage", 0.0)),
 	})
 
 
 ## Emit a normalized combat event to the signal and to VFXManager (if present).
+## When a weapon_id is present and a matching visual catalog entry exists,
+## dispatches via spawn_weapon_event for weapon-specific visuals. Otherwise
+## falls back to the legacy spawn_combat_event path.
 func _emit(out: Dictionary) -> void:
 	combat_event_emitted.emit(out)
 	var vfx := _get_vfx_manager()
 	if vfx != null and is_instance_valid(vfx):
+		var weapon_id: String = str(out.get("weapon_id", out.get("spell_id", "")))
+		if weapon_id != "":
+			var visual: Dictionary = vfx.get_weapon_visual(weapon_id)
+			if not visual.is_empty():
+				vfx.spawn_weapon_event(out, visual)
+				return
 		vfx.spawn_combat_event(out)
 
 
