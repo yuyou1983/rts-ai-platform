@@ -291,9 +291,9 @@ class TestResolveCombatEvents:
         assert ev["weapon_type"] == "explosive"
         assert ev["armor_type"] == "medium"
         assert ev["shield_damage"] > 0
-        # base_dmg=20, explosive vs medium=0.75 → 15, minus armor=1 → 14
-        # Shield absorbs all 14, health_damage = 0
-        assert ev["shield_damage"] == 14
+        # SC1: shield absorbs full base damage (no multiplier, no armor)
+        # base_dmg=20, shield=60 → shield absorbs 20, health_damage = 0
+        assert ev["shield_damage"] == 20
         assert ev["health_damage"] == 0
 
 

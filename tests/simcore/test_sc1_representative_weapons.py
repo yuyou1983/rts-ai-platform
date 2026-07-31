@@ -324,3 +324,235 @@ class TestCrossReference:
                 f"{wid}: damage_type={w['damage_type']} != "
                 f"reference {expected_type}"
             )
+
+
+# ── Tests: Terran combat scenarios (Task 8) ────────────────────────────────
+
+
+class TestTerranCombatScenarios:
+    """Integration tests: 4 Terran units produce correct combat events.
+
+    Each test sets up a realistic combat scenario, calls resolve_combat,
+    and asserts on the emitted combat events.
+    """
+
+    def _make_entity(
+        self,
+        uid: str,
+        owner: int = 1,
+        unit_type: str = "Marine",
+        health: float = 100,
+        shields: float = 0,
+        armor: int = 0,
+        armor_type: str = "medium",
+        pos: tuple[float, float] = (0.0, 0.0),
+        attack_ground: float = 6,
+        weapon_type_ground: str = "normal",
+        weapon_id_ground: str = "terran_c10_rifle",
+        attack_range: float = 4,
+        cooldown_ground: int = 6,
+        delivery_type: str = "hitscan",
+        hit_count: int = 1,
+        domain: str = "ground",
+    ) -> dict:
+        return {
+            "id": uid,
+            "owner": owner,
+            "unit_type": unit_type,
+            "entity_type": "soldier" if unit_type != "Vulture" else "scout",
+            "health": health,
+            "max_health": health,
+            "shields": shields,
+            "shield": shields,
+            "armor": armor,
+            "armor_type": armor_type,
+            "pos_x": pos[0],
+            "pos_y": pos[1],
+            "attack_ground": attack_ground,
+            "weapon_type_ground": weapon_type_ground,
+            "weapon_id_ground": weapon_id_ground,
+            "attack_range_ground": attack_range,
+            "cooldown_ground": cooldown_ground,
+            "cooldown_timer": 99,  # ready to fire
+            "delivery_type": delivery_type,
+            "hit_count": hit_count,
+            "domain": domain,
+            "is_idle": False,
+            "attack_target_id": "",
+        }
+
+    def test_marine_vs_zergling_hitscan(self):
+        """Marine → Zergling: hitscan normal, one impact event."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "marine1": self._make_entity(
+                "marine1", owner=1, unit_type="Marine",
+                attack_ground=6, weapon_type_ground="normal",
+                weapon_id_ground="terran_c10_rifle",
+                attack_range=4, cooldown_ground=6,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "zerg1": self._make_entity(
+                "zerg1", owner=2, unit_type="Zergling",
+                health=35, armor=0, armor_type="light",
+                pos=(3.0, 0.0),
+            ),
+        }
+        entities["marine1"]["attack_target_id"] = "zerg1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1, "Should emit one attack_started"
+        assert len(impacts) == 1, "Should emit one impact_resolved"
+        assert attacks[0]["weapon_id"] == "terran_c10_rifle"
+        assert impacts[0]["weapon_id"] == "terran_c10_rifle"
+        assert impacts[0]["missed"] is False
+        # Normal vs light: 100% damage, no armor → 6 damage
+        assert impacts[0]["final_damage"] == 6.0
+        assert result["zerg1"]["health"] == 29  # 35 - 6 = 29
+
+    def test_firebat_vs_zerglings_splash(self):
+        """Firebat → 3 Zerglings: cone splash fractions visible in events."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "bat1": self._make_entity(
+                "bat1", owner=1, unit_type="Firebat",
+                attack_ground=8, weapon_type_ground="concussive",
+                weapon_id_ground="terran_flame_thrower",
+                attack_range=2, cooldown_ground=9,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "z1": self._make_entity(
+                "z1", owner=2, unit_type="Zergling",
+                health=35, armor_type="light",
+                pos=(1.5, 0.0),
+            ),
+            "z2": self._make_entity(
+                "z2", owner=2, unit_type="Zergling",
+                health=35, armor_type="light",
+                pos=(1.0, 0.5),
+            ),
+            "z3": self._make_entity(
+                "z3", owner=2, unit_type="Zergling",
+                health=35, armor_type="light",
+                pos=(1.5, 1.0),
+            ),
+        }
+        entities["bat1"]["attack_target_id"] = "z1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1, "Should emit one attack_started"
+        assert attacks[0]["weapon_id"] == "terran_flame_thrower"
+
+        # Primary target hit + splash hits
+        splash_impacts = [e for e in impacts if e.get("is_splash")]
+        direct_impacts = [e for e in impacts if not e.get("is_splash")]
+        assert len(direct_impacts) >= 1, "Should have at least one direct impact"
+        # Firebat has radial splash, so nearby Zerglings should be hit
+        assert len(impacts) >= 2, "Should have at least 2 impacts (direct + splash)"
+
+        # All impacts should reference the Firebat weapon
+        for imp in impacts:
+            assert imp["weapon_id"] == "terran_flame_thrower"
+
+    def test_vulture_vs_zealot_concussive(self):
+        """Vulture → Zealot: concussive damage vs light (100% multiplier)."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "vul1": self._make_entity(
+                "vul1", owner=1, unit_type="Vulture",
+                attack_ground=20, weapon_type_ground="concussive",
+                weapon_id_ground="terran_fragmentation_grenade",
+                attack_range=5, cooldown_ground=13,
+                delivery_type="hitscan", hit_count=1,
+                pos=(0.0, 0.0),
+            ),
+            "zeal1": self._make_entity(
+                "zeal1", owner=2, unit_type="Zealot",
+                health=100, shields=60, armor=1, armor_type="light",
+                pos=(4.0, 0.0),
+            ),
+        }
+        entities["vul1"]["attack_target_id"] = "zeal1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "terran_fragmentation_grenade"
+        assert len(impacts) == 1
+        assert impacts[0]["weapon_id"] == "terran_fragmentation_grenade"
+        # Concussive vs light: 100% multiplier
+        # Shield absorbs first (no multiplier), remaining → health with multiplier
+        # 20 damage, 60 shield → shield absorbs 20, 0 health damage
+        assert impacts[0]["shield_damage"] == 20.0
+        assert impacts[0]["health_damage"] == 0.0
+
+    def test_tank_vs_dragoon_explosive(self):
+        """Tank → Dragoon: explosive damage, heavy impact."""
+        from simcore.rules import resolve_combat
+        from simcore.combat_events import ATTACK_STARTED, IMPACT_RESOLVED
+
+        entities = {
+            "tank1": self._make_entity(
+                "tank1", owner=1, unit_type="SiegeTank",
+                attack_ground=40, weapon_type_ground="explosive",
+                weapon_id_ground="terran_arclite_cannon",
+                attack_range=7, cooldown_ground=9,
+                delivery_type="hitscan", hit_count=2,
+                pos=(0.0, 0.0),
+            ),
+            "drag1": self._make_entity(
+                "drag1", owner=2, unit_type="Dragoon",
+                health=100, shields=80, armor=1, armor_type="heavy",
+                pos=(6.0, 0.0),
+            ),
+        }
+        entities["tank1"]["attack_target_id"] = "drag1"
+
+        combat_events: list[dict] = []
+        result, _ = resolve_combat(
+            entities, {}, [], tick=1,
+            combat_events=combat_events,
+        )
+
+        attacks = [e for e in combat_events if e["event_type"] == ATTACK_STARTED]
+        impacts = [e for e in combat_events if e["event_type"] == IMPACT_RESOLVED]
+
+        assert len(attacks) == 1
+        assert attacks[0]["weapon_id"] == "terran_arclite_cannon"
+        assert len(impacts) == 1
+        assert impacts[0]["weapon_id"] == "terran_arclite_cannon"
+        # Explosive vs heavy: 100% multiplier
+        # 40 damage, 80 shield → shield absorbs 40, 0 health damage
+        assert impacts[0]["shield_damage"] == 40.0
+        assert impacts[0]["health_damage"] == 0.0

@@ -378,31 +378,38 @@ def _apply_splash(
         else:
             frac = profile["outer_frac"]
 
-        splash_dmg = base_dmg * frac
+        splash_base = base_dmg * frac  # pre-mitigation splash damage
         # Recalculate for each target's armor
         target_armor = ent.get("armor", 0)
         target_armor_type = get_armor_type(ent)
-        splash_dmg = calculate_damage(splash_dmg, weapon_type, target_armor, target_armor_type)
+        splash_size_mult = get_damage_multiplier(weapon_type, target_armor_type)
 
-        # Apply shield-then-health
+        # Apply shield-then-health (SC1: shield takes full, no mult/armor)
         ent_latest = fought.get(eid, ent)
         shield = ent_latest.get("shields", ent_latest.get("shield", 0))
         if shield > 0:
-            shield_dmg = min(shield, splash_dmg)
-            health_dmg = splash_dmg - shield_dmg
+            shield_dmg = min(shield, splash_base)
+            remaining = splash_base - shield_dmg
+            if remaining > 0:
+                health_dmg = max(0.5, remaining * splash_size_mult - target_armor)
+            else:
+                health_dmg = 0
             new_shield = shield - shield_dmg
             new_health = ent_latest["health"] - health_dmg
             fought[eid] = {**ent_latest, "health": new_health, "shields": new_shield,
                            "last_hit_tick": tick}
+            final_splash_dmg = shield_dmg + health_dmg
         else:
-            new_health = ent_latest["health"] - splash_dmg
+            shield_dmg = 0
+            health_dmg = calculate_damage(splash_base, weapon_type, target_armor, target_armor_type)
+            new_health = ent_latest["health"] - health_dmg
             fought[eid] = {**ent_latest, "health": new_health}
+            final_splash_dmg = health_dmg
 
-        kill_feed.record_damage(attacker_owner, splash_dmg)
+        kill_feed.record_damage(attacker_owner, final_splash_dmg)
 
         # Emit splash impact event
         if combat_events is not None:
-            splash_mult = get_damage_multiplier(weapon_type, target_armor_type)
             killed_s = new_health <= 0
             append_combat_event(
                 combat_events,
@@ -418,11 +425,11 @@ def _apply_splash(
                 delivery_type="splash",
                 weapon_type=weapon_type,
                 armor_type=target_armor_type,
-                base_damage=round(base_dmg * frac, 4),
-                final_damage=round(splash_dmg, 4),
-                damage_multiplier=splash_mult,
-                shield_damage=round(splash_dmg - health_dmg, 4) if shield > 0 else 0.0,
-                health_damage=round(splash_dmg - (min(shield, splash_dmg) if shield > 0 else 0), 4),
+                base_damage=round(splash_base, 4),
+                final_damage=round(final_splash_dmg, 4),
+                damage_multiplier=splash_size_mult,
+                shield_damage=round(float(shield_dmg), 4),
+                health_damage=round(float(health_dmg), 4),
                 chain_index=0,
                 is_splash=True,
                 splash_fraction=frac,
@@ -803,21 +810,30 @@ def resolve_combat(
                 hit = roll < int(hit_chance * 100)
 
             if hit:
-                # Damage shield first, then health (Protoss shield mechanic)
+                # SC1 shield mechanic: shield absorbs full base damage (no
+                # armor reduction, no size multiplier).  Only the remainder
+                # that penetrates the shield goes to health with armor and
+                # size multiplier applied.
                 shield = target.get("shields", target.get("shield", 0))
                 if shield > 0:
-                    shield_dmg = min(shield, dmg)
-                    health_dmg = dmg - shield_dmg
+                    shield_dmg = min(shield, base_dmg)
+                    remaining = base_dmg - shield_dmg
+                    if remaining > 0:
+                        health_dmg = max(0.5, remaining * size_mult - target_armor)
+                    else:
+                        health_dmg = 0
                     new_shield = shield - shield_dmg
                     new_health = target["health"] - health_dmg
                     fought[tid] = {**target, "health": new_health, "shields": new_shield,
                                    "last_hit_tick": tick}
+                    final_dmg = shield_dmg + health_dmg
                 else:
                     shield_dmg = 0
                     health_dmg = dmg
                     new_health = target["health"] - dmg
                     fought[tid] = {**target, "health": new_health}
-                kill_feed.record_damage(e.get("owner", 0), dmg)
+                    final_dmg = dmg
+                kill_feed.record_damage(e.get("owner", 0), final_dmg)
                 killed = new_health <= 0
                 if killed:
                     to_remove.add(tid)
@@ -844,7 +860,7 @@ def resolve_combat(
                         weapon_type=weapon_type,
                         armor_type=target_armor_type,
                         base_damage=float(base_dmg),
-                        final_damage=round(float(dmg), 4),
+                        final_damage=round(float(final_dmg), 4),
                         damage_multiplier=size_mult,
                         shield_damage=round(float(shield_dmg), 4),
                         health_damage=round(float(health_dmg), 4),
@@ -1025,21 +1041,29 @@ def resolve_combat(
                     hit = roll < int(hit_chance * 100)
 
                 if hit:
-                    # Damage shield first, then health (Protoss shield mechanic)
+                    # SC1 shield mechanic: shield absorbs full base damage (no
+                    # armor, no size multiplier).  Only penetrating remainder
+                    # goes to health with armor and size multiplier.
                     shield = target.get("shields", target.get("shield", 0))
                     if shield > 0:
-                        shield_dmg = min(shield, dmg)
-                        health_dmg = dmg - shield_dmg
+                        shield_dmg = min(shield, base_dmg)
+                        remaining = base_dmg - shield_dmg
+                        if remaining > 0:
+                            health_dmg = max(0.5, remaining * size_mult - target_armor)
+                        else:
+                            health_dmg = 0
                         new_shield = shield - shield_dmg
                         new_health = target["health"] - health_dmg
                         fought[best_target] = {**target, "health": new_health, "shields": new_shield,
                                                "last_hit_tick": tick}
+                        final_dmg = shield_dmg + health_dmg
                     else:
                         shield_dmg = 0
                         health_dmg = dmg
                         new_health = target["health"] - dmg
                         fought[best_target] = {**target, "health": new_health}
-                    kill_feed.record_damage(e.get("owner", 0), dmg)
+                        final_dmg = dmg
+                    kill_feed.record_damage(e.get("owner", 0), final_dmg)
                     killed = new_health <= 0
                     if killed:
                         to_remove.add(best_target)
@@ -1062,7 +1086,7 @@ def resolve_combat(
                             weapon_type=weapon_type,
                             armor_type=target_armor_type,
                             base_damage=float(base_dmg),
-                            final_damage=round(float(dmg), 4),
+                            final_damage=round(float(final_dmg), 4),
                             damage_multiplier=size_mult,
                             shield_damage=round(float(shield_dmg), 4),
                             health_damage=round(float(health_dmg), 4),
