@@ -269,6 +269,8 @@ def resolve_weapon_impact(
                 armor_value=float(target.get("armor", 0)),
                 hit_index=hit_index,
                 hit_count=hit_count,
+                source_owner=fought.get(attacker_id, {}).get("owner", 0),
+                target_owner=target.get("owner", 0),
             )
         return fought, to_remove
 
@@ -359,6 +361,8 @@ def resolve_weapon_impact(
             armor_value=float(target_armor),
             hit_index=hit_index,
             hit_count=hit_count,
+            source_owner=attacker_owner,
+            target_owner=target_owner,
         )
         if killed:
             append_combat_event(
@@ -368,6 +372,10 @@ def resolve_weapon_impact(
                 attacker_id=attacker_id,
                 target_id=target_id,
                 weapon_id=weapon_id,
+                source_owner=attacker_owner,
+                target_owner=target_owner,
+                target_x=target.get("pos_x", 0.0),
+                target_y=target.get("pos_y", 0.0),
             )
 
     return fought, to_remove
@@ -397,6 +405,8 @@ def _emit_impact_event(
     armor_value: float,
     hit_index: int,
     hit_count: int,
+    source_owner: int = 0,
+    target_owner: int = 0,
 ) -> None:
     """Append an impact_resolved combat event."""
     append_combat_event(
@@ -427,4 +437,6 @@ def _emit_impact_event(
         shield_armor_value=0.0,
         hit_index=hit_index,
         hit_count=hit_count,
+        source_owner=source_owner,
+        target_owner=target_owner,
     )

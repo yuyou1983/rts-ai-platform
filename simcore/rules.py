@@ -963,6 +963,8 @@ def resolve_combat(
                             shield_armor_value=0.0,
                             hit_index=hit_idx,
                             hit_count=hit_count,
+                            source_owner=e.get("owner", 0),
+                            target_owner=target.get("owner", 0),
                         )
                         if killed:
                             append_combat_event(
@@ -972,6 +974,10 @@ def resolve_combat(
                                 attacker_id=uid,
                                 target_id=tid,
                                 weapon_id=weapon_id,
+                                source_owner=e.get("owner", 0),
+                                target_owner=target.get("owner", 0),
+                                target_x=target.get("pos_x", 0.0),
+                                target_y=target.get("pos_y", 0.0),
                             )
                     if killed:
                         break  # target dead, no more hits
@@ -1014,8 +1020,10 @@ def resolve_combat(
                         armor_value=float(target_armor),
                         shield_armor_value=0.0,
                         hit_index=0,
-                        hit_count=e.get("hit_count", 1),
-                    )
+                            hit_count=e.get("hit_count", 1),
+                            source_owner=e.get("owner", 0),
+                            target_owner=target.get("owner", 0),
+                        )
 
             # Reset cooldown timer after attack attempt (hit or miss)
             fought[uid] = {**fought[uid], "cooldown_timer": 0}
@@ -1238,6 +1246,8 @@ def resolve_combat(
                             shield_armor_value=0.0,
                             hit_index=0,
                             hit_count=e.get("hit_count", 1),
+                            source_owner=e.get("owner", 0),
+                            target_owner=target.get("owner", 0),
                         )
                         if killed:
                             append_combat_event(
@@ -1247,6 +1257,10 @@ def resolve_combat(
                                 attacker_id=eid,
                                 target_id=best_target,
                                 weapon_id=weapon_id,
+                                source_owner=e.get("owner", 0),
+                                target_owner=target.get("owner", 0),
+                                target_x=target.get("pos_x", 0.0),
+                                target_y=target.get("pos_y", 0.0),
                             )
 
                     # ── Splash damage ──
@@ -1284,6 +1298,8 @@ def resolve_combat(
                             shield_armor_value=0.0,
                             hit_index=0,
                             hit_count=e.get("hit_count", 1),
+                            source_owner=e.get("owner", 0),
+                            target_owner=target.get("owner", 0),
                         )
 
                 # Reset cooldown after auto-attack attempt

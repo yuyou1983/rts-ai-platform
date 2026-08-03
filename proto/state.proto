@@ -76,6 +76,9 @@ message CombatEvent {
   float  shield_armor_value = 26; // protoss shield armor used
   int32  hit_index = 27;        // index within this attack cycle (0-based)
   int32  hit_count = 28;        // total hits in this attack cycle
+
+  int32  source_owner = 29;     // owner (player id) of the attacker
+  int32  target_owner = 30;     // owner (player id) of the target
 }
 
 // One row of height values for the elevation grid

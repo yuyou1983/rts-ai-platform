@@ -989,7 +989,7 @@ git commit -m "fix: emit authoritative psionic storm lifecycle events"
 - Modify: `godot/scripts/game_view.gd`
 - Modify: `godot/scripts/test_combat_event_pipeline.gd`
 
-- [ ] **Step 1：先写 contract 失败测试**
+- [x] **Step 1：先写 contract 失败测试**
 
 每个 event 必须保留：`source_owner`、`target_owner`、source/target position。`unit_destroyed` 不得只发三个 ID。
 
@@ -1001,7 +1001,7 @@ def test_death_event_has_visual_context(lethal_events):
     assert (death["target_x"], death["target_y"]) != (0.0, 0.0)
 ```
 
-- [ ] **Step 2：以追加字段扩展 proto**
+- [x] **Step 2：以追加字段扩展 proto**
 
 在 `CombatEvent` 追加字段号，不重排 1-28：
 
