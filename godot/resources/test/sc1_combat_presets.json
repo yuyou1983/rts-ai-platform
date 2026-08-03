@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "generator_version": 1,
+    "source_reference_sha256": "1c50b04ac1038f034ed5d21a24be97293eb5cc01e269011f246f1ee0adb7872e"
+  },
+  "presets": [
+    {
+      "attacker": "Marine",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "marine_vs_zergling",
+      "targets": [
+        "Zergling"
+      ]
+    },
+    {
+      "attacker": "Firebat",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "firebat_vs_zergling",
+      "targets": [
+        "Zergling"
+      ]
+    },
+    {
+      "attacker": "Vulture",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "vulture_vs_zealot",
+      "targets": [
+        "Zealot"
+      ]
+    },
+    {
+      "attacker": "Tank",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "tank_vs_dragoon",
+      "targets": [
+        "Dragoon"
+      ]
+    },
+    {
+      "attacker": "Hydralisk",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "hydralisk_vs_dragoon",
+      "targets": [
+        "Dragoon"
+      ]
+    },
+    {
+      "attacker": "Mutalisk",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "mutalisk_vs_marine",
+      "targets": [
+        "Marine"
+      ]
+    },
+    {
+      "attacker": "Zealot",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "zealot_vs_marine",
+      "targets": [
+        "Marine"
+      ]
+    },
+    {
+      "attacker": "Dragoon",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "dragoon_vs_ultralisk",
+      "targets": [
+        "Ultralisk"
+      ]
+    },
+    {
+      "attacker": "High Templar",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "storm_vs_marine_group",
+      "targets": [
+        "Marine"
+      ]
+    },
+    {
+      "attacker": "Reaver",
+      "error": "_build_unit_entity() got an unexpected keyword argument 'eid'",
+      "id": "reaver_vs_zergling_group",
+      "targets": [
+        "Zergling"
+      ]
+    }
+  ]
+}

@@ -1079,7 +1079,7 @@ def test_gallery_does_not_embed_combat_events():
     assert "pre-resolved combat events" not in text
 ```
 
-- [ ] **Step 2：实现确定性 fixture generator**
+- [x] **Step 2：实现确定性 fixture generator**
 
 生成器必须使用 `_build_unit_entity()`、正式 attack/spell 命令、`SimCore.step()` 或正式 runtime 入口；不得调用测试 helper 给实体补 mechanics 字段。输出结构：
 
@@ -1105,7 +1105,7 @@ def test_gallery_does_not_embed_combat_events():
 
 十个 preset 沿用原计划 matchup，但事件和结果全部由 SimCore 生成。
 
-- [ ] **Step 3：增加 fixture freshness gate**
+- [x] **Step 3：增加 fixture freshness gate**
 
 Run:
 
@@ -1177,7 +1177,7 @@ Godot fixture generator can consume serialized event shape
 
 测试必须比较完整 event dict，不只比较 `weapon_id`。
 
-- [ ] **Step 3：替换 Python hash**
+- [x] **Step 3：替换 Python hash**
 
 在 `rules.py` 增加稳定 roll：
 
@@ -1190,7 +1190,7 @@ def deterministic_percent_roll(*parts: object) -> int:
 
 高地 explicit/auto attack 两处都调用此函数；combat 路径不允许出现内建 `hash()`。
 
-- [ ] **Step 4：跨 hashseed 测试必须启用 elevation**
+- [x] **Step 4：跨 hashseed 测试必须启用 elevation**
 
 子进程分别使用 `PYTHONHASHSEED=1` 和 `999`，场景必须让 attacker 与 target 高度不同并触发命中 roll。逐字节比较：events、target HP/shields、projectile IDs、replay combat events。
 
