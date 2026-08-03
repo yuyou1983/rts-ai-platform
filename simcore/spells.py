@@ -16,6 +16,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from simcore.combat_events import SPELL_RESOLVED, append_combat_event
+from simcore.combat_resolution import KillFeed, resolve_weapon_impact
 from simcore.state import GameState
 
 # ─── Constants ───────────────────────────────────────────────
@@ -260,24 +262,57 @@ def process_spells(
     resources: dict[str, int],
     commands: list[dict],
     tick: int,
+    *,
+    combat_events: list[dict] | None = None,
+    kill_feed: KillFeed | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """Process spell commands for this tick.
 
     Returns (updated_entities, updated_resources).
+
+    This is called every tick (even with an empty command list) so that
+    persistent spell effects such as Psionic Storm can advance their
+    per-tick damage schedule.
+
+    Args:
+        combat_events: Optional append-only combat event list.  Spell casts
+            append a single ``SPELL_RESOLVED`` event; each damage tick of an
+            area spell appends ``IMPACT_RESOLVED`` events via
+            ``resolve_weapon_impact()``.  When ``None`` a throwaway list is
+            used so spell logic still runs.
+        kill_feed: Optional ``KillFeed`` tracker for damage/kill statistics.
     """
     result = dict(entities)
     res = dict(resources)
     new_entities: dict[str, Any] = {}
     to_remove: set[str] = set()
 
-    # Regen energy first
-    result = regen_energy(result, tick)
+    # Local sinks when the caller (e.g. legacy unit tests) does not supply
+    # them.  This preserves the old positional call signature while still
+    # letting spell effects emit events internally.
+    if combat_events is None:
+        combat_events = []
+    if kill_feed is None:
+        kill_feed = KillFeed()
 
-    # Process active buffs
-    result = process_buffs(result, tick)
+    # Check if there are any active spell effects to process
+    has_active_effects = any(
+        e.get("entity_type") == "effect" and e.get("effect_type") == "psionic_storm"
+        for e in result.values()
+    )
 
-    # Process per-tick DoT effects
-    result = process_dots(result, tick)
+    # Only run regen/buff/dot when there are spell commands or active effects.
+    # The engine already calls regen_energy at step 14 — calling it here too
+    # would double-regen energy every tick.
+    if commands or has_active_effects:
+        # Regen energy first
+        result = regen_energy(result, tick)
+
+        # Process active buffs
+        result = process_buffs(result, tick)
+
+        # Process per-tick DoT effects
+        result = process_dots(result, tick)
 
     for cmd in commands:
         if cmd.get("action") != "spell":
@@ -512,33 +547,42 @@ def process_spells(
             radius = config.get("radius", 5.0)
 
             if spell_name == "psionicstorm":
-                damage = config.get("damage", 112)
-                duration = config.get("duration", 50)
-                damage_per_tick = damage / duration
-                # Apply damage to all entities in radius
-                for eid, e in list(result.items()):
-                    if e.get("owner", 0) == 0:
-                        continue
-                    d = math.hypot(e["pos_x"] - target_x, e["pos_y"] - target_y)
-                    if d <= radius:
-                        new_health = e["health"] - damage_per_tick
-                        result[eid] = {**e, "health": new_health}
-                        if new_health <= 0:
-                            to_remove.add(eid)
-                # Create storm effect marker
+                # SC1 Psionic Storm: 8 damage ticks × 14 damage = 112 total.
+                # On the cast tick we ONLY create the effect entity and emit a
+                # single SPELL_RESOLVED event — NO damage is applied here.
+                # Damage is dealt on subsequent ticks by the effect processor
+                # below, routed through resolve_weapon_impact().
                 storm_id = f"storm_{tick}_{caster_id}"
                 new_entities[storm_id] = {
                     "id": storm_id,
+                    "effect_id": storm_id,
+                    "caster_id": caster_id,
                     "owner": owner,
                     "entity_type": "effect",
                     "effect_type": "psionic_storm",
                     "pos_x": target_x,
                     "pos_y": target_y,
-                    "tick_created": tick,
-                    "duration": duration,
-                    "damage_per_tick": damage_per_tick,
+                    "start_tick": tick,
+                    "tick_created": tick,  # legacy field for generic effect loop
+                    "damage_per_tick": 14,
+                    "max_damage_ticks": 8,
+                    "damage_ticks_applied": 0,
                     "radius": radius,
                 }
+                # Cast emits exactly one SPELL_RESOLVED event (no impact).
+                append_combat_event(
+                    combat_events,
+                    tick=tick,
+                    event_type=SPELL_RESOLVED,
+                    attacker_id=caster_id,
+                    caster_id=caster_id,
+                    weapon_id="protoss_psionic_storm",
+                    target_x=target_x,
+                    target_y=target_y,
+                    radius=radius,
+                    effect_id=storm_id,
+                    delivery_type="area_periodic",
+                )
                 result[caster_id] = {**caster, **updates}
 
             elif spell_name == "empshockwave":
@@ -878,27 +922,66 @@ def process_spells(
         if e.get("entity_type") != "effect":
             continue
         etype = e.get("effect_type", "")
+
+        if etype == "psionic_storm":
+            # ── SC1 Psionic Storm lifecycle ─────────────────────
+            # 8 damage ticks of 14 damage each, dealt on ticks AFTER the cast
+            # tick. Damage is routed through resolve_weapon_impact() so that
+            # shields/armor/size-multiplier and combat-event emission are
+            # handled by the single authoritative damage path.
+            start_tick = e.get("start_tick", e.get("tick_created", tick))
+            dpt = e.get("damage_per_tick", 14)
+            max_ticks = e.get("max_damage_ticks", 8)
+            applied = e.get("damage_ticks_applied", 0)
+            radius = e.get("radius", 5.0)
+            px, py = e["pos_x"], e["pos_y"]
+            caster_id = e.get("caster_id", "")
+            effect_id = e.get("effect_id", eid)
+            storm_owner = e.get("owner", 0)
+
+            # Expire once all damage ticks have been applied.
+            if applied >= max_ticks:
+                to_remove.add(eid)
+                continue
+            # No damage on the cast tick itself — first hit lands on tick+1.
+            if tick <= start_tick:
+                continue
+
+            for tid, t in list(result.items()):
+                if tid == eid:
+                    continue
+                if t.get("entity_type") == "effect":
+                    continue
+                if t.get("owner", 0) == 0:
+                    continue  # skip neutral / resources
+                d = math.hypot(t["pos_x"] - px, t["pos_y"] - py)
+                if d <= radius:
+                    result, removed = resolve_weapon_impact(
+                        result,
+                        attacker_id=caster_id,
+                        target_id=tid,
+                        weapon_id="protoss_psionic_storm",
+                        weapon_type="normal",
+                        base_damage=dpt,
+                        tick=tick,
+                        combat_events=combat_events,
+                        kill_feed=kill_feed,
+                        projectile_id=effect_id,
+                        delivery_type="area_periodic",
+                    )
+                    to_remove.update(removed)
+            # Record that this damage tick fired.
+            result[eid] = {**e, "damage_ticks_applied": applied + 1}
+            continue
+
+        # ── Generic effect expiry + remaining effect types ─────
         age = tick - e.get("tick_created", tick)
         if age >= e.get("duration", 0):
             # Effect expired
             to_remove.add(eid)
             continue
 
-        if etype == "psionic_storm":
-            dpt = e.get("damage_per_tick", 0)
-            radius = e.get("radius", 5.0)
-            px, py = e["pos_x"], e["pos_y"]
-            for tid, t in list(result.items()):
-                if t.get("owner", 0) == 0:
-                    continue
-                d = math.hypot(t["pos_x"] - px, t["pos_y"] - py)
-                if d <= radius:
-                    new_health = t["health"] - dpt
-                    result[tid] = {**t, "health": new_health}
-                    if new_health <= 0:
-                        to_remove.add(tid)
-
-        elif etype == "nuclear_strike":
+        if etype == "nuclear_strike":
             # When age reaches duration, boom
             if age >= e.get("duration", 100) - 1:
                 dmg = e.get("damage", 800)
@@ -921,11 +1004,14 @@ def process_spells(
     # Add new entities
     result.update(new_entities)
 
-    # Tick down spell cooldowns on all entities
+    # Tick down spell cooldowns on all entities (but NOT attack cooldowns
+    # like cooldown_timer / cooldown_ground — those are handled by
+    # resolve_combat).
+    _ATTACK_COOLDOWN_KEYS = frozenset({"cooldown_timer", "cooldown_ground", "cooldown_air"})
     for eid, e in list(result.items()):
         keys_to_update = {}
         for k, v in e.items():
-            if k.startswith("cooldown_") and isinstance(v, int) and v > 0:
+            if k.startswith("cooldown_") and k not in _ATTACK_COOLDOWN_KEYS and isinstance(v, int) and v > 0:
                 keys_to_update[k] = v - 1
         if keys_to_update:
             result[eid] = {**e, **keys_to_update}

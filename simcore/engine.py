@@ -396,10 +396,14 @@ class SimCore:
                 entities, resources, transport_cmds, self._tick)
 
         # ── 6c. Process spells ─────────────────────────────
+        # Called every tick (even with no spell commands) so persistent spell
+        # effects such as Psionic Storm can advance their damage-tick schedule.
         spell_cmds = [c for c in valid if c.get("action") == "spell"]
-        if spell_cmds:
-            entities, resources = process_spells(
-                entities, resources, spell_cmds, self._tick)
+        entities, resources = process_spells(
+            entities, resources, spell_cmds, self._tick,
+            combat_events=combat_events,
+            kill_feed=self.rule_engine.kill_feed,
+        )
 
         # ── 6d. Nydus Canal link/enter ────────────────────
         nydus_cmds = [c for c in valid if c.get("action") in ("nydus_link", "nydus_enter")]

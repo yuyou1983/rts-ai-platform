@@ -191,12 +191,10 @@ class TestSpell:
         cmds = [{"action": "spell", "caster_id": "ht1", "spell": "psionicstorm",
                  "target_x": 11.0, "target_y": 10.0, "issuer": 1}]
         result, _ = process_spells(entities, {"p1_mineral": 0}, cmds, 1)
-        # e1 is in radius (1.0 away), should take storm damage
+        # Storm no longer damages on cast tick — advance to tick 2 for first damage
+        result, _ = process_spells(result, {"p1_mineral": 0}, [], 2)
+        # e1 is in radius (1.0 away), should take storm damage (14 per tick)
         assert result["e1"]["health"] < 40, f"e1 should take storm damage: {result['e1']['health']}"
-        # e2 is outside radius (4.0 away from target), should not be damaged initially
-        # (storm radius=5.0, target at 11.0, e2 at 15.0 → distance 4.0 ≤ 5.0, so e2 IS in radius)
-        # Let me recalculate: e2 at (15.0, 10.0), target at (11.0, 10.0), distance=4.0, radius=5.0
-        # So e2 is actually inside the radius. Let's just verify e1 took damage.
         assert result["ht1"]["energy"] < 75, "Templar should spend energy"
 
     def test_spell_siege_mode(self):

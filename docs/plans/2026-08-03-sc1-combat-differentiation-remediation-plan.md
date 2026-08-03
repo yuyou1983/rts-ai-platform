@@ -913,7 +913,7 @@ git commit -m "fix: route production attacks through authoritative projectiles"
 - Modify: `tests/simcore/test_support_spells.py`
 - Modify: `tests/simcore/test_combat_runtime_wiring.py`
 
-- [ ] **Step 1：写空命令 tick 推进失败测试**
+- [x] **Step 1：写空命令 tick 推进失败测试**
 
 ```python
 def test_storm_advances_without_new_spell_command():
@@ -931,7 +931,7 @@ def test_storm_advances_without_new_spell_command():
     assert len([e for e in events if e["event_type"] == "impact_resolved"]) == 8
 ```
 
-- [ ] **Step 2：扩展 spell API**
+- [x] **Step 2：扩展 spell API**
 
 ```python
 def process_spells(
@@ -947,7 +947,7 @@ def process_spells(
 
 `engine.step()` 每 tick 都调用 `process_spells(..., commands=spell_cmds)`，即使 `spell_cmds == []`。
 
-- [ ] **Step 3：实现 Storm 事件语义**
+- [x] **Step 3：实现 Storm 事件语义**
 
 1. 施法成功只发一个 `spell_resolved`，weapon ID 为 `protoss_psionic_storm`。
 2. effect 保存 `effect_id`、caster、owner、中心、开始 tick、8 个 damage tick 调度。
@@ -956,11 +956,11 @@ def process_spells(
 5. Storm 不应用普通 unit armor/size multiplier；以 source audit/OpenBW 裁决的 spell 规则进入 resolver 参数。
 6. 结束后删除 effect；下一 tick 无伤害、无事件。
 
-- [ ] **Step 4：防止创建 tick 双扣血**
+- [x] **Step 4：防止创建 tick 双扣血**
 
 测试分别断言：cast branch 不直接扣血；只有调度中的第一个 damage tick 扣血；总伤害 tick 数为 8，总理论伤害为 112，目标死亡时按实际剩余 HP clamp。
 
-- [ ] **Step 5：运行并提交**
+- [x] **Step 5：运行并提交**
 
 ```bash
 python3 -m pytest tests/simcore/test_support_spells.py tests/simcore/test_combat_runtime_wiring.py -k "storm or spell" -q

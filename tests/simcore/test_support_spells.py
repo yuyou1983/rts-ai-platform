@@ -238,3 +238,98 @@ class TestRestorationParasite:
         cmds = [{"action": "spell", "caster_id": "c1", "spell": "restoration", "target_id": "t1"}]
         result, _ = process_spells(ents, {"p1_mineral": 5000}, cmds, tick=1)
         assert not any(b["type"] == "maelstrom" for b in result["t1"]["buffs"])
+
+
+# ── Psionic Storm lifecycle tests (Task 7) ──────────────────────────────────
+
+
+class TestPsionicStorm:
+    """SC1 Psionic Storm: 8 damage ticks × 14 dmg = 112 total, routed through
+    resolve_weapon_impact(). Cast tick deals NO damage; storm advances on
+    subsequent ticks even with an empty command list."""
+
+    def _setup(self):
+        """Caster at (0,0), target at (10,0) — outside Storm radius (5)."""
+        caster = _caster(eid="ht1", x=0, y=0, energy=200)
+        target = _target(eid="m1", x=10, y=0, hp=200)
+        target["armor_type"] = "light"
+        target["armor"] = 0
+        target["shields"] = 0
+        entities = {"ht1": caster, "m1": target}
+        cmd = [{"action": "spell", "spell": "psionicstorm",
+                "caster_id": "ht1", "target_x": 10.0, "target_y": 0.0}]
+        return entities, cmd
+
+    def test_storm_emits_spell_resolved_on_cast(self):
+        """Cast emits exactly one SPELL_RESOLVED event with weapon_id."""
+        from simcore.combat_events import SPELL_RESOLVED
+        entities, cmd = self._setup()
+        events = []
+        process_spells(entities, {}, cmd, tick=1, combat_events=events)
+        spells = [e for e in events if e["event_type"] == SPELL_RESOLVED]
+        assert len(spells) == 1
+        assert spells[0]["weapon_id"] == "protoss_psionic_storm"
+
+    def test_storm_no_damage_on_cast_tick(self):
+        """Cast tick deals zero damage — first impact is on tick 2."""
+        from simcore.combat_events import IMPACT_RESOLVED
+        entities, cmd = self._setup()
+        events = []
+        result, _ = process_spells(entities, {}, cmd, tick=1, combat_events=events)
+        impacts = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+        assert len(impacts) == 0, f"Expected 0 impacts on cast tick, got {len(impacts)}"
+        assert result["m1"]["health"] == 200, "Target should not be damaged on cast tick"
+
+    def test_storm_advances_without_new_spell_command(self):
+        """Storm continues to deal damage on ticks 2-9 with empty command list."""
+        from simcore.combat_events import IMPACT_RESOLVED
+        entities, cmd = self._setup()
+        events = []
+        result, _ = process_spells(entities, {}, cmd, tick=1, combat_events=events)
+        hp_after_cast = result["m1"]["health"]
+        for t in range(2, 10):
+            result, _ = process_spells(result, {}, [], tick=t, combat_events=events)
+        impacts = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+        assert len(impacts) == 8, f"Expected 8 impacts over 8 ticks, got {len(impacts)}"
+        assert result["m1"]["health"] < hp_after_cast, "Target should have taken damage"
+
+    def test_storm_total_damage_8_ticks_14_each(self):
+        """8 impacts × 14 base damage = 112 total."""
+        from simcore.combat_events import IMPACT_RESOLVED
+        # Use a target with enough HP to survive all 8 ticks
+        entities, cmd = self._setup()
+        entities["m1"]["health"] = 200
+        entities["m1"]["max_health"] = 200
+        events = []
+        result, _ = process_spells(entities, {}, cmd, tick=1, combat_events=events)
+        for t in range(2, 12):
+            result, _ = process_spells(result, {}, [], tick=t, combat_events=events)
+        impacts = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+        assert len(impacts) == 8
+        # Each impact should have base_damage = 14
+        for imp in impacts:
+            assert imp["base_damage"] == 14
+        # Total damage = 8 × 14 = 112; with 0 armor and light vs normal (100%), health = 200 - 112 = 88
+        assert result["m1"]["health"] == 88, f"Expected HP=88, got {result['m1']['health']}"
+
+    def test_storm_expires_after_8_damage_ticks(self):
+        """After 8 damage ticks, storm effect is removed and no more damage occurs."""
+        from simcore.combat_events import IMPACT_RESOLVED
+        entities, cmd = self._setup()
+        entities["m1"]["health"] = 500  # ensure survival
+        entities["m1"]["max_health"] = 500
+        events = []
+        result, _ = process_spells(entities, {}, cmd, tick=1, combat_events=events)
+        # Advance through all 8 damage ticks
+        for t in range(2, 12):
+            result, _ = process_spells(result, {}, [], tick=t, combat_events=events)
+        hp_after_8_ticks = result["m1"]["health"]
+        # Continue for several more ticks — no additional damage
+        for t in range(12, 20):
+            result, _ = process_spells(result, {}, [], tick=t, combat_events=events)
+        impacts = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+        assert len(impacts) == 8, f"Expected exactly 8 impacts, got {len(impacts)}"
+        assert result["m1"]["health"] == hp_after_8_ticks, "No damage after storm expired"
+        # Storm effect entity should be gone
+        storm_entities = [e for e in result.values() if e.get("effect_type") == "psionic_storm"]
+        assert len(storm_entities) == 0, "Storm effect should have been removed"
