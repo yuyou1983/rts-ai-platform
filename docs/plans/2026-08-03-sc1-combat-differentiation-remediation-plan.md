@@ -177,7 +177,7 @@ Stop at every Gate. Do not continue when the Gate is FAIL or CONCERNS unless thi
 - Create: `docs/reports/sc1-combat-differentiation-remediation-qa.md`
 - Modify: `docs/reports/sc1-combat-differentiation-changelog.md`
 
-- [ ] **Step 1：检查分支和脏文件，不触碰无关内容**
+- [x] **Step 1：检查分支和脏文件，不触碰无关内容**
 
 Run:
 
@@ -198,7 +198,7 @@ combat plan actual range: approximately 42 files, not 973 files
 
 如果工作区含 `harness/output/`、`tmp/` 或演示 HTML，记录但不 stage。执行 agent 应建立独立 worktree/分支 `codex/sc1-combat-remediation`。
 
-- [ ] **Step 2：写 QA 基线**
+- [x] **Step 2：写 QA 基线**
 
 报告必须包含以下初始 Gate，不得先写 PASS：
 
@@ -223,11 +223,11 @@ combat plan actual range: approximately 42 files, not 973 files
 | G7 Final | BLOCKED | manual and 30v30 gates not run |
 ```
 
-- [ ] **Step 3：纠正 changelog 声明**
+- [x] **Step 3：纠正 changelog 声明**
 
 在 changelog 顶部增加“2026-08-03 校验更正”，明确：自动测试通过只证明 fixture 自洽；“12/12 正式闭环”“Storm 自动测试”“replay 确定”“人工完成”撤回到待修复状态。把总变更改为实际 `git diff --shortstat 87ddbd8..HEAD` 输出。
 
-- [ ] **Step 4：运行基线回归**
+- [x] **Step 4：运行基线回归**
 
 Run:
 
@@ -240,7 +240,7 @@ python3 scripts/verify_presentation_scene.py
 
 Expected: 命令通过，但 QA 仍为 FAIL，因为尚未验证生产链。
 
-- [ ] **Step 5：提交基线更正**
+- [x] **Step 5：提交基线更正**
 
 ```bash
 git add docs/reports/sc1-combat-differentiation-remediation-qa.md docs/reports/sc1-combat-differentiation-changelog.md
@@ -253,7 +253,7 @@ git commit -m "docs: record SC1 combat remediation baseline"
 
 ---
 
-## Task 1：生成有效 MPQ 覆盖层和来源清单
+：生成有效 MPQ 覆盖层和来源清单
 
 **Files:**
 - Modify: `tools/mpq/extract_dat.py`
@@ -366,7 +366,7 @@ git commit -m "fix: extract effective SC1 combat DAT overlay"
 - Deprecate: `tools/sc1_assets/audit_combat_reference.py`
 - Deprecate: `tools/sc1_assets/combat_reference.json`
 
-- [ ] **Step 1：写 source identity 和禁止 fallback 的失败测试**
+- [x] **Step 1：写 source identity 和禁止 fallback 的失败测试**
 
 ```python
 EXPECTED_UNIT_IDS = {
@@ -393,7 +393,7 @@ def test_reference_has_no_wiki_generation_source(reference):
     assert reference["meta"]["openbw_commit"] == "8265ec449b903e0752060a00ed5f930a3656bf00"
 ```
 
-- [ ] **Step 2：确认旧 reference 失败**
+- [x] **Step 2：确认旧 reference 失败**
 
 Run:
 
@@ -403,7 +403,7 @@ python3 -m pytest tests/tools/test_sc1_combat_dat_audit.py -k "identity or wiki"
 
 Expected: FAIL；旧 reference 的 unit IDs、Tank、Ultralisk、Reaver 或 source metadata 不符合。
 
-- [ ] **Step 3：实现审计器**
+- [x] **Step 3：实现审计器**
 
 审计器必须直接使用：
 
@@ -443,7 +443,7 @@ def build_reference(dat_root: Path, provenance: dict) -> dict: ...
 7. Firebat 的 mechanics hit cadence、Mutalisk bounce、Storm periodic ticks、Scarab tracking/splash 使用 `iscript.bin` 和固定 OpenBW commit 交叉裁决，并在每条记录中保存 `behavior_evidence`。
 8. 不引用 `tools/mpq/sc1_dat_chain.py::UNIT_NAMES`，该表不是 combat unit ID 真值。
 
-- [ ] **Step 4：锁定关键有效覆盖值**
+- [x] **Step 4：锁定关键有效覆盖值**
 
 ```python
 def test_patch_values(reference):
@@ -461,7 +461,7 @@ def test_patch_values(reference):
     assert units["Reaver"]["scarab_weapon"]["splash_ranges"] == [20, 40, 60]
 ```
 
-- [ ] **Step 5：生成 reference 和可读报告**
+- [x] **Step 5：生成 reference 和可读报告**
 
 Run:
 
@@ -472,11 +472,11 @@ python3 -m pytest tests/tools/test_sc1_combat_dat_audit.py -q
 
 Expected: 12/12 unit identity、11 ordinary/代理 weapons + Storm、provenance、OpenBW evidence 全部 PASS。
 
-- [ ] **Step 6：停用旧审计器**
+- [x] **Step 6：停用旧审计器**
 
 旧脚本保留兼容入口时只能转调新审计器并打印 deprecation warning；旧 JSON 不再被测试或运行时读取。不得保留一个仍会输出虚假 `OVERALL: PASS` 的旁路。
 
-- [ ] **Step 7：提交 source gate**
+- [x] **Step 7：提交 source gate**
 
 ```bash
 git add scripts/audit_sc1_combat_data.py data/combat/sc1_representative_reference.json docs/reports/sc1-12-unit-combat-source-audit.md tests/tools/test_sc1_combat_dat_audit.py tools/sc1_assets/audit_combat_reference.py
@@ -489,7 +489,7 @@ git commit -m "fix: rebuild SC1 combat truth from effective DAT"
 
 ---
 
-## Task 3：由 reference 生成 mechanics catalog 和 unit binding
+：由 reference 生成 mechanics catalog 和 unit binding
 
 **Files:**
 - Create: `scripts/sync_sc1_combat_catalog.py`
