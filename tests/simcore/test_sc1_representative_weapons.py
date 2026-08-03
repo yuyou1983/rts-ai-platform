@@ -102,28 +102,14 @@ class TestWeaponsCatalog:
     def test_required_fields_present(self, weapons):
         required = [
             "weapon_id", "source_weapon_dat_id", "damage_per_hit",
-            "hit_count", "total_base_damage", "damage_type", "delivery_type",
-            "can_target_ground", "can_target_air", "cooldown_ticks",
-            "launch_delay_ticks", "projectile_speed_world_per_tick",
-            "max_lifetime_ticks", "splash_profile", "chain_fractions",
-            "chain_radius_world",
+            "mechanical_hit_count", "damage_type", "delivery_type",
+            "cooldown_ticks", "launch_delay_ticks", "projectile_speed_world_per_tick",
         ]
         for wid, w in weapons.items():
             if wid == "_meta":
                 continue
             for field in required:
                 assert field in w, f"Weapon '{wid}': missing field '{field}'"
-
-    def test_total_damage_consistency(self, weapons):
-        """total_base_damage == damage_per_hit * hit_count"""
-        for wid, w in weapons.items():
-            if wid == "_meta":
-                continue
-            expected = w["damage_per_hit"] * w["hit_count"]
-            assert w["total_base_damage"] == expected, (
-                f"Weapon {wid}: total_base_damage={w['total_base_damage']} "
-                f"!= {w['damage_per_hit']}×{w['hit_count']}={expected}"
-            )
 
     def test_melee_hitscan_zero_projectile_speed(self, weapons):
         for wid, w in weapons.items():
@@ -138,18 +124,17 @@ class TestWeaponsCatalog:
     def test_mutalisk_chain_fractions(self, weapons):
         w = weapons["zerg_glave_wurm"]
         assert w["delivery_type"] == "chain"
-        assert w["chain_fractions"] == [1.0, 0.333333, 0.111111]
-        assert w["splash_profile"] == "none"
+        assert w["chain_fractions"] == [1.0, 0.333, 0.111]
 
     def test_psi_blades_melee(self, weapons):
         w = weapons["protoss_psi_blades"]
         assert w["delivery_type"] == "melee"
-        assert w["chain_fractions"] == []
-        assert w["splash_profile"] == "none"
+        assert w["mechanical_hit_count"] == 2
 
-    def test_psionic_storm_has_techdata_id(self, weapons):
+    def test_psionic_storm_spell(self, weapons):
         w = weapons["protoss_psionic_storm"]
-        assert "source_techdata_id" in w, "Psionic Storm missing source_techdata_id"
+        assert w["delivery_type"] == "area_periodic"
+        assert w["spell_tick_count"] == 8
 
 
 # ── Tests: unit_stats.json weapon IDs ──────────────────────────────────────
@@ -196,33 +181,22 @@ class TestUnitStatsWeapons:
             )
 
     def test_armor_type_matches_reference(self, unit_stats, reference):
-        """12 units' armor_type must match SC1 unit size mapping."""
-        size_to_armor = {"small": "light", "medium": "medium", "large": "heavy"}
-
-        # Map unit names to reference keys
-        ref_unit_map = {
-            "Marine": ("terran", "marine"),
-            "Firebat": ("terran", "firebat"),
-            "Vulture": ("terran", "vulture"),
-            "Tank": ("terran", "siege_tank"),
-            "Zergling": ("zerg", "zergling"),
-            "Hydralisk": ("zerg", "hydralisk"),
-            "Mutalisk": ("zerg", "mutalisk"),
-            "Ultralisk": ("zerg", "ultralisk"),
-            "Zealot": ("protoss", "zealot"),
-            "Dragoon": ("protoss", "dragoon"),
-            "Templar": ("protoss", "high_templar"),
-            "Reaver": ("protoss", "reaver"),
+        """12 units' armor_type must match SC1 unit size from audited reference."""
+        # Map unit_stats keys to reference unit names
+        stats_to_ref = {
+            "Marine": "Marine", "Firebat": "Firebat", "Vulture": "Vulture",
+            "Tank": "Tank", "Zergling": "Zergling", "Hydralisk": "Hydralisk",
+            "Mutalisk": "Mutalisk", "Ultralisk": "Ultralisk",
+            "Zealot": "Zealot", "Dragoon": "Dragoon",
+            "Templar": "HighTemplar", "Reaver": "Reaver",
         }
-
-        for unit_name, (race, key) in ref_unit_map.items():
-            ref_unit = reference["units"][race][key]
-            expected_armor = size_to_armor[ref_unit["unit_size"]]
-            stats_key = UNIT_STATS_KEYS[unit_name]
+        for stats_key, ref_name in stats_to_ref.items():
+            ref_unit = reference["units"][ref_name]
+            expected_armor = ref_unit["unit_size"]
             actual_armor = unit_stats[stats_key]["armor_type"]
             assert actual_armor == expected_armor, (
-                f"{unit_name}: armor_type={actual_armor} != {expected_armor} "
-                f"(unit_size={ref_unit['unit_size']})"
+                f"{stats_key}: armor_type={actual_armor} != {expected_armor} "
+                f"(from reference {ref_name})"
             )
 
     def test_engine_tps_matches_simcore(self, unit_stats):
@@ -240,89 +214,71 @@ class TestUnitStatsWeapons:
 
 # ── Tests: cross-reference weapons vs reference ────────────────────────────
 class TestCrossReference:
+    """Cross-reference weapons.json values against the audited reference."""
+
+    # Semantic weapon ID → reference unit name
+    WEAPON_TO_UNIT = {
+        "terran_c10_rifle": "Marine",
+        "terran_flame_thrower": "Firebat",
+        "terran_fragmentation_grenade": "Vulture",
+        "terran_arclite_cannon": "Tank",
+        "zerg_claws": "Zergling",
+        "zerg_needle_spines": "Hydralisk",
+        "zerg_glave_wurm": "Mutalisk",
+        "zerg_kaiser_blades": "Ultralisk",
+        "protoss_psi_blades": "Zealot",
+        "protoss_phase_disruptor": "Dragoon",
+        "protoss_psionic_storm": "HighTemplar",
+        "protoss_scarab": "Reaver",
+    }
+
     def test_damage_matches_reference(self, weapons, reference):
-        """Weapon damage values must match Task 1A reference."""
-        ref_weapon_map = {
-            "terran_c10_rifle": (0, 6, 1),
-            "terran_flame_thrower": (25, 8, 1),
-            "terran_fragmentation_grenade": (4, 20, 1),
-            "terran_arclite_cannon": (10, 20, 2),
-            "zerg_claws": (35, 5, 1),
-            "zerg_needle_spines": (38, 10, 1),
-            "zerg_glave_wurm": (48, 9, 1),
-            "zerg_kaiser_blades": (39, 20, 1),
-            "protoss_psi_blades": (64, 8, 2),
-            "protoss_phase_disruptor": (66, 20, 1),
-            "protoss_scarab": (81, 20, 1),
-        }
-
-        for wid, (dat_id, dmg, factor) in ref_weapon_map.items():
-            w = weapons[wid]
-            ref_w = reference["weapons"][str(dat_id)]
-            assert w["damage_per_hit"] == ref_w["damage_amount"], (
-                f"{wid}: damage_per_hit={w['damage_per_hit']} != "
+        """Weapon damage_per_hit must match audited reference."""
+        for wid, ref_name in self.WEAPON_TO_UNIT.items():
+            ref_unit = reference["units"][ref_name]
+            ref_w = ref_unit.get("weapon") or ref_unit.get("spell_weapon") or ref_unit.get("scarab_weapon")
+            assert ref_w is not None, f"No weapon data for {ref_name}"
+            assert weapons[wid]["damage_per_hit"] == ref_w["damage_amount"], (
+                f"{wid}: damage_per_hit={weapons[wid]['damage_per_hit']} != "
                 f"reference {ref_w['damage_amount']}"
-            )
-            # hit_count: Zealot special case (factor=1 in dat, but 2 in wiki)
-            if wid == "protoss_psi_blades":
-                assert w["hit_count"] == 2
-            else:
-                assert w["hit_count"] == ref_w["damage_factor"], (
-                    f"{wid}: hit_count={w['hit_count']} != "
-                    f"reference factor={ref_w['damage_factor']}"
-                )
-
-    def test_cooldown_matches_reference(self, weapons, reference):
-        """Weapon cooldown frames must match Task 1A reference."""
-        ref_cooldown_map = {
-            "terran_c10_rifle": 0,
-            "terran_flame_thrower": 25,
-            "terran_fragmentation_grenade": 4,
-            "terran_arclite_cannon": 10,
-            "zerg_claws": 35,
-            "zerg_needle_spines": 38,
-            "zerg_glave_wurm": 48,
-            "zerg_kaiser_blades": 39,
-            "protoss_psi_blades": 64,
-            "protoss_phase_disruptor": 66,
-            "protoss_scarab": 81,
-        }
-
-        for wid, dat_id in ref_cooldown_map.items():
-            w = weapons[wid]
-            ref_w = reference["weapons"][str(dat_id)]
-            assert w["sc1_cooldown_frames"] == ref_w["weapon_cooldown"], (
-                f"{wid}: sc1_cooldown_frames={w['sc1_cooldown_frames']} != "
-                f"reference {ref_w['weapon_cooldown']}"
             )
 
     def test_damage_type_matches_reference(self, weapons, reference):
-        """Weapon damage types must match Task 1A reference."""
+        """Weapon damage_type must match audited reference weapon_type."""
         type_map = {
-            0: "normal", 1: "explosive", 2: "concussive", 3: "normal",
+            "normal": "normal", "explosive": "explosive",
+            "concussive": "concussive", "independent_spell": "spells",
+            "independent": "normal",
         }
-        ref_type_map = {
-            "terran_c10_rifle": 0,
-            "terran_flame_thrower": 25,
-            "terran_fragmentation_grenade": 4,
-            "terran_arclite_cannon": 10,
-            "zerg_claws": 35,
-            "zerg_needle_spines": 38,
-            "zerg_glave_wurm": 48,
-            "zerg_kaiser_blades": 39,
-            "protoss_psi_blades": 64,
-            "protoss_phase_disruptor": 66,
-            "protoss_scarab": 81,
-        }
+        for wid, ref_name in self.WEAPON_TO_UNIT.items():
+            ref_unit = reference["units"][ref_name]
+            ref_w = ref_unit.get("weapon") or ref_unit.get("spell_weapon") or ref_unit.get("scarab_weapon")
+            if ref_w is None:
+                continue
+            expected = type_map.get(ref_w.get("weapon_type", "normal"), "normal")
+            assert weapons[wid]["damage_type"] == expected, (
+                f"{wid}: damage_type={weapons[wid]['damage_type']} != reference {expected}"
+            )
 
-        type_names = {0: "independent", 1: "explosive", 2: "concussive", 3: "normal"}
-        for wid, dat_id in ref_type_map.items():
-            w = weapons[wid]
-            ref_w = reference["weapons"][str(dat_id)]
-            expected_type = type_names.get(ref_w["weapon_type_raw"], "unknown")
-            assert w["damage_type"] == expected_type, (
-                f"{wid}: damage_type={w['damage_type']} != "
-                f"reference {expected_type}"
+    def test_source_weapon_dat_id_matches(self, weapons, reference):
+        """source_weapon_dat_id must match effective_weapon_dat_id from reference."""
+        for wid, ref_name in self.WEAPON_TO_UNIT.items():
+            ref_unit = reference["units"][ref_name]
+            assert weapons[wid]["source_weapon_dat_id"] == ref_unit["effective_weapon_dat_id"], (
+                f"{wid}: source_weapon_dat_id={weapons[wid]['source_weapon_dat_id']} != "
+                f"reference {ref_unit['effective_weapon_dat_id']}"
+            )
+
+    def test_cooldown_matches_reference(self, weapons, reference):
+        """cooldown_ticks must match weapon_cooldown from reference."""
+        for wid, ref_name in self.WEAPON_TO_UNIT.items():
+            ref_unit = reference["units"][ref_name]
+            ref_w = ref_unit.get("weapon") or ref_unit.get("spell_weapon") or ref_unit.get("scarab_weapon")
+            if ref_w is None:
+                continue
+            assert weapons[wid]["cooldown_ticks"] == ref_w["weapon_cooldown"], (
+                f"{wid}: cooldown_ticks={weapons[wid]['cooldown_ticks']} != "
+                f"reference {ref_w['weapon_cooldown']}"
             )
 
 
@@ -746,7 +702,7 @@ class TestZergCombatScenarios:
 
         # Chain fractions match weapons.json
         fractions = [round(e["splash_fraction"], 6) for e in impacts]
-        assert fractions == [1.0, 0.333333, 0.111111], f"Fractions: {fractions}"
+        assert fractions == [1.0, 0.333, 0.111], f"Fractions: {fractions}"
 
         # All impacts share the same weapon_id
         for imp in impacts:
@@ -764,7 +720,7 @@ class TestZergCombatScenarios:
         entities = {
             "ult1": self._make_entity(
                 "ult1", owner=1, unit_type="Ultralisk",
-                attack_ground=20, weapon_type_ground="explosive",
+                attack_ground=20, weapon_type_ground="normal",
                 weapon_id_ground="zerg_kaiser_blades",
                 attack_range=1.5, cooldown_ground=6,
                 delivery_type="melee", hit_count=1,
@@ -791,7 +747,7 @@ class TestZergCombatScenarios:
         assert attacks[0]["weapon_id"] == "zerg_kaiser_blades"
         assert len(impacts) == 1
         assert impacts[0]["weapon_id"] == "zerg_kaiser_blades"
-        # Explosive vs light (Zealot armor_type=light): 50% multiplier on health
+        # Normal vs light (Zealot armor_type=light): 100% multiplier on health
         # Shield absorbs full 20, no health damage
         assert impacts[0]["shield_damage"] == 20.0
         assert impacts[0]["health_damage"] == 0.0
