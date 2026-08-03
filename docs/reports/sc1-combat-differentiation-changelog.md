@@ -1,9 +1,19 @@
 # SC1 战斗差异化更新日志
 
+> **2026-08-03 校验更正**: 以下声明经 `docs/plans/2026-08-03-sc1-combat-differentiation-remediation-plan.md` 审查后撤回到待修复状态：
+> - "12/12 正式闭环" — 实际未经过生产构造链路（R1: `_build_unit_entity()` 丢弃 semantic combat fields）
+> - "Storm 自动测试" — 实际空命令 tick 不推进（R5）
+> - "replay 确定" — E2E 测试直接调用 `resolve_combat()`，未经过 engine/construction/transport（R6）
+> - "人工完成" — 30v30 与 10 matchup 未人工执行（R9）
+>
+> 自动测试通过只证明 fixture 自洽，不证明正式生产链路已贯通。下方原文保留供参考。
+>
+> **实际变更**: `git diff --shortstat 87ddbd8..HEAD` = 42 files changed, 14596 insertions(+), 356 deletions(-)（非 973 文件）。
+
 **分支**: `codex/sc1-combat-differentiation`
 **时间**: 2026-07-29 ~ 2026-07-31
 **HEAD**: `5b8b925`
-**总变更**: 973 文件, +74,871 行, -3,630 行
+**总变更**: 42 files changed, +14,596 insertions(-), -356 deletions(-)
 
 ---
 
