@@ -11,6 +11,7 @@ Resolution order per tick:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -33,7 +34,18 @@ from simcore.combat_resolution import (  # noqa: F401
     KillFeed,
     resolve_weapon_impact,
 )
+
 from simcore.combat_catalog import load_weapon_catalog  # noqa: F401
+
+
+def deterministic_percent_roll(*parts: object) -> int:
+    """Stable, cross-process deterministic 0-99 roll.
+
+    Uses BLAKE2s so the result is identical regardless of PYTHONHASHSEED.
+    """
+    payload = "\x1f".join(str(part) for part in parts).encode("utf-8")
+    digest = hashlib.blake2s(payload, digest_size=4).digest()
+    return int.from_bytes(digest, "little") % 100
 
 # ─── Constants ───────────────────────────────────────────────
 
@@ -890,7 +902,7 @@ def resolve_combat(
                 ax, ay = int(e.get("pos_x", 0)), int(e.get("pos_y", 0))
                 tx, ty = int(target.get("pos_x", 0)), int(target.get("pos_y", 0))
                 hit_chance = tile_map.high_ground_hit_chance(ax, ay, tx, ty)
-                roll = (hash((tick, uid)) & 0x7FFFFFFF) % 100
+                roll = deterministic_percent_roll(tick, uid)
                 hit = roll < int(hit_chance * 100)
 
             if hit:
@@ -1184,7 +1196,7 @@ def resolve_combat(
                     ax, ay = int(e.get("pos_x", 0)), int(e.get("pos_y", 0))
                     tx, ty = int(target.get("pos_x", 0)), int(target.get("pos_y", 0))
                     hit_chance = tile_map.high_ground_hit_chance(ax, ay, tx, ty)
-                    roll = (hash((tick, eid, best_target)) & 0x7FFFFFFF) % 100
+                    roll = deterministic_percent_roll(tick, eid, best_target)
                     hit = roll < int(hit_chance * 100)
 
                 if hit:
