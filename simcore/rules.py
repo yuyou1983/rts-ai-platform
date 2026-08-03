@@ -143,20 +143,6 @@ PRIORITY_WEIGHT_HEALTH = 0.6   # prefer low-health targets
 PRIORITY_WEIGHT_DIST = 0.3     # prefer nearby targets
 PRIORITY_WEIGHT_THREAT = 0.1   # prefer high-damage targets
 
-# ─── Damage Matrix ──────────────────────────────────────────
-
-_DAMAGE_MATRIX_DATA: dict | None = None
-
-# Weapon type to attack type index mapping (from data/combat.json attackTypes)
-_WEAPON_TYPE_MAP: dict[str, int] = {
-    "normal": 2,      # WAVE → 100% to all
-    "explosive": 1,   # BURST → 50% small, 75% medium, 100% large
-    "concussive": 0,  # NORMAL → 100% small, 50% medium, 25% large
-    "spells": 2,      # WAVE → 100% to all (spells ignore armor type)
-    "splash": 2,      # WAVE → 100% to all
-    "melee": 2,       # WAVE → 100% to all (melee does full damage)
-}
-
 # ─── Splash Damage Profiles (SC1 rules) ──────────────────────
 # Each profile defines: inner/mid/outer radius (game units) and damage fraction.
 # Siege Tank: 100%/50%/25% at 0.5/0.8/1.2 map-tile radii
@@ -180,121 +166,6 @@ _SPLASH_PROFILES: dict[str, dict] = {
 
 # Map tile size in game units (for splash radius conversion)
 _MAP_TILE_SIZE = 32.0
-
-# Armor type to unit type index mapping (from data/combat.json unitTypes)
-_ARMOR_TYPE_MAP: dict[str, int] = {
-    "light": 0,   # SMALL
-    "medium": 1,  # MIDDLE
-    "heavy": 2,   # BIG
-}
-
-
-def _load_damage_matrix() -> dict:
-    """Load damage matrix from data/combat.json (cached)."""
-    global _DAMAGE_MATRIX_DATA
-    if _DAMAGE_MATRIX_DATA is None:
-        path = Path(__file__).resolve().parent.parent / "data" / "combat.json"
-        with open(path) as f:
-            _DAMAGE_MATRIX_DATA = json.load(f)
-    return _DAMAGE_MATRIX_DATA
-
-
-def calculate_damage(
-    base_damage: float,
-    weapon_type: str,
-    target_armor: int,
-    target_armor_type: str,
-) -> float:
-    """Calculate final damage using the damage matrix.
-
-    Formula: final = (base_damage × damageMatrix[attackType][unitType] - armor) × 0.01
-    Minimum: 0.5 (from combat.json minDamage)
-
-    Args:
-        base_damage: Base damage value of the attack.
-        weapon_type: One of "normal", "explosive", "concussive", "spells", "splash", "melee".
-        target_armor: Target's armor value.
-        target_armor_type: One of "light", "medium", "heavy".
-
-    Returns:
-        Final damage value (minimum 0.5).
-    """
-    data = _load_damage_matrix()
-    matrix = data.get("damageMatrix", [[100, 50, 25], [50, 75, 100], [100, 100, 100]])
-    min_damage = data.get("minDamage", 0.5)
-
-    attack_idx = _WEAPON_TYPE_MAP.get(weapon_type, 2)  # default: normal (full damage)
-    armor_idx = _ARMOR_TYPE_MAP.get(target_armor_type, 1)  # default: medium
-
-    # Get multiplier percentage from matrix
-    if 0 <= attack_idx < len(matrix) and 0 <= armor_idx < len(matrix[attack_idx]):
-        multiplier_pct = matrix[attack_idx][armor_idx]
-    else:
-        multiplier_pct = 100
-
-    # Apply formula: (base_damage × multiplier% / 100 - armor)
-    raw_damage = base_damage * multiplier_pct / 100.0 - target_armor
-
-    # Minimum damage
-    return max(min_damage, raw_damage)
-
-
-def get_damage_multiplier(weapon_type: str, target_armor_type: str) -> float:
-    """Return the SC1 size multiplier (0.25–1.0) for weapon vs armor type.
-
-    This is purely the damage-matrix percentage divided by 100 — it does NOT
-    include armor reduction, shield absorption, or any other modifiers.
-    """
-    data = _load_damage_matrix()
-    matrix = data.get("damageMatrix", [[100, 50, 25], [50, 75, 100], [100, 100, 100]])
-    attack_idx = _WEAPON_TYPE_MAP.get(weapon_type, 2)
-    armor_idx = _ARMOR_TYPE_MAP.get(target_armor_type, 1)
-    if 0 <= attack_idx < len(matrix) and 0 <= armor_idx < len(matrix[attack_idx]):
-        return matrix[attack_idx][armor_idx] / 100.0
-    return 1.0
-
-
-def get_armor_type(entity: dict[str, Any]) -> str:
-    """Determine armor type for an entity.
-
-    Priority:
-      1. Entity's own 'armor_type' field (populated from unit_stats.json)
-      2. Fallback: legacy unit-type mapping (buildings→heavy, etc.)
-    """
-    # Fast path: JSON-driven armor_type is authoritative
-    at = entity.get("armor_type", "")
-    if at in ("light", "medium", "heavy"):
-        return at
-
-    # Legacy fallback for entities without armor_type
-    etype = entity.get("entity_type", "")
-    utype = entity.get("unit_type", "").lower() if entity.get("unit_type") else ""
-
-    if etype == "building":
-        return "heavy"
-
-    light_units = {"worker", "soldier", "scout", "zergling", "marine", "ghost",
-                   "firebat", "medic", "scourge", "broodling", "larva",
-                   "probe", "zealot", "darktemplar", "observer",
-                   "scv", "drone"}
-    medium_units = {"hydralisk", "vulture", "goliath", "wraith", "valkyrie",
-                    "mutalisk", "queen", "defiler", "corsair", "dropship",
-                    "shuttle", "lurker", "infestedterran", "overlord"}
-    heavy_units = {"tank", "ultralisk", "battlecruiser", "carrier", "arbitr",
-                   "archon", "darkarchon", "reaver", "guardian", "devourer",
-                   "vessel", "behemoth"}
-
-    if utype in light_units or etype in light_units:
-        return "light"
-    elif utype in medium_units:
-        return "medium"
-    elif utype in heavy_units:
-        return "heavy"
-
-    if etype in ("worker", "scout"):
-        return "light"
-
-    return "medium"
 
 
 def _get_splash_profile(entity: dict[str, Any]) -> dict | None:
@@ -391,7 +262,7 @@ def _apply_splash(
             shield_dmg = min(shield, splash_base)
             remaining = splash_base - shield_dmg
             if remaining > 0:
-                health_dmg = max(0.5, remaining * splash_size_mult - target_armor)
+                health_dmg = max(0.5, max(0.0, remaining - target_armor) * splash_size_mult)
             else:
                 health_dmg = 0
             new_shield = shield - shield_dmg
@@ -555,7 +426,7 @@ def _apply_chain(
             shield_dmg = min(shield, bounce_base)
             remaining = bounce_base - shield_dmg
             if remaining > 0:
-                health_dmg = max(0.5, remaining * size_mult - target_armor)
+                health_dmg = max(0.5, max(0.0, remaining - target_armor) * size_mult)
             else:
                 health_dmg = 0
             new_shield = shield - shield_dmg
@@ -991,7 +862,7 @@ def resolve_combat(
                         shield_dmg = min(cur_shield, per_hit_dmg)
                         remaining = per_hit_dmg - shield_dmg
                         if remaining > 0:
-                            health_dmg = max(0.5, remaining * size_mult - target_armor)
+                            health_dmg = max(0.5, max(0.0, remaining - target_armor) * size_mult)
                         else:
                             health_dmg = 0
                         new_shield = cur_shield - shield_dmg
@@ -1228,7 +1099,7 @@ def resolve_combat(
                         shield_dmg = min(shield, base_dmg)
                         remaining = base_dmg - shield_dmg
                         if remaining > 0:
-                            health_dmg = max(0.5, remaining * size_mult - target_armor)
+                            health_dmg = max(0.5, max(0.0, remaining - target_armor) * size_mult)
                         else:
                             health_dmg = 0
                         new_shield = shield - shield_dmg

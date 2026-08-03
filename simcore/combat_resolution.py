@@ -107,7 +107,9 @@ def calculate_damage(
     else:
         multiplier_pct = 100
 
-    raw_damage = base_damage * multiplier_pct / 100.0 - target_armor
+    # OpenBW order: subtract armor BEFORE applying size multiplier
+    after_armor = max(0.0, base_damage - target_armor)
+    raw_damage = after_armor * multiplier_pct / 100.0
     return max(min_damage, raw_damage)
 
 
@@ -285,7 +287,9 @@ def resolve_weapon_impact(
         remaining = effective_damage - shield_dmg
         # Remaining damage goes to health: apply armor and size multiplier
         if remaining > 0:
-            raw_health = remaining * size_mult - target_armor
+            # OpenBW order: armor before multiplier
+            after_armor = max(0.0, remaining - target_armor)
+            raw_health = after_armor * size_mult
             min_dmg = _load_damage_matrix().get("minDamage", 0.5)
             health_dmg = max(min_dmg, raw_health)
         else:
@@ -294,7 +298,8 @@ def resolve_weapon_impact(
     else:
         shield_dmg = 0.0
         # No shield: full damage to health with armor and size multiplier
-        raw_health = effective_damage * size_mult - target_armor
+        after_armor = max(0.0, effective_damage - target_armor)
+        raw_health = after_armor * size_mult
         min_dmg = _load_damage_matrix().get("minDamage", 0.5)
         health_dmg = max(min_dmg, raw_health)
         new_shield = shield
