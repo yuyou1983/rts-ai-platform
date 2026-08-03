@@ -282,6 +282,11 @@ def _build_unit_entity(
         # Reaver scarab ammunition
         "scarab_count": 5 if utype == "Reaver" else 0,
         "scarab_capacity": 10 if utype == "Reaver" else 0,
+        # Semantic combat bindings (from unit_stats.json)
+        "weapon_id_ground": stats.get("weapon_id_ground"),
+        "weapon_id_air": stats.get("weapon_id_air"),
+        "spell_weapon_id": stats.get("spell_weapon_id"),
+        "armor_type": stats.get("armor_type", "medium"),
     }
 
     return unit
