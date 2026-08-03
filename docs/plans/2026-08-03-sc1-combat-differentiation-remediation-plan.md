@@ -807,7 +807,7 @@ def resolve_chain_impacts(
 - Modify: `tests/simcore/test_combat_runtime_wiring.py`
 - Modify: `tests/simcore/test_projectile_combat_integration.py`
 
-- [ ] **Step 1：写生产 Vulture 延迟命中失败测试**
+- [x] **Step 1：写生产 Vulture 延迟命中失败测试**
 
 ```python
 def test_production_vulture_launch_does_not_damage_until_arrival():
@@ -824,7 +824,7 @@ def test_production_vulture_launch_does_not_damage_until_arrival():
     assert any(e.get("entity_type") == "projectile" for e in launched.values())
 ```
 
-- [ ] **Step 2：确认失败**
+- [x] **Step 2：确认失败**
 
 ```bash
 python3 -m pytest tests/simcore/test_combat_runtime_wiring.py -k vulture_launch -q
@@ -832,7 +832,7 @@ python3 -m pytest tests/simcore/test_combat_runtime_wiring.py -k vulture_launch 
 
 Expected: 当前 shield 立即减少且没有 projectile entity。
 
-- [ ] **Step 3：实现攻击路由器**
+- [x] **Step 3：实现攻击路由器**
 
 `combat_runtime.py` 的唯一公开入口：
 
@@ -861,11 +861,11 @@ def execute_attack_cycle(
 | chain | primary projectile 到达后 impact 0，再按稳定目标顺序生成 1/2 段 | 每段到达后 resolver |
 | area_periodic | 不进入普通攻击路由 | 由 spell lifecycle 处理 |
 
-- [ ] **Step 4：让 explicit 和 auto attack 共用入口**
+- [x] **Step 4：让 explicit 和 auto attack 共用入口**
 
 `resolve_combat()` 的命令攻击和 auto-acquire 两个分支都只能做：目标验证、距离/冷却、高地判定、调用 `execute_attack_cycle()`、更新 cooldown。不得各自复制命中代码。
 
-- [ ] **Step 5：事件字段完整**
+- [x] **Step 5：事件字段完整**
 
 `projectile_spawned` 必须包含：
 
@@ -883,7 +883,7 @@ def execute_attack_cycle(
 }
 ```
 
-- [ ] **Step 6：覆盖代表性 mechanics**
+- [x] **Step 6：覆盖代表性 mechanics**
 
 自动测试必须使用 production entities，覆盖：
 
@@ -895,7 +895,7 @@ def execute_attack_cycle(
 6. Ultralisk melee 不创建 projectile。
 7. Reaver 无 Scarab 不攻击；有弹药时先扣一枚，到达后 100 damage 和 20/40/60 splash。
 
-- [ ] **Step 7：运行回归并提交**
+- [x] **Step 7：运行回归并提交**
 
 ```bash
 python3 -m pytest tests/simcore/test_combat_runtime_wiring.py tests/simcore/test_projectile_combat_integration.py tests/simcore/test_sc1_representative_weapons.py tests/simcore/test_combat.py -q

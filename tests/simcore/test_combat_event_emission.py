@@ -282,7 +282,14 @@ class TestResolveCombatEvents:
             combat_events=events,
         )
 
-        impact = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+        # Dragoon weapon is tracking → spawn projectile, advance until impact
+        from simcore.projectile import process_projectiles
+        for _t in range(11, 30):
+            new_entities = process_projectiles(new_entities, tick=_t, combat_events=events)
+            impact = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
+            if impact:
+                break
+
         assert len(impact) >= 1
 
         ev = impact[0]

@@ -9,7 +9,7 @@
     "delivery_type": "tracking",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 3.5,
     "source_weapon_dat_id": 66,
     "weapon_id": "protoss_phase_disruptor"
   },
@@ -54,7 +54,7 @@
     "delivery_type": "tracking",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 2.5,
     "scarab_capacity": 5,
     "scarab_unit_id": 85,
     "source_weapon_dat_id": 82,
@@ -76,7 +76,7 @@
     "delivery_type": "projectile",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 3.0,
     "source_weapon_dat_id": 11,
     "weapon_id": "terran_arclite_cannon"
   },
@@ -115,10 +115,10 @@
     "cooldown_ticks": 30,
     "damage_per_hit": 20,
     "damage_type": "concussive",
-    "delivery_type": "hitscan",
+    "delivery_type": "projectile",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 4.0,
     "source_weapon_dat_id": 4,
     "weapon_id": "terran_fragmentation_grenade"
   },
@@ -147,7 +147,7 @@
     "delivery_type": "chain",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 4.0,
     "source_weapon_dat_id": 48,
     "weapon_id": "zerg_glave_wurm"
   },
@@ -169,7 +169,7 @@
     "delivery_type": "projectile",
     "launch_delay_ticks": 0,
     "mechanical_hit_count": 1,
-    "projectile_speed_world_per_tick": 0.0,
+    "projectile_speed_world_per_tick": 4.0,
     "source_weapon_dat_id": 38,
     "weapon_id": "zerg_needle_spines"
   }

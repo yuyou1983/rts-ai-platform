@@ -21,6 +21,7 @@ from simcore.combat_events import (
     append_combat_event,
     ATTACK_STARTED,
     IMPACT_RESOLVED,
+    PROJECTILE_SPAWNED,
     UNIT_DESTROYED,
 )
 # Re-export unified combat resolution for backward compatibility.
@@ -32,6 +33,7 @@ from simcore.combat_resolution import (  # noqa: F401
     KillFeed,
     resolve_weapon_impact,
 )
+from simcore.combat_catalog import load_weapon_catalog  # noqa: F401
 
 # ─── Constants ───────────────────────────────────────────────
 
@@ -818,7 +820,10 @@ def resolve_combat(
             if target.get("entity_type") == "building":
                 tgt_domain = "ground"
             weapon_id = e.get("weapon_id_air" if tgt_domain == "air" else "weapon_id_ground", "") or e.get("unit_type", "").lower() or "unknown"
-            delivery_type = e.get("delivery_type", "hitscan")
+            # Look up delivery_type from weapon catalog (not from entity)
+            _catalog = load_weapon_catalog()
+            _wspec = _catalog.get(weapon_id, {})
+            delivery_type = _wspec.get("delivery_type", "hitscan")
             if combat_events is not None:
                 append_combat_event(
                     combat_events,
@@ -837,6 +842,47 @@ def resolve_combat(
                     base_damage=float(base_dmg),
                     hit_count=e.get("hit_count", 1),
                 )
+
+            # ── Projectile routing: spawn projectile, skip immediate damage ──
+            if delivery_type in ("projectile", "tracking", "chain"):
+                from simcore.projectile import create_projectile as _create_proj
+                _proj_speed = _wspec.get("projectile_speed_world_per_tick", 5.0)
+                _proj_type = "missile" if delivery_type == "tracking" else "bullet"
+                _seq = len([k for k in fought if k.startswith("proj_")])
+                _proj = _create_proj(
+                    owner=str(e.get("owner", 0)),
+                    target_id=tid,
+                    pos_x=e.get("pos_x", 0.0),
+                    pos_y=e.get("pos_y", 0.0),
+                    speed=_proj_speed,
+                    damage=base_dmg,
+                    damage_type=weapon_type,
+                    projectile_type=_proj_type,
+                    tick=tick,
+                    seq=_seq,
+                    weapon_id=weapon_id,
+                    weapon_type=weapon_type,
+                    attacker_id=uid,
+                )
+                fought[_proj["id"]] = _proj
+                if combat_events is not None:
+                    append_combat_event(
+                        combat_events,
+                        tick=tick,
+                        event_type=PROJECTILE_SPAWNED,
+                        attacker_id=uid,
+                        target_id=tid,
+                        weapon_id=weapon_id,
+                        projectile_id=_proj["id"],
+                        source_x=e.get("pos_x", 0.0),
+                        source_y=e.get("pos_y", 0.0),
+                        target_x=target.get("pos_x", 0.0),
+                        target_y=target.get("pos_y", 0.0),
+                        delivery_type=delivery_type,
+                    )
+                # Reset cooldown and skip immediate damage
+                fought[uid] = {**fought.get(uid, e), "cooldown_timer": 0}
+                continue
 
             # High ground hit/miss check
             hit = True
@@ -982,8 +1028,8 @@ def resolve_combat(
     for eid, e in entity_list:
         if eid in to_remove:
             continue
-        # Skip resources, dead entities, and buildings under construction
-        if e.get("entity_type") == "resource":
+        # Skip resources, projectiles, dead entities, and buildings under construction
+        if e.get("entity_type") in ("resource", "projectile"):
             continue
         if e.get("is_constructing"):
             continue
@@ -1061,7 +1107,10 @@ def resolve_combat(
                 size_mult = get_damage_multiplier(weapon_type, target_armor_type)
 
                 weapon_id = e.get("weapon_id_air" if tgt_domain == "air" else "weapon_id_ground", "") or e.get("unit_type", "").lower() or "unknown"
-                delivery_type = e.get("delivery_type", "hitscan")
+                # Look up delivery_type from weapon catalog
+                _auto_catalog = load_weapon_catalog()
+                _auto_wspec = _auto_catalog.get(weapon_id, {})
+                delivery_type = _auto_wspec.get("delivery_type", "hitscan")
                 if combat_events is not None:
                     append_combat_event(
                         combat_events,
@@ -1080,6 +1129,46 @@ def resolve_combat(
                         base_damage=float(base_dmg),
                         hit_count=e.get("hit_count", 1),
                     )
+
+                # ── Projectile routing for auto-attack ──
+                if delivery_type in ("projectile", "tracking", "chain"):
+                    from simcore.projectile import create_projectile as _create_proj
+                    _proj_speed = _auto_wspec.get("projectile_speed_world_per_tick", 5.0)
+                    _proj_type = "missile" if delivery_type == "tracking" else "bullet"
+                    _seq = len([k for k in fought if k.startswith("proj_")])
+                    _proj = _create_proj(
+                        owner=str(e.get("owner", 0)),
+                        target_id=best_target,
+                        pos_x=e.get("pos_x", 0.0),
+                        pos_y=e.get("pos_y", 0.0),
+                        speed=_proj_speed,
+                        damage=base_dmg,
+                        damage_type=weapon_type,
+                        projectile_type=_proj_type,
+                        tick=tick,
+                        seq=_seq,
+                        weapon_id=weapon_id,
+                        weapon_type=weapon_type,
+                        attacker_id=eid,
+                    )
+                    fought[_proj["id"]] = _proj
+                    if combat_events is not None:
+                        append_combat_event(
+                            combat_events,
+                            tick=tick,
+                            event_type=PROJECTILE_SPAWNED,
+                            attacker_id=eid,
+                            target_id=best_target,
+                            weapon_id=weapon_id,
+                            projectile_id=_proj["id"],
+                            source_x=e.get("pos_x", 0.0),
+                            source_y=e.get("pos_y", 0.0),
+                            target_x=target.get("pos_x", 0.0),
+                            target_y=target.get("pos_y", 0.0),
+                            delivery_type=delivery_type,
+                        )
+                    fought[eid] = {**fought.get(eid, e), "cooldown_timer": 0}
+                    continue
 
                 # High ground hit/miss check
                 hit = True

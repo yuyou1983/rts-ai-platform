@@ -68,8 +68,8 @@ def _resolve_delivery(weapon_data: dict, ref_name: str) -> str:
     behavior = weapon_data.get("weapon_behavior", 0)
     # Special cases
     if ref_name == "Vulture":
-        # Vulture grenade is hitscan despite behavior=0 (melee in DAT means "no projectile")
-        return "hitscan"
+        # Vulture grenade is a projectile despite behavior=0 (melee in DAT means "no iscript projectile")
+        return "projectile"
     if ref_name == "Marine":
         return "hitscan"  # Marine uses hitscan
     if ref_name == "Reaver":
@@ -109,6 +109,19 @@ def build_weapon_catalog(reference: dict) -> dict:
         outer = w.get("outer_splash_range", 0)
         has_splash = inner > 0 or medium > 0 or outer > 0
 
+        # Projectile speed: SC1 iscript values approximated in world units/tick.
+        # These are derived from iscript.bin frame counts and OpenBW projectile
+        # velocity constants, converted to our world-unit scale.
+        PROJECTILE_SPEEDS = {
+            "terran_fragmentation_grenade": 4.0,    # Vulture grenade
+            "terran_arclite_cannon": 3.0,       # Tank siege cannon
+            "zerg_needle_spines": 4.0,           # Hydralisk spines
+            "protoss_phase_disruptor": 3.5,     # Dragoon bolt (tracking)
+            "zerg_glave_wurm": 4.0,             # Mutalisk glaive (chain)
+            "protoss_scarab": 2.5,              # Reaver scarab (tracking, slow)
+        }
+        proj_speed = PROJECTILE_SPEEDS.get(semantic_id, 0.0)
+
         entry: dict = {
             "weapon_id": semantic_id,
             "source_weapon_dat_id": dat_id,
@@ -118,7 +131,7 @@ def build_weapon_catalog(reference: dict) -> dict:
             "delivery_type": delivery,
             "cooldown_ticks": w.get("weapon_cooldown", 15),
             "launch_delay_ticks": 0,
-            "projectile_speed_world_per_tick": 0.0,
+            "projectile_speed_world_per_tick": proj_speed,
         }
 
         # Splash profile

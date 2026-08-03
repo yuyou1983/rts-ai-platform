@@ -21,16 +21,104 @@ from typing import Any
 from simcore.combat_events import (
     PROJECTILE_SPAWNED,
     append_combat_event,
+    IMPACT_RESOLVED,
 )
 from simcore.combat_resolution import (
     KillFeed,
     resolve_weapon_impact,
 )
+from simcore.combat_catalog import load_weapon_catalog
 
 # ─── Constants ───────────────────────────────────────────────
 
 PROJECTILE_SELF_DESTRUCT_TICKS = 30
 PROJECTILE_HIT_DISTANCE = 1.5  # world units to count as "arrived"
+
+
+def _apply_chain_bounce(
+    result: dict[str, Any],
+    *,
+    attacker_id: str,
+    primary_target_id: str,
+    weapon_id: str,
+    weapon_type: str,
+    base_damage: float,
+    tick: int,
+    combat_events: list[dict] | None,
+    kill_feed: KillFeed,
+    attacker_owner: str,
+) -> tuple[dict[str, Any], set[str]]:
+    """Apply chain (bounce) damage after primary target is hit.
+
+    Uses the weapon catalog's chain_fractions and chain_radius to find
+    nearby enemies and resolve bounce damage via resolve_weapon_impact().
+    """
+    catalog = load_weapon_catalog()
+    wspec = catalog.get(weapon_id, {})
+    fractions = wspec.get("chain_fractions")
+    if not fractions or len(fractions) <= 1:
+        return result, set()
+
+    radius = wspec.get("chain_radius", 3)
+    max_targets = wspec.get("chain_max_targets", 3)
+    to_remove: set[str] = set()
+    already_hit = {primary_target_id}
+    primary = result.get(primary_target_id)
+    if primary is None:
+        return result, set()
+
+    bounce_origin_x = primary.get("pos_x", 0.0)
+    bounce_origin_y = primary.get("pos_y", 0.0)
+
+    for chain_idx in range(1, min(len(fractions), max_targets + 1)):
+        frac = fractions[chain_idx]
+        bounce_dmg = base_damage * frac
+
+        # Find nearest enemy not yet hit
+        best_dist = float("inf")
+        best_id = None
+        best_ent = None
+        for eid, ent in result.items():
+            if eid in already_hit or eid == attacker_id:
+                continue
+            if ent.get("entity_type") in ("resource", "projectile", "effect"):
+                continue
+            if ent.get("health", 0) <= 0:
+                continue
+            e_owner = str(ent.get("owner", 0))
+            if e_owner == attacker_owner or e_owner == "0":
+                continue
+            dx = ent.get("pos_x", 0.0) - bounce_origin_x
+            dy = ent.get("pos_y", 0.0) - bounce_origin_y
+            d = math.sqrt(dx * dx + dy * dy)
+            if d <= radius and d < best_dist:
+                best_dist = d
+                best_id = eid
+                best_ent = ent
+
+        if best_id is None:
+            break
+
+        already_hit.add(best_id)
+        result, hit_removed = resolve_weapon_impact(
+            result,
+            attacker_id=attacker_id,
+            target_id=best_id,
+            weapon_id=weapon_id,
+            weapon_type=weapon_type,
+            base_damage=bounce_dmg,
+            tick=tick,
+            combat_events=combat_events,
+            kill_feed=kill_feed,
+            delivery_type="chain",
+            attacker_pos=(bounce_origin_x, bounce_origin_y),
+            target_pos=(best_ent.get("pos_x", 0.0), best_ent.get("pos_y", 0.0)),
+            chain_index=chain_idx,
+            splash_fraction=frac,
+        )
+        to_remove.update(hit_removed)
+
+    return result, to_remove
 
 
 # ─── Creation ────────────────────────────────────────────────
@@ -68,6 +156,7 @@ def create_projectile(
     return {
         "id": proj_id,
         "owner": owner,
+        "entity_type": "projectile",
         "pos_x": pos_x,
         "pos_y": pos_y,
         "target_id": target_id,
@@ -169,6 +258,20 @@ def process_projectiles(
                 target_pos=(target.get("pos_x", 0.0), target.get("pos_y", 0.0)),
             )
             to_remove.update(hit_removed)
+            # Chain bounce if weapon has chain properties
+            result, chain_removed = _apply_chain_bounce(
+                result,
+                attacker_id=attacker_id,
+                primary_target_id=target_id,
+                weapon_id=weapon_id,
+                weapon_type=weapon_type,
+                base_damage=base_damage,
+                tick=tick,
+                combat_events=combat_events,
+                kill_feed=kill_feed,
+                attacker_owner=str(proj.get("owner", "0")),
+            )
+            to_remove.update(chain_removed)
             # Effect marker on target
             new_effects[f"fx_{pid}"] = {
                 "id": f"fx_{pid}",

@@ -174,7 +174,13 @@ else:
     raise SystemExit('unknown scenario: %s' % scenario)
 
 events = []
-resolve_combat(entities, {}, [], tick=1, combat_events=events)
+entities, _ = resolve_combat(entities, {}, [], tick=1, combat_events=events)
+# Advance projectiles until all resolved
+from simcore.projectile import process_projectiles
+for _t in range(2, 20):
+    entities = process_projectiles(entities, tick=_t, combat_events=events)
+    if not any(e.get('projectile_type') for e in entities.values()):
+        break
 print(json.dumps(events, sort_keys=True))
 """
 
@@ -423,7 +429,14 @@ class TestEventCompleteness:
     def test_impact_events_have_all_fields_non_null(self, race: str):
         entities = _build_race_matchup(race)
         events: list[dict] = []
-        resolve_combat(entities, {}, [], tick=1, combat_events=events)
+        result, _ = resolve_combat(entities, {}, [], tick=1, combat_events=events)
+
+        # Advance projectiles for projectile/tracking/chain weapons
+        from simcore.projectile import process_projectiles
+        for _t in range(2, 20):
+            result = process_projectiles(result, tick=_t, combat_events=events)
+            if not any(e.get("projectile_type") for e in result.values()):
+                break
 
         attacks = [e for e in events if e["event_type"] == ATTACK_STARTED]
         impacts = [e for e in events if e["event_type"] == IMPACT_RESOLVED]
