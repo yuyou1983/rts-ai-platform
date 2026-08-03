@@ -588,7 +588,7 @@ git commit -m "fix: sync combat mechanics from audited SC1 data"
 - Create: `tests/simcore/test_combat_runtime_wiring.py`
 - Modify: `simcore/construction.py`
 
-- [ ] **Step 1：写生产构造失败测试**
+- [x] **Step 1：写生产构造失败测试** ✅ commit 11c9b19
 
 测试只能调用 `_build_unit_entity()`，不得补字段：
 
@@ -614,7 +614,7 @@ def test_templar_keeps_spell_binding():
     assert entity["spell_weapon_id"] == "protoss_psionic_storm"
 ```
 
-- [ ] **Step 2：确认失败**
+- [x] **Step 2：确认失败** ✅ KeyError: 'weapon_id_ground' confirmed
 
 Run:
 
@@ -624,7 +624,7 @@ python3 -m pytest tests/simcore/test_combat_runtime_wiring.py -k production_enti
 
 Expected: `KeyError` 或 `<missing>`，复现当前生产链缺字段。
 
-- [ ] **Step 3：实现 catalog loader**
+- [x] **Step 3：实现 catalog loader** ✅ commit 11c9b19
 
 `simcore/combat_catalog.py` 提供唯一 mechanics 读取接口：
 
@@ -651,7 +651,7 @@ def weapon_spec_for_target(entity: Mapping[str, Any], target_domain: str) -> Map
 
 禁止在 unknown weapon 时回退到 `unit_type.lower()` 或默认 `hitscan`。
 
-- [ ] **Step 4：复制 unit binding，不复制 mechanics**
+- [x] **Step 4：复制 unit binding，不复制 mechanics** ✅ commit 11c9b19
 
 `_build_unit_entity()` 增加：
 
@@ -664,7 +664,7 @@ def weapon_spec_for_target(entity: Mapping[str, Any], target_domain: str) -> Map
 
 `delivery_type`、damage、hit cadence、splash 和 projectile 参数每次从 `combat_catalog` 读取，避免 unit entity 与 catalog 双份真值漂移。
 
-- [ ] **Step 5：增加正式实体攻击探针**
+- [x] **Step 5：增加正式实体攻击探针** ✅ 13/13 pass
 
 ```python
 def test_production_marine_emits_semantic_weapon_id():
@@ -677,7 +677,7 @@ def test_production_marine_emits_semantic_weapon_id():
     assert {event["weapon_id"] for event in events} == {"terran_c10_rifle"}
 ```
 
-- [ ] **Step 6：运行并提交**
+- [x] **Step 6：运行并提交** ✅ commit 11c9b19
 
 ```bash
 python3 -m pytest tests/simcore/test_combat_runtime_wiring.py tests/simcore/test_sc1_representative_weapons.py -q
@@ -685,9 +685,10 @@ git add simcore/combat_catalog.py simcore/construction.py tests/simcore/test_com
 git commit -m "fix: wire semantic combat data into production units"
 ```
 
-### Gate G1 Runtime Wiring
+### Gate G1 Runtime Wiring ✅ PASS
 
 生产构造的 12 单位必须保留正确 binding；任何测试 helper 手工注入 semantic 字段都不计入 Gate。
+13/13 tests pass (11 parametrized binding + Templar spell + Marine emits semantic weapon_id).
 
 ---
 
