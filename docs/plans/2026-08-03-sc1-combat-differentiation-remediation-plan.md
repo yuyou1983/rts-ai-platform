@@ -700,7 +700,7 @@ git commit -m "fix: wire semantic combat data into production units"
 - Modify: `tests/simcore/test_combat_resolution.py`
 - Modify: `tests/simcore/test_splash_damage.py`
 
-- [ ] **Step 1：先锁定公式顺序**
+- [x] **Step 1：先锁定公式顺序** ✅ commit 1ec9103
 
 增加能区分两种公式的用例：
 
@@ -718,7 +718,7 @@ def test_armor_is_subtracted_before_size_multiplier():
 
 Shield 穿透测试也必须区分顺序：10 shield 后剩余 10，armor 1、multiplier 0.5，health damage 为 `(10 - 1) * 0.5 = 4.5`。
 
-- [ ] **Step 2：确认当前实现失败**
+- [x] **Step 2：确认当前实现失败** ✅ 6 failures confirmed
 
 ```bash
 python3 -m pytest tests/simcore/test_combat_resolution.py -k "before_size or shield_partial" -q
@@ -726,7 +726,7 @@ python3 -m pytest tests/simcore/test_combat_resolution.py -k "before_size or shi
 
 Expected: 当前 `remaining * multiplier - armor` 返回错误值。
 
-- [ ] **Step 3：实现唯一公式**
+- [x] **Step 3：实现唯一公式** ✅ armor-before-multiplier in combat_resolution.py
 
 `combat_resolution.py` 固定顺序：
 
@@ -743,7 +743,7 @@ def calculate_health_damage(
 
 `resolve_weapon_impact()` 顺序必须是：splash/chain fraction -> shield armor -> shield absorption -> health armor -> size multiplier -> minimum -> HP clamp -> events/kill。
 
-- [ ] **Step 4：删除遮蔽定义和直接扣血**
+- [x] **Step 4：删除遮蔽定义和直接扣血** ✅ shadowing defs deleted; inline formulas fixed to correct order (full inline→resolver migration deferred to Task 6)
 
 从 `rules.py` 删除本地 `calculate_damage()`、`get_damage_multiplier()`、`get_armor_type()` 和本地 `KillFeed`；只保留从 `combat_resolution` 的 import。搜索以下模式必须只命中 resolver 或非战斗系统：
 
@@ -754,7 +754,7 @@ rg -n '^def (calculate_damage|get_damage_multiplier|get_armor_type)' simcore/rul
 
 Expected: `rules.py` 不再计算或写入 damage；projectile/spell 只调用 resolver。
 
-- [ ] **Step 5：把 splash/chain 结算移入 combat_resolution**
+- [ ] **Step 5：把 splash/chain 结算移入 combat_resolution** (deferred to Task 6 — `execute_attack_cycle()` will call `resolve_weapon_impact()` for splash/chain targets)
 
 接口：
 
@@ -786,17 +786,14 @@ def resolve_chain_impacts(
 
 两者必须逐 target 调用 `resolve_weapon_impact()`，不能复制 shield/armor 公式。
 
-- [ ] **Step 6：运行回归并提交**
+- [x] **Step 6：运行回归并提交** ✅ commit 1ec9103, all 730+ tests pass
 
-```bash
-python3 -m pytest tests/simcore/test_combat_resolution.py tests/simcore/test_splash_damage.py tests/simcore/test_combat.py -q
-git add simcore/combat_resolution.py simcore/rules.py tests/simcore/test_combat_resolution.py tests/simcore/test_splash_damage.py
-git commit -m "fix: enforce one authoritative damage resolver"
-```
-
-### Gate G2 Authority
+### Gate G2 Authority ⚠️ PARTIAL
 
 `rules.py`、`projectile.py`、`spells.py` 不得存在第二套 damage/shield/armor 公式。
+- ✅ No shadowing definitions (all imported from combat_resolution.py)
+- ✅ Correct formula order everywhere (armor before multiplier)
+- ⚠️ Inline damage code still in rules.py resolve_combat() — will be fully replaced by execute_attack_cycle() in Task 6
 
 ---
 
