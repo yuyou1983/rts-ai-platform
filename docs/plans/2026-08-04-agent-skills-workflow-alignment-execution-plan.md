@@ -433,7 +433,7 @@ The skill process must be:
 
 It must not modify runtime code.
 
-- [ ] **Step 5: Register skill 23**
+- [x] **Step 5: Register skill 23**
 
 Use:
 
@@ -450,7 +450,7 @@ Use:
 
 Do not add the `architecture-decision` composition edge because only orchestrators may compose under Task 1. Instead, the skill may recommend that the user invoke it separately. In the same registry edit, set `brainstorm.composes=["domain-modeling"]` now that the target exists.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```bash
 python3 -m pytest tests/harness/test_domain_contexts.py -q

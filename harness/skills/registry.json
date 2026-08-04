@@ -317,7 +317,9 @@
     "description": "生成多种设计方案供团队选择和讨论",
     "invocation_mode": "user",
     "skill_kind": "orchestrator",
-    "composes": [],
+    "composes": [
+      "domain-modeling"
+    ],
     "completion_criteria": [
       "candidate concepts captured in report",
       "reported evidence references the originating task"
@@ -1034,5 +1036,42 @@
     "version": "0.1.0",
     "last_evolved": null,
     "held_out_suite": null
+  },
+  {
+    "name": "domain-modeling",
+    "description": "RTS domain terminology discipline — detect, test, and resolve language drift",
+    "primary_action": "write_file",
+    "primary_script": null,
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Grep"
+    ],
+    "validation_commands": [
+      "python3 -m pytest tests/harness/test_domain_contexts.py -q"
+    ],
+    "owner_domain": "cross-cutting",
+    "layer_constraints": [
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "Glossary contains file paths or function signatures",
+        "mitigation": "Audit glossary entries for implementation detail"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md loaded but no glossary read"
+    ],
+    "version": "0.1.0",
+    "last_evolved": null,
+    "held_out_suite": null,
+    "invocation_mode": "both",
+    "skill_kind": "discipline",
+    "composes": [],
+    "completion_criteria": [
+      "glossary tests pass",
+      "all required terms present and unambiguous"
+    ]
   }
 ]
