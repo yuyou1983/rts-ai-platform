@@ -189,6 +189,8 @@ class SimCoreClient:
                     "shield_armor_value": e.shield_armor_value,
                     "hit_index": e.hit_index,
                     "hit_count": e.hit_count,
+                    "source_owner": e.source_owner,
+                    "target_owner": e.target_owner,
                 }
                 for e in snapshot.combat_events
             ],

@@ -108,9 +108,16 @@ func _dispatch_event(ev: Dictionary) -> void:
 
 func _handle_attack_started(ev: Dictionary) -> void:
 	var attacker_id: String = str(ev.get("attacker_id", ""))
+	var weapon_id: String = str(ev.get("weapon_id", ""))
+	var source_owner: int = int(ev.get("source_owner", ev.get("owner", 0)))
+	var target_owner: int = int(ev.get("target_owner", ev.get("owner", 0)))
 	if attacker_id != "":
+		var action := "attack"
+		var vfx := _get_vfx_manager()
+		if vfx != null and is_instance_valid(vfx) and weapon_id != "":
+			action = vfx.get_weapon_animation_action(weapon_id)
 		_entity_actions[attacker_id] = {
-			"action": "attack",
+			"action": action,
 			"expires_at_msec": _now_msec() + ATTACK_ACTION_DECAY_MSEC,
 		}
 	var source_pos := Vector2(float(ev.get("source_x", 0.0)), float(ev.get("source_y", 0.0)))
@@ -120,8 +127,8 @@ func _handle_attack_started(ev: Dictionary) -> void:
 		"vfx_profile": _profile_for_event(ev),
 		"source_pos": source_pos,
 		"target_pos": target_pos,
-		"owner": int(ev.get("owner", 0)),
-		"weapon_id": str(ev.get("weapon_id", "")),
+		"owner": source_owner,
+		"weapon_id": weapon_id,
 	})
 
 
@@ -129,6 +136,8 @@ func _handle_impact_resolved(ev: Dictionary) -> void:
 	# Misses produce no impact VFX.
 	if bool(ev.get("missed", false)):
 		return
+	var source_owner: int = int(ev.get("source_owner", ev.get("owner", 0)))
+	var target_owner: int = int(ev.get("target_owner", ev.get("owner", 0)))
 	var shield_damage: float = float(ev.get("shield_damage", 0.0))
 	var is_splash: bool = bool(ev.get("is_splash", false))
 	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
@@ -142,7 +151,7 @@ func _handle_impact_resolved(ev: Dictionary) -> void:
 		"vfx_profile": profile,
 		"source_pos": source_pos,
 		"target_pos": target_pos,
-		"owner": int(ev.get("owner", 0)),
+		"owner": target_owner,
 		"damage": final_damage,
 		"weapon_id": str(ev.get("weapon_id", "")),
 		"is_splash": is_splash,
@@ -156,18 +165,22 @@ func _handle_impact_resolved(ev: Dictionary) -> void:
 
 
 func _handle_unit_destroyed(ev: Dictionary) -> void:
+	var source_owner: int = int(ev.get("source_owner", ev.get("owner", 0)))
+	var target_owner: int = int(ev.get("target_owner", ev.get("owner", 0)))
 	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
 	_emit({
 		"event_type": EVENT_UNIT_DIED,
 		"vfx_profile": _profile_for_event(ev),
 		"source_pos": target_pos,
 		"target_pos": target_pos,
-		"owner": int(ev.get("owner", 0)),
+		"owner": target_owner,
 		"entity_id": str(ev.get("target_id", "")),
 	})
 
 
 func _handle_projectile_spawned(ev: Dictionary) -> void:
+	var source_owner: int = int(ev.get("source_owner", ev.get("owner", 0)))
+	var target_owner: int = int(ev.get("target_owner", ev.get("owner", 0)))
 	var source_pos := Vector2(float(ev.get("source_x", 0.0)), float(ev.get("source_y", 0.0)))
 	var target_pos := Vector2(float(ev.get("target_x", source_pos.x)), float(ev.get("target_y", source_pos.y)))
 	_emit({
@@ -175,12 +188,20 @@ func _handle_projectile_spawned(ev: Dictionary) -> void:
 		"vfx_profile": _profile_for_event(ev),
 		"source_pos": source_pos,
 		"target_pos": target_pos,
-		"owner": int(ev.get("owner", 0)),
+		"owner": source_owner,
 		"weapon_id": str(ev.get("weapon_id", "")),
 	})
 
 
 func _handle_spell_resolved(ev: Dictionary) -> void:
+	var caster_id: String = str(ev.get("attacker_id", ev.get("caster_id", "")))
+	var source_owner: int = int(ev.get("source_owner", ev.get("owner", 0)))
+	var target_owner: int = int(ev.get("target_owner", ev.get("owner", 0)))
+	if caster_id != "":
+		_entity_actions[caster_id] = {
+			"action": "cast",
+			"expires_at_msec": _now_msec() + ATTACK_ACTION_DECAY_MSEC,
+		}
 	var target_pos := Vector2(float(ev.get("target_x", 0.0)), float(ev.get("target_y", 0.0)))
 	var source_pos := Vector2(float(ev.get("source_x", target_pos.x)), float(ev.get("source_y", target_pos.y)))
 	var spell_id: String = str(ev.get("spell_id", ev.get("weapon_id", "")))
@@ -189,7 +210,7 @@ func _handle_spell_resolved(ev: Dictionary) -> void:
 		"vfx_profile": _profile_for_event(ev),
 		"source_pos": source_pos,
 		"target_pos": target_pos,
-		"owner": int(ev.get("owner", 0)),
+		"owner": source_owner,
 		"spell_id": spell_id,
 		"weapon_id": spell_id,
 		"damage": float(ev.get("final_damage", 0.0)),

@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from simcore.engine import SimCore
 from simcore.construction import _build_unit_entity
+from simcore.state import GameState
 
 OUTPUT_PATH = ROOT / "godot" / "resources" / "test" / "sc1_combat_presets.json"
 
@@ -37,7 +38,7 @@ PRESETS = [
         "attacker": "Marine",
         "targets": ["Zergling"],
         "setup": [
-            {"unit_type": "Marine", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Marine", "owner": 1, "pos": (4.0, 4.0), "target": "Zergling"},
             {"unit_type": "Zergling", "owner": 2, "pos": (7.0, 4.0)},
         ],
         "ticks": 20,
@@ -47,7 +48,7 @@ PRESETS = [
         "attacker": "Firebat",
         "targets": ["Zergling"],
         "setup": [
-            {"unit_type": "Firebat", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Firebat", "owner": 1, "pos": (4.0, 4.0), "target": "Zergling"},
             {"unit_type": "Zergling", "owner": 2, "pos": (6.0, 4.0)},
         ],
         "ticks": 20,
@@ -57,7 +58,7 @@ PRESETS = [
         "attacker": "Vulture",
         "targets": ["Zealot"],
         "setup": [
-            {"unit_type": "Vulture", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Vulture", "owner": 1, "pos": (4.0, 4.0), "target": "Zealot"},
             {"unit_type": "Zealot", "owner": 2, "pos": (8.0, 4.0)},
         ],
         "ticks": 20,
@@ -67,7 +68,7 @@ PRESETS = [
         "attacker": "Tank",
         "targets": ["Dragoon"],
         "setup": [
-            {"unit_type": "Tank", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Tank", "owner": 1, "pos": (4.0, 4.0), "target": "Dragoon"},
             {"unit_type": "Dragoon", "owner": 2, "pos": (9.0, 4.0)},
         ],
         "ticks": 25,
@@ -77,7 +78,7 @@ PRESETS = [
         "attacker": "Hydralisk",
         "targets": ["Dragoon"],
         "setup": [
-            {"unit_type": "Hydralisk", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Hydralisk", "owner": 1, "pos": (4.0, 4.0), "target": "Dragoon"},
             {"unit_type": "Dragoon", "owner": 2, "pos": (8.0, 4.0)},
         ],
         "ticks": 25,
@@ -87,7 +88,7 @@ PRESETS = [
         "attacker": "Mutalisk",
         "targets": ["Marine"],
         "setup": [
-            {"unit_type": "Mutalisk", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Mutalisk", "owner": 1, "pos": (4.0, 4.0), "target": "Marine"},
             {"unit_type": "Marine", "owner": 2, "pos": (7.0, 4.0)},
             {"unit_type": "Marine", "owner": 2, "pos": (8.0, 4.0)},
             {"unit_type": "Marine", "owner": 2, "pos": (7.5, 5.0)},
@@ -99,7 +100,7 @@ PRESETS = [
         "attacker": "Zealot",
         "targets": ["Marine"],
         "setup": [
-            {"unit_type": "Zealot", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Zealot", "owner": 1, "pos": (4.0, 4.0), "target": "Marine"},
             {"unit_type": "Marine", "owner": 2, "pos": (5.0, 4.0)},
         ],
         "ticks": 20,
@@ -109,7 +110,7 @@ PRESETS = [
         "attacker": "Dragoon",
         "targets": ["Ultralisk"],
         "setup": [
-            {"unit_type": "Dragoon", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Dragoon", "owner": 1, "pos": (4.0, 4.0), "target": "Ultralisk"},
             {"unit_type": "Ultralisk", "owner": 2, "pos": (8.0, 4.0)},
         ],
         "ticks": 30,
@@ -132,7 +133,7 @@ PRESETS = [
         "attacker": "Reaver",
         "targets": ["Zergling"],
         "setup": [
-            {"unit_type": "Reaver", "owner": 1, "pos": (4.0, 4.0), "target": "z1"},
+            {"unit_type": "Reaver", "owner": 1, "pos": (4.0, 4.0), "target": "Zergling"},
             {"unit_type": "Zergling", "owner": 2, "pos": (9.0, 4.0)},
             {"unit_type": "Zergling", "owner": 2, "pos": (9.5, 4.0)},
             {"unit_type": "Zergling", "owner": 2, "pos": (9.0, 4.5)},
@@ -147,11 +148,21 @@ def _build_entity(spec: dict, eid: str) -> dict:
     unit_type = spec["unit_type"]
     owner = spec["owner"]
     pos = spec["pos"]
-    entity = _build_unit_entity(unit_type, owner, pos[0], pos[1], eid=eid)
+    # Map unit_type to simplified_etype
+    if unit_type in ("Vulture", "Mutalisk", "Wraith", "Scout"):
+        etype = "scout"
+    else:
+        etype = "soldier"
+    entity = _build_unit_entity(eid, unit_type, owner, etype, pos[0], pos[1])
     # Set cooldown high so first tick fires immediately
     entity["cooldown_timer"] = 99
     entity["cooldown_ground"] = 15
     entity["cooldown_air"] = 15
+    # Spellcasters need is_spellcaster=True and energy for spells
+    if "spell" in spec:
+        entity["is_spellcaster"] = True
+        entity["energy"] = 75
+        entity["mp"] = 75
     if "target" in spec:
         entity["attack_target_id"] = spec["target"]
     else:
@@ -166,6 +177,19 @@ def _run_preset(preset: dict) -> dict:
 
     # Build entities directly (bypassing full economy)
     entities = {}
+    # Add base buildings so check_terminal doesn't end the game
+    entities["base_p1"] = {
+        "id": "base_p1", "owner": 1, "entity_type": "building",
+        "building_type": "base", "pos_x": 20.0, "pos_y": 20.0,
+        "health": 1500, "max_health": 1500, "shields": 0,
+        "is_constructing": False,
+    }
+    entities["base_p2"] = {
+        "id": "base_p2", "owner": 2, "entity_type": "building",
+        "building_type": "base", "pos_x": 40.0, "pos_y": 40.0,
+        "health": 1500, "max_health": 1500, "shields": 0,
+        "is_constructing": False,
+    }
     eid_counter = 0
     entity_id_map = {}
 
@@ -213,6 +237,7 @@ def _run_preset(preset: dict) -> dict:
         if "spell" in spec:
             commands.append({
                 "action": "spell",
+                "unit_id": eid,
                 "caster_id": eid,
                 "spell": spec["spell"],
                 "target_x": spec["target_pos"][0],
@@ -228,16 +253,38 @@ def _run_preset(preset: dict) -> dict:
                 "unit_id": eid,
             })
 
+    # Inject custom entities into engine state (bypassing full economy)
+    state = engine._state
+    races = {}
+    for spec in preset["setup"]:
+        r = "terran"
+        if spec["unit_type"] in ("Zealot", "Dragoon", "HighTemplar", "Reaver", "Scout", "Corsair", "Arbiter", "Carrier"):
+            r = "protoss"
+        elif spec["unit_type"] in ("Zergling", "Hydralisk", "Mutalisk", "Ultralisk", "Defiler", "Queen", "Scourge", "Overlord"):
+            r = "zerg"
+        races[spec["owner"]] = r
+    # Fallback: ensure both players have a race
+    races.setdefault(1, "terran")
+    races.setdefault(2, "zerg")
+    engine._state = GameState(
+        tick=state.tick, entities=entities, fog_of_war=state.fog_of_war,
+        resources={"p1_mineral": 5000, "p2_mineral": 5000, "p1_supply": 100, "p2_supply": 100},
+        is_terminal=False, winner=0, height_map=state.height_map,
+        map_width=state.map_width, map_height=state.map_height,
+        player_races=races, elevation_grid=state.elevation_grid,
+    )
+    engine._replay = [engine._state.to_snapshot()]
+
     # Run ticks
     all_events = []
     # First tick with commands
     state = engine.step(commands)
-    all_events.extend(state.combat_events)
+    all_events.extend(engine.combat_events_this_tick)
 
     # Subsequent ticks with no commands (let projectiles/spells advance)
     for _ in range(preset["ticks"] - 1):
         state = engine.step([])
-        all_events.extend(state.combat_events)
+        all_events.extend(engine.combat_events_this_tick)
 
     # Collect final state
     final_entities = {}

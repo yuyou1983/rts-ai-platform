@@ -122,7 +122,8 @@ var _calibration_overlay = null  # VisualCalibrationOverlay — set at runtime
 # Only ever visible while Test Mode is active AND a matchup preset has been run.
 var _diagnostics_overlay: CombatDiagnosticsOverlay = null
 var _combat_preset_buttons: Dictionary = {}  # { preset_index: Button }
-var _combat_presets: Array = []              # Built lazily in _build_combat_presets()
+var _combat_presets: Array = []              # Loaded from JSON fixture in _build_combat_presets()
+var _combat_controller: CombatVisualController = null  # Injected by GameView for event-driven VFX
 
 
 # ────────────────────────────────────────────────────────────
@@ -261,6 +262,17 @@ func set_diagnostics_overlay(overlay: CombatDiagnosticsOverlay) -> void:
 
 func get_diagnostics_overlay() -> CombatDiagnosticsOverlay:
 	return _diagnostics_overlay
+
+
+## Inject the GameView's CombatVisualController so preset combat events are
+## routed through the real event-driven VFX pipeline instead of a synthetic
+## preview signal.
+func set_combat_controller(controller: CombatVisualController) -> void:
+	_combat_controller = controller
+
+
+func get_combat_controller() -> CombatVisualController:
+	return _combat_controller
 
 
 func toggle() -> void:
@@ -1625,14 +1637,13 @@ func _run_combat_preset(idx: int) -> void:
 		_test_ents.append(e)
 	entities_rebuilt.emit(_test_ents)
 
-	# Fire a VFX preview event for the first impact so the combat view reacts.
-	if events.size() > 0 and events[0] is Dictionary:
-		combat_preview_event.emit({
-			"event_type": "projectile_fired",
-			"vfx_profile": str(preset.get("vfx_profile", "")),
-			"source_pos": Vector2(5.0, 4.0),
-			"target_pos": Vector2(10.0, 4.0),
-		})
+	# Route the preset's authoritative combat events through the
+	# CombatVisualController (event-driven VFX pipeline) instead of emitting a
+	# synthetic preview signal. Clearing seen events first lets the user re-run
+	# the same preset and still see the VFX.
+	if _combat_controller != null and is_instance_valid(_combat_controller):
+		_combat_controller.clear_seen_events()
+		_combat_controller.process_combat_events(events)
 
 	# Show the diagnostics overlay (gated by Test Mode internally).
 	if _diagnostics_overlay:
@@ -1675,109 +1686,38 @@ func _make_matchup_entities(preset: Dictionary) -> Array:
 			ents.append(tgt)
 	return ents
 
-## Build a combat event dictionary with sensible defaults, overriding from ``d``.
-func _ev(d: Dictionary) -> Dictionary:
-	var e: Dictionary = {
-		"event_type": "impact_resolved",
-		"attacker_id": "", "target_id": "",
-		"weapon_id": "", "weapon_type": "normal", "armor_type": "medium",
-		"base_damage": 0.0, "damage_multiplier": 1.0,
-		"shield_damage": 0.0, "health_damage": 0.0, "final_damage": 0.0,
-		"chain_index": 0, "splash_fraction": 1.0, "is_splash": false,
-		"hit_index": 0, "hit_count": 1, "killed": false, "missed": false,
-		"tick": 1, "event_id": "1:0",
-	}
-	for k in d.keys():
-		e[k] = d[k]
-	return e
+## Load the SC1 combat presets from the JSON fixture produced by the headless
+## SimCore resolver. Each preset carries full combat_events, initial_entities,
+## final_entities, commands, and ticks — the gallery only needs label/attacker/
+## targets/events for rendering, so the rest is passed through verbatim.
+const COMBAT_PRESETS_PATH := "res://resources/test/sc1_combat_presets.json"
 
-## The 10 SC1 matchup presets with pre-resolved combat events (values match the
-## headless test_sc1_combat_slice.gd expectations and the simcore resolver).
 func _build_combat_presets() -> Array:
+	if not FileAccess.file_exists(COMBAT_PRESETS_PATH):
+		push_warning("[TestModeGallery] Combat presets fixture not found: %s" % COMBAT_PRESETS_PATH)
+		return []
+	var raw_text: String = FileAccess.get_file_as_string(COMBAT_PRESETS_PATH)
+	var parsed = JSON.parse_string(raw_text)
+	if not parsed is Dictionary or not parsed.has("presets"):
+		push_warning("[TestModeGallery] Invalid combat presets fixture (expected {\"presets\": [...]})")
+		return []
+	var raw_presets: Array = parsed.get("presets", [])
 	var presets: Array = []
-	# 1. Marine (6 concussive) vs Zergling (light, 35hp)
-	presets.append({
-		"label": "1. Marine→Zergling", "attacker": "Marine",
-		"targets": ["Zergling"], "vfx_profile": "terran_ballistic",
-		"events": [_ev({"attacker_id": "marine_1", "target_id": "zergling_1",
-			"weapon_id": "terran_c10_rifle", "weapon_type": "concussive", "armor_type": "light",
-			"base_damage": 6.0, "damage_multiplier": 1.0, "health_damage": 6.0, "final_damage": 6.0})],
-	})
-	# 2. Firebat (16 concussive, splash) vs 3 Zerglings
-	presets.append({
-		"label": "2. Firebat→Zerglings", "attacker": "Firebat",
-		"targets": ["Zergling", "Zergling", "Zergling"], "vfx_profile": "terran_flame",
-		"events": [
-			_ev({"attacker_id": "firebat_1", "target_id": "zergling_1", "weapon_id": "terran_flamethrower", "weapon_type": "concussive", "armor_type": "light", "base_damage": 16.0, "health_damage": 16.0, "final_damage": 16.0, "event_id": "1:0"}),
-			_ev({"attacker_id": "firebat_1", "target_id": "zergling_2", "weapon_id": "terran_flamethrower", "weapon_type": "concussive", "armor_type": "light", "base_damage": 8.0, "splash_fraction": 0.5, "is_splash": true, "health_damage": 8.0, "final_damage": 8.0, "event_id": "1:1"}),
-			_ev({"attacker_id": "firebat_1", "target_id": "zergling_3", "weapon_id": "terran_flamethrower", "weapon_type": "concussive", "armor_type": "light", "base_damage": 8.0, "splash_fraction": 0.5, "is_splash": true, "health_damage": 8.0, "final_damage": 8.0, "event_id": "1:2"}),
-		],
-	})
-	# 3. Vulture (20 concussive) vs Zealot (light, 100hp, 60 shield, 1 armor)
-	presets.append({
-		"label": "3. Vulture→Zealot", "attacker": "Vulture",
-		"targets": ["Zealot"], "vfx_profile": "terran_ballistic",
-		"events": [_ev({"attacker_id": "vulture_1", "target_id": "zealot_1", "weapon_id": "terran_fragmentation_grenade", "weapon_type": "concussive", "armor_type": "light", "base_damage": 20.0, "damage_multiplier": 1.0, "shield_damage": 20.0, "health_damage": 0.0, "final_damage": 20.0})],
-	})
-	# 4. Tank (2×20 explosive) vs Dragoon (heavy, 100hp, 80 shield, 1 armor)
-	presets.append({
-		"label": "4. Tank→Dragoon", "attacker": "Tank",
-		"targets": ["Dragoon"], "vfx_profile": "terran_explosive",
-		"events": [
-			_ev({"attacker_id": "tank_1", "target_id": "dragoon_1", "weapon_id": "terran_arclite_cannon", "weapon_type": "explosive", "armor_type": "heavy", "base_damage": 20.0, "damage_multiplier": 1.0, "shield_damage": 20.0, "health_damage": 0.0, "final_damage": 20.0, "hit_index": 0, "hit_count": 2, "event_id": "1:0"}),
-			_ev({"attacker_id": "tank_1", "target_id": "dragoon_1", "weapon_id": "terran_arclite_cannon", "weapon_type": "explosive", "armor_type": "heavy", "base_damage": 20.0, "damage_multiplier": 1.0, "shield_damage": 20.0, "health_damage": 0.0, "final_damage": 20.0, "hit_index": 1, "hit_count": 2, "event_id": "1:1"}),
-		],
-	})
-	# 5. Hydralisk (10 explosive) vs Dragoon (heavy, 80 shield)
-	presets.append({
-		"label": "5. Hydralisk→Dragoon", "attacker": "Hydralisk",
-		"targets": ["Dragoon"], "vfx_profile": "zerg_acid",
-		"events": [_ev({"attacker_id": "hydralisk_1", "target_id": "dragoon_1", "weapon_id": "zerg_spine_spit", "weapon_type": "explosive", "armor_type": "heavy", "base_damage": 10.0, "damage_multiplier": 1.0, "shield_damage": 10.0, "health_damage": 0.0, "final_damage": 10.0})],
-	})
-	# 6. Mutalisk (9 normal, chain [1.0, 0.333, 0.111]) vs 3 Marines
-	presets.append({
-		"label": "6. Mutalisk→3 Marines", "attacker": "Mutalisk",
-		"targets": ["Marine", "Marine", "Marine"], "vfx_profile": "zerg_spore",
-		"events": [
-			_ev({"attacker_id": "mutalisk_1", "target_id": "marine_1", "weapon_id": "zerg_glaive_wurm", "weapon_type": "normal", "armor_type": "light", "base_damage": 9.0, "damage_multiplier": 1.0, "health_damage": 9.0, "final_damage": 9.0, "chain_index": 0, "splash_fraction": 1.0, "event_id": "1:0"}),
-			_ev({"attacker_id": "mutalisk_1", "target_id": "marine_2", "weapon_id": "zerg_glaive_wurm", "weapon_type": "normal", "armor_type": "light", "base_damage": 2.997, "damage_multiplier": 1.0, "health_damage": 2.997, "final_damage": 2.997, "chain_index": 1, "splash_fraction": 0.333, "event_id": "1:1"}),
-			_ev({"attacker_id": "mutalisk_1", "target_id": "marine_3", "weapon_id": "zerg_glaive_wurm", "weapon_type": "normal", "armor_type": "light", "base_damage": 0.999, "damage_multiplier": 1.0, "health_damage": 0.999, "final_damage": 0.999, "chain_index": 2, "splash_fraction": 0.111, "event_id": "1:2"}),
-		],
-	})
-	# 7. Zealot (2×8 normal) vs Marine (light, 40hp)
-	presets.append({
-		"label": "7. Zealot→Marine", "attacker": "Zealot",
-		"targets": ["Marine"], "vfx_profile": "protoss_psi",
-		"events": [
-			_ev({"attacker_id": "zealot_1", "target_id": "marine_1", "weapon_id": "protoss_psi_blades", "weapon_type": "normal", "armor_type": "light", "base_damage": 8.0, "damage_multiplier": 1.0, "health_damage": 8.0, "final_damage": 8.0, "hit_index": 0, "hit_count": 2, "event_id": "1:0"}),
-			_ev({"attacker_id": "zealot_1", "target_id": "marine_1", "weapon_id": "protoss_psi_blades", "weapon_type": "normal", "armor_type": "light", "base_damage": 8.0, "damage_multiplier": 1.0, "health_damage": 8.0, "final_damage": 8.0, "hit_index": 1, "hit_count": 2, "event_id": "1:1"}),
-		],
-	})
-	# 8. Dragoon (20 explosive) vs Ultralisk (heavy, 400hp, 1 armor) → 19 dmg
-	presets.append({
-		"label": "8. Dragoon→Ultralisk", "attacker": "Dragoon",
-		"targets": ["Ultralisk"], "vfx_profile": "protoss_phase",
-		"events": [_ev({"attacker_id": "dragoon_1", "target_id": "ultralisk_1", "weapon_id": "protoss_phase_disruptor", "weapon_type": "explosive", "armor_type": "heavy", "base_damage": 20.0, "damage_multiplier": 1.0, "shield_damage": 0.0, "health_damage": 19.0, "final_damage": 19.0})],
-	})
-	# 9. Templar (Psionic Storm, spell) vs Marine group — spell + periodic ticks
-	presets.append({
-		"label": "9. Templar Storm→Marines", "attacker": "HighTemplar",
-		"targets": ["Marine"], "vfx_profile": "protoss_psi",
-		"events": [
-			_ev({"event_type": "spell_resolved", "attacker_id": "templar_1", "target_id": "marine_1", "weapon_id": "protoss_psionic_storm", "weapon_type": "spells", "armor_type": "light", "base_damage": 14.0, "damage_multiplier": 1.0, "final_damage": 14.0, "event_id": "1:0"}),
-			_ev({"attacker_id": "templar_1", "target_id": "marine_1", "weapon_id": "protoss_psionic_storm", "weapon_type": "normal", "armor_type": "light", "base_damage": 14.0, "damage_multiplier": 1.0, "health_damage": 14.0, "final_damage": 14.0, "tick": 2, "event_id": "2:0"}),
-			_ev({"attacker_id": "templar_1", "target_id": "marine_1", "weapon_id": "protoss_psionic_storm", "weapon_type": "normal", "armor_type": "light", "base_damage": 14.0, "damage_multiplier": 1.0, "health_damage": 14.0, "final_damage": 14.0, "tick": 3, "event_id": "3:0"}),
-			_ev({"attacker_id": "templar_1", "target_id": "marine_1", "weapon_id": "protoss_psionic_storm", "weapon_type": "normal", "armor_type": "light", "base_damage": 14.0, "damage_multiplier": 1.0, "health_damage": 12.0, "final_damage": 12.0, "killed": true, "tick": 4, "event_id": "4:0"}),
-		],
-	})
-	# 10. Reaver (20 normal, scarab splash) vs Zergling group
-	presets.append({
-		"label": "10. Reaver→Zerglings", "attacker": "Reaver",
-		"targets": ["Zergling", "Zergling", "Zergling"], "vfx_profile": "protoss_psi",
-		"events": [
-			_ev({"attacker_id": "reaver_1", "target_id": "zergling_1", "weapon_id": "protoss_scourge_scarab", "weapon_type": "normal", "armor_type": "light", "base_damage": 20.0, "damage_multiplier": 1.0, "health_damage": 20.0, "final_damage": 20.0, "event_id": "1:0"}),
-			_ev({"attacker_id": "reaver_1", "target_id": "zergling_2", "weapon_id": "protoss_scourge_scarab", "weapon_type": "normal", "armor_type": "light", "base_damage": 10.0, "splash_fraction": 0.5, "is_splash": true, "health_damage": 10.0, "final_damage": 10.0, "event_id": "1:1"}),
-			_ev({"attacker_id": "reaver_1", "target_id": "zergling_3", "weapon_id": "protoss_scourge_scarab", "weapon_type": "normal", "armor_type": "light", "base_damage": 10.0, "splash_fraction": 0.5, "is_splash": true, "health_damage": 10.0, "final_damage": 10.0, "event_id": "1:2"}),
-		],
-	})
+	for i in range(raw_presets.size()):
+		var p: Dictionary = raw_presets[i]
+		if not p is Dictionary:
+			continue
+		var preset_id: String = str(p.get("id", "preset_%d" % (i + 1)))
+		var label: String = "%d. %s" % [i + 1, preset_id.replace("_", " ").capitalize()]
+		presets.append({
+			"label": label,
+			"id": preset_id,
+			"attacker": str(p.get("attacker", "")),
+			"targets": p.get("targets", []),
+			"events": p.get("combat_events", []),
+			"initial_entities": p.get("initial_entities", []),
+			"final_entities": p.get("final_entities", {}),
+			"commands": p.get("commands", []),
+			"ticks": int(p.get("ticks", 0)),
+		})
 	return presets

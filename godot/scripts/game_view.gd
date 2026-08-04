@@ -62,6 +62,9 @@ const LEGACY_HP_DELTA_VFX_ENABLED := false
 var _ents: Array = []
 var _prev_hp: Dictionary = {}
 var _prev_entities: Dictionary = {}
+# Per-tick set of entity IDs that received a unit_destroyed combat event,
+# used to suppress duplicate death VFX in the entity-removal path of _parse().
+var _destroyed_this_tick: Dictionary = {}
 
 # ─── Time tracking (shared: APM + overlay sin animations) ──
 var _game_time: float = 0.0
@@ -515,6 +518,9 @@ func _ready() -> void:
 	_test_gallery.setup(_ui_layer, _sprite_loader, _default_font, _entity_cache_by_id)
 	_test_gallery.entities_rebuilt.connect(_on_test_entities_rebuilt)
 	_test_gallery.state_changed.connect(_on_test_state_changed)
+	# Route preset combat events through the real event-driven VFX controller.
+	if _combat_visual_controller != null:
+		_test_gallery.set_combat_controller(_combat_visual_controller)
 	# Bug 4 fix: instantiate TestModeLabelLayer, add as child of _ui_layer
 	_test_label_layer = TestModeLabelLayer.new()
 	_test_label_layer.name = "TestModeLabelLayer"
@@ -1807,8 +1813,15 @@ func _parse(state: Dictionary) -> void:
 		_entity_cache_by_id[str(eid)] = ent_dict
 
 	# ─── Dispatch authoritative combat events to the visual controller ───
+	_destroyed_this_tick.clear()
+	var combat_events: Array = state.get("combat_events", [])
+	for cev in combat_events:
+		if cev is Dictionary and str(cev.get("event_type", "")) == "unit_destroyed":
+			var destroyed_id: String = str(cev.get("target_id", ""))
+			if destroyed_id != "":
+				_destroyed_this_tick[destroyed_id] = true
 	if _combat_visual_controller != null:
-		_combat_visual_controller.process_combat_events(state.get("combat_events", []))
+		_combat_visual_controller.process_combat_events(combat_events)
 
 	# Parse fog-of-war for P1
 	var fog: Dictionary = state.get("fog_of_war", {})
@@ -1926,6 +1939,10 @@ func _parse(state: Dictionary) -> void:
 		if not _entity_cache_by_id.has(old_id):
 			var old_e: Dictionary = old_entities[old_id]
 			if float(old_e.get("health", 0.0)) > 0.0:
+				# Skip death VFX when a unit_destroyed combat event already
+				# produced death visuals for this entity this tick.
+				if _destroyed_this_tick.has(old_id):
+					continue
 				var death_pos := Vector2(float(old_e.get("px", 0.0)), float(old_e.get("py", 0.0)))
 				var death_owner: int = int(old_e.get("owner", 0))
 				var death_type: String = str(old_e.get("type", old_e.get("entity_type", "")))

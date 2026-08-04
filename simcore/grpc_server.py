@@ -80,6 +80,8 @@ def _append_combat_events(proto_snapshot, events: list[dict]) -> None:
         ce.shield_armor_value = float(event.get("shield_armor_value", 0.0))
         ce.hit_index = int(event.get("hit_index", 0))
         ce.hit_count = int(event.get("hit_count", 1))
+        ce.source_owner = int(event.get("source_owner", 0))
+        ce.target_owner = int(event.get("target_owner", 0))
 
 
 class SimCoreServicer(service_pb2_grpc.SimCoreServiceServicer):

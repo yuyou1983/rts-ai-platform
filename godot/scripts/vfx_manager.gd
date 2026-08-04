@@ -11,6 +11,7 @@ const PRESENTATION_MANIFEST_PATH := "res://resources/presentation_manifest.json"
 
 var _catalog: Dictionary = {}
 var _weapon_visuals: Dictionary = {}
+var _weapon_visual_meta: Dictionary = {}  # _meta block from weapon_visual_catalog.json
 var _effects: Array[Dictionary] = []
 var _projectiles: Array[Dictionary] = []
 var _textures: Dictionary = {}
@@ -54,6 +55,7 @@ func _load_weapon_visual_catalog() -> void:
 	if not FileAccess.file_exists(WEAPON_VISUAL_CATALOG_PATH):
 		push_warning("[VFXManager] Missing weapon visual catalog: %s" % WEAPON_VISUAL_CATALOG_PATH)
 		_weapon_visuals = {}
+		_weapon_visual_meta = {}
 		return
 	var text := FileAccess.get_file_as_string(WEAPON_VISUAL_CATALOG_PATH)
 	var parsed = JSON.parse_string(text)
@@ -61,11 +63,14 @@ func _load_weapon_visual_catalog() -> void:
 		# Top-level may include a "_meta" key; store only weapon entries.
 		for key in parsed:
 			if key.begins_with("_"):
+				if key == "_meta" and parsed[key] is Dictionary:
+					_weapon_visual_meta = parsed[key]
 				continue
 			_weapon_visuals[key] = parsed[key]
 	else:
 		push_warning("[VFXManager] Invalid weapon visual catalog JSON: %s" % WEAPON_VISUAL_CATALOG_PATH)
 		_weapon_visuals = {}
+		_weapon_visual_meta = {}
 
 
 func _process(delta: float) -> void:
@@ -268,9 +273,14 @@ func spawn_weapon_event(event: Dictionary, visual: Dictionary) -> void:
 		muzzle_pos = source_pos + dir.normalized() * _muzzle_offset
 
 	match event_type:
-		"attack_started", "projectile_fired", "launch":
+		"attack_started":
+			# Launch effect ONLY (muzzle flash / cast effect). The visible
+			# projectile/tracer is spawned later by "projectile_fired"/"launch".
 			var launch_effect: String = str(visual.get("launch_effect", "muzzle_flash_small"))
 			_spawn_effect(launch_effect, muzzle_pos, owner, false)
+		"projectile_fired", "launch":
+			# Projectile/tracer ONLY; the launch effect was already spawned
+			# on "attack_started" so we don't duplicate it here.
 			_spawn_projectile_for_style(projectile_style, visual, owner, muzzle_pos, target_pos)
 
 		"hit_confirmed":
@@ -315,6 +325,20 @@ func spawn_weapon_event(event: Dictionary, visual: Dictionary) -> void:
 func get_weapon_visual(weapon_id: String) -> Dictionary:
 	## Return the weapon-visual catalog entry for `weapon_id`, or an empty dict.
 	return _weapon_visuals.get(weapon_id, {})
+
+
+func get_weapon_animation_action(weapon_id: String) -> String:
+	## Return the sprite animation action ("attack" or "cast") for a weapon.
+	## Prefers the per-weapon "animation_action" field in the catalog entry,
+	## then the _meta.animation_exceptions map, then the _meta.animation_default.
+	## Returns "attack" by default (e.g. "cast" only for protoss_psionic_storm).
+	var visual: Dictionary = _weapon_visuals.get(weapon_id, {})
+	if visual.has("animation_action"):
+		return str(visual["animation_action"])
+	var exceptions: Dictionary = _weapon_visual_meta.get("animation_exceptions", {})
+	if exceptions.has(weapon_id):
+		return str(exceptions[weapon_id])
+	return str(_weapon_visual_meta.get("animation_default", "attack"))
 
 
 func _spawn_projectile_for_style(style: String, visual: Dictionary, owner: int, from_pos: Vector2, to_pos: Vector2) -> void:
