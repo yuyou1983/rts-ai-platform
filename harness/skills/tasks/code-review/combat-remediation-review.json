@@ -1,0 +1,28 @@
+{
+  "id": "combat-remediation-review",
+  "name": "Code Review: SC1 Combat Remediation",
+  "description": "Review the combat remediation implementation against its plan and QA report",
+  "source_spec": "docs/plans/2026-08-03-sc1-combat-differentiation-remediation-plan.md",
+  "fixed_point": "e201355",
+  "target": "2dbcf66",
+  "blocked_by": [],
+  "acceptance_criteria": [
+    "Standards axis reports architecture boundary compliance",
+    "Specification axis detects QA status drift where Task 8-9 implementation is complete but QA report previously reported partial",
+    "Source Truth axis checks SC1 DAT weapon identity against implementation"
+  ],
+  "verification_seams": [
+    "python3 harness/skills/validate_registry.py",
+    "python3 -m pytest tests/harness/test_code_review_skill_contract.py -q"
+  ],
+  "evidence_outputs": [
+    "docs/reports/agent-skills-workflow-alignment.md"
+  ],
+  "forbidden_paths": [
+    "simcore/",
+    "agents/",
+    "godot/scripts/",
+    "proto/"
+  ],
+  "status": "ready"
+}

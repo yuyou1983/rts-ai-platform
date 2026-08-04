@@ -357,13 +357,14 @@
   },
   {
     "name": "code-review",
-    "description": "审查代码变更，检查架构合规性和质量",
+    "description": "Reviews a change set against three independent axes — Standards, Specification, and Source Truth — using a pinned fixed-point diff and the originating plan",
     "invocation_mode": "both",
     "skill_kind": "discipline",
     "composes": [],
     "completion_criteria": [
-      "all review axes evaluated and recorded",
-      "targeted validation commands exit 0",
+      "all applicable axes (Standards, Specification, Source Truth) evaluated with independent verdicts recorded",
+      "fixed-point diff (git diff <fixed-point>...HEAD) recorded as review scope",
+      "verdicts kept separate per axis; axes never merged into one score",
       "evidence recorded in report"
     ],
     "primary_action": "review_code",
@@ -374,7 +375,8 @@
       "Bash"
     ],
     "validation_commands": [
-      "python3 scripts/lint_deps.py"
+      "python3 scripts/lint_deps.py",
+      "python3 -m pytest tests/harness/test_code_review_skill_contract.py -q"
     ],
     "owner_domain": "cross-cutting",
     "layer_constraints": [
@@ -392,13 +394,17 @@
       {
         "pattern": "task-specific detail is promoted as a general skill rule",
         "mitigation": "auditor rejects seed, path, entity id, and fixture id leakage"
+      },
+      {
+        "pattern": "axes merged into a single composite score",
+        "mitigation": "output format requires separate Verdict lines per axis; Summary only counts findings"
       }
     ],
     "silent_bypass_risks": [
       "SKILL.md is loaded but its declared primary action is not reflected in the trace"
     ],
-    "version": "0.1.0",
-    "last_evolved": null,
+    "version": "0.2.0",
+    "last_evolved": "2026-08-04T10:33:43.302911+00:00",
     "held_out_suite": null
   },
   {
