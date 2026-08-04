@@ -568,6 +568,7 @@ def process_spells(
                     "max_damage_ticks": 8,
                     "damage_ticks_applied": 0,
                     "radius": radius,
+                    "duration": 10,  # survive process_projectiles cleanup (8 dmg ticks + buffer)
                 }
                 # Cast emits exactly one SPELL_RESOLVED event (no impact).
                 append_combat_event(

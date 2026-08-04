@@ -1048,8 +1048,8 @@ def resolve_combat(
     for eid, e in entity_list:
         if eid in to_remove:
             continue
-        # Skip resources, projectiles, dead entities, and buildings under construction
-        if e.get("entity_type") in ("resource", "projectile"):
+        # Skip resources, projectiles, effects, dead entities, and buildings under construction
+        if e.get("entity_type") in ("resource", "projectile", "effect"):
             continue
         if e.get("is_constructing"):
             continue
