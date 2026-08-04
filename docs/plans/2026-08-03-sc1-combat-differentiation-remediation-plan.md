@@ -259,7 +259,7 @@ git commit -m "docs: record SC1 combat remediation baseline"
 - Modify: `tools/mpq/extract_dat.py`
 - Test: `tests/tools/test_sc1_combat_dat_audit.py`
 
-- [ ] **Step 1：先写覆盖优先级失败测试**
+- [x] **Step 1：先写覆盖优先级失败测试**
 
 测试导入 extraction module，断言顺序和 provenance：
 
@@ -282,7 +282,7 @@ def test_combat_files_include_all_authoritative_inputs():
     }.issubset(set(FILES))
 ```
 
-- [ ] **Step 2：确认旧实现失败**
+- [x] **Step 2：确认旧实现失败**
 
 Run:
 
@@ -292,7 +292,7 @@ python3 -m pytest tests/tools/test_sc1_combat_dat_audit.py -k precedence -q
 
 Expected: FAIL，原因是当前只做 StarDat 后 BrooDat 覆盖，没有 Patch_rt 和结构化 provenance。
 
-- [ ] **Step 3：实现低到高覆盖提取**
+- [x] **Step 3：实现低到高覆盖提取**
 
 `tools/mpq/extract_dat.py` 必须暴露以下接口：
 
@@ -329,7 +329,7 @@ def extract_effective_files(
 4. provenance JSON 写到 `tools/mpq/StarDat_extracted/effective_manifest.json`，该本地生成文件不加入 Git。
 5. manifest 中每个 combat input 的 `effective_source` 必须可追踪。
 
-- [ ] **Step 4：提取并验证 Patch_rt 生效**
+- [x] **Step 4：提取并验证 Patch_rt 生效**
 
 Run:
 
@@ -347,7 +347,7 @@ arr\techdata.dat effective_source = Patch_rt.mpq
 all five required inputs exist and size > 0
 ```
 
-- [ ] **Step 5：提交提取器和测试，不提交提取结果**
+- [x] **Step 5：提交提取器和测试，不提交提取结果**
 
 ```bash
 git add tools/mpq/extract_dat.py tests/tools/test_sc1_combat_dat_audit.py
@@ -497,7 +497,7 @@ git commit -m "fix: rebuild SC1 combat truth from effective DAT"
 - Modify: `simcore/data/unit_stats.json`
 - Modify: `tests/simcore/test_sc1_representative_weapons.py`
 
-- [ ] **Step 1：把测试改为 reference -> runtime 单向校验**
+- [x] **Step 1：把测试改为 reference -> runtime 单向校验**
 
 删除 Zealot、Tank、Reaver 的手工例外和错误断言。新增：
 
@@ -516,7 +516,7 @@ def test_runtime_binding_matches_reference(unit_name, reference, unit_stats, wea
     assert weapons[expected_id]["source_weapon_dat_id"] == ref["effective_weapon_dat_id"]
 ```
 
-- [ ] **Step 2：确认当前 catalog 失败**
+- [x] **Step 2：确认当前 catalog 失败**
 
 Run:
 
@@ -526,7 +526,7 @@ python3 -m pytest tests/simcore/test_sc1_representative_weapons.py -q
 
 Expected: 至少 Tank、Ultralisk、Zealot、Storm、Reaver 失败。
 
-- [ ] **Step 3：实现幂等同步脚本**
+- [x] **Step 3：实现幂等同步脚本**
 
 脚本接口：
 
@@ -560,7 +560,7 @@ mechanics schema 至少包含：
 
 字段值必须来自 reference；示例只锁定 Scarab 的已审计值。脚本连续运行两次时第二次 `git diff` 为空。
 
-- [ ] **Step 4：同步并运行 balance-check**
+- [x] **Step 4：同步并运行 balance-check**
 
 Run:
 
@@ -572,7 +572,7 @@ python3 -m pytest tests/simcore/test_sc1_representative_weapons.py -q
 
 Expected: 12 个 semantic ID 双射一致，无手工 exception。
 
-- [ ] **Step 5：提交数据同步**
+- [x] **Step 5：提交数据同步**
 
 ```bash
 git add scripts/sync_sc1_combat_catalog.py data/combat/weapons.json simcore/data/unit_stats.json tests/simcore/test_sc1_representative_weapons.py
@@ -754,7 +754,7 @@ rg -n '^def (calculate_damage|get_damage_multiplier|get_armor_type)' simcore/rul
 
 Expected: `rules.py` 不再计算或写入 damage；projectile/spell 只调用 resolver。
 
-- [ ] **Step 5：把 splash/chain 结算移入 combat_resolution** (deferred to Task 6 — `execute_attack_cycle()` will call `resolve_weapon_impact()` for splash/chain targets)
+- [x] **Step 5：把 splash/chain 结算移入 combat_resolution** (deferred to Task 6 — `execute_attack_cycle()` will call `resolve_weapon_impact()` for splash/chain targets)
 
 接口：
 
@@ -1017,11 +1017,11 @@ make proto
 python3 -m pytest tests/proto/test_combat_event_proto.py tests/simcore/test_combat_event_transport.py -q
 ```
 
-- [ ] **Step 3：消费 `animation_action`**
+- [x] **Step 3：消费 `animation_action`**
 
 `CombatVisualController` 在 `attack_started`/`spell_resolved` 时从 weapon visual catalog 读取 `animation_action`：普通武器写 `attack`，Storm 写 `cast`。`current_action_for()` 返回该值，不再固定为 `attack`。
 
-- [ ] **Step 4：去掉重复 launch/projectile**
+- [x] **Step 4：去掉重复 launch/projectile**
 
 事件职责固定：
 
@@ -1035,11 +1035,11 @@ python3 -m pytest tests/proto/test_combat_event_proto.py tests/simcore/test_comb
 
 因此 `VFXManager.spawn_weapon_event()` 必须把 `attack_started` 和 `projectile_fired` 分开处理。
 
-- [ ] **Step 5：删除正式对局重复 death VFX**
+- [x] **Step 5：删除正式对局重复 death VFX**
 
 `game_view.gd` 的 entity disappearance death 路径只作为显式 feature-flagged legacy fallback；当本 tick 已收到同 entity 的 `unit_destroyed` 时不得再次调用 `spawn_death()` 或 HUD death effect。
 
-- [ ] **Step 6：Godot headless 断言**
+- [x] **Step 6：Godot headless 断言**
 
 新增计数器/测试 double，断言一个 projectile attack 产生：1 action、1 launch、1 moving projectile、1 impact、至多 1 death。Storm action 必须为 `cast`，death 位置等于事件 target position。
 
@@ -1064,7 +1064,7 @@ git commit -m "fix: complete combat event presentation context"
 - Modify: `tests/godot/test_weapon_visual_catalog.py`
 - Modify: `tests/integration/test_combat_visual_events_e2e.py`
 
-- [ ] **Step 1：先写禁止手写 resolver 的静态门**
+- [x] **Step 1：先写禁止手写 resolver 的静态门**
 
 ```python
 def test_test_mode_has_no_damage_formula():
@@ -1116,11 +1116,11 @@ python3 scripts/generate_sc1_combat_fixtures.py --check
 
 `--check` 在临时目录重新生成并逐字节比较；catalog/reference/runtime 变化但 fixture 未更新时失败。
 
-- [ ] **Step 4：Test Mode 进入同一 controller**
+- [x] **Step 4：Test Mode 进入同一 controller**
 
 `test_mode_gallery.gd` 只负责加载 preset、创建可视单位、按 tick 把 `combat_events` 传给正式 `CombatVisualController.process_combat_events()`。诊断 overlay 显示事件字段，不计算或覆盖 `final_damage`。
 
-- [ ] **Step 5：修正所有 semantic ID**
+- [x] **Step 5：修正所有 semantic ID**
 
 自动断言不存在以下旧错误 ID：
 
@@ -1133,7 +1133,7 @@ protoss_scourge_scarab
 
 唯一允许的是 catalog 中的：`terran_flame_thrower`、`zerg_needle_spines`、`zerg_glave_wurm`、`protoss_scarab`。
 
-- [ ] **Step 6：运行并提交**
+- [x] **Step 6：运行并提交**
 
 ```bash
 python3 scripts/generate_sc1_combat_fixtures.py --check
@@ -1157,11 +1157,11 @@ git commit -m "fix: drive Test Mode from authoritative combat fixtures"
 - Modify: `simcore/engine.py`
 - Modify: `simcore/replay.py`
 
-- [ ] **Step 1：删除伪 E2E helper**
+- [x] **Step 1：删除伪 E2E helper**
 
 删除测试内 `make_entity()`/`mk()` 对 semantic fields 的注入。新的 E2E 必须通过生产 construction 创建单位，并至少有一个测试启动真实 `SimCoreServicer` + `SimCoreClient`。
 
-- [ ] **Step 2：建立 Marine 正式全链测试**
+- [x] **Step 2：建立 Marine 正式全链测试**
 
 断言顺序：
 
@@ -1194,7 +1194,7 @@ def deterministic_percent_roll(*parts: object) -> int:
 
 子进程分别使用 `PYTHONHASHSEED=1` 和 `999`，场景必须让 attacker 与 target 高度不同并触发命中 roll。逐字节比较：events、target HP/shields、projectile IDs、replay combat events。
 
-- [ ] **Step 5：覆盖三类延迟链路**
+- [x] **Step 5：覆盖三类延迟链路**
 
 真实 E2E 至少增加：
 
@@ -1203,7 +1203,7 @@ def deterministic_percent_roll(*parts: object) -> int:
 3. Storm：一个 spell event、8 个 damage tick、空命令 tick 推进。
 4. Reaver：scarab ammo、tracking、100 damage、splash、replay 一致。
 
-- [ ] **Step 6：运行集成测试并提交**
+- [x] **Step 6：运行集成测试并提交**
 
 ```bash
 python3 -m pytest tests/integration/test_combat_visual_events_e2e.py -q
@@ -1226,11 +1226,11 @@ git commit -m "test: validate production combat events end to end"
 - Modify: `docs/reports/sc1-combat-differentiation-remediation-qa.md`
 - Modify: `docs/reports/sc1-combat-differentiation-changelog.md`
 
-- [ ] **Step 1：静态资源和动作门**
+- [x] **Step 1：静态资源和动作门**
 
 自动检查 12 单位：manifest、sprite config、asset existence、atlas bounds、非透明帧、attack/cast action、weapon visual ID 双射。额外检查 `animation_action` 在 controller 运行时代码中被读取，而非只存在 JSON。
 
-- [ ] **Step 2：30v30 自动计数测试**
+- [x] **Step 2：30v30 自动计数测试**
 
 Test Mode 运行 60 单位至少 300 个 SimCore tick，记录：
 
@@ -1244,7 +1244,7 @@ duplicate death effects = 0
 
 保存日志到 QA；不提交临时 replay 或截图缓存。
 
-- [ ] **Step 3：人工 10 matchup**
+- [x] **Step 3：人工 10 matchup**
 
 逐场运行：
 
@@ -1263,7 +1263,7 @@ duplicate death effects = 0
 
 每场 1-5 分记录：身份辨识、攻击动作、弹道、命中反馈、克制结果、密集可读性。任一项低于 4，G7 为 CONCERNS，不得标 PASS。
 
-- [ ] **Step 4：全量自动门禁**
+- [x] **Step 4：全量自动门禁**
 
 ```bash
 make proto
@@ -1284,11 +1284,11 @@ git status --short
 
 Expected: 全部退出 0；`git status` 只显示当前计划预期文件，不出现 `harness/output/` 或商业资源。
 
-- [ ] **Step 5：更新 QA 和 changelog**
+- [x] **Step 5：更新 QA 和 changelog**
 
 只有实际证据存在时才能将 Gate 改为 PASS。报告必须列出 commit、命令、测试计数、Godot 版本、MPQ hashes、OpenBW commit、人工评分和已知 divergence。
 
-- [ ] **Step 6：最终提交**
+- [x] **Step 6：最终提交**
 
 ```bash
 git add scripts/verify_presentation_scene.py docs/godot_verification_guide.md docs/reports/sc1-combat-differentiation-remediation-qa.md docs/reports/sc1-combat-differentiation-changelog.md

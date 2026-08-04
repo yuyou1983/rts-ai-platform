@@ -1,0 +1,275 @@
+{
+  "gate": "G7 PASS",
+  "results": [
+    {
+      "id": "marine_vs_zergling",
+      "name": "8 Marine vs 12 Zergling",
+      "ticks": 200,
+      "total_events": 418,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "unit_destroyed"
+      ],
+      "weapon_ids": [
+        "terran_c10_rifle",
+        "zerg_claws"
+      ],
+      "p1_deaths": 1,
+      "p2_deaths": 3,
+      "p1_alive": 8,
+      "p2_alive": 12,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "firebat_vs_zergling",
+      "name": "6 Firebat vs 16 Zergling",
+      "ticks": 200,
+      "total_events": 965,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "unit_destroyed"
+      ],
+      "weapon_ids": [
+        "terran_flame_thrower",
+        "zerg_claws"
+      ],
+      "p1_deaths": 1,
+      "p2_deaths": 0,
+      "p1_alive": 6,
+      "p2_alive": 16,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "vulture_vs_zealot",
+      "name": "4 Vulture vs 8 Zealot",
+      "ticks": 200,
+      "total_events": 323,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned"
+      ],
+      "weapon_ids": [
+        "protoss_psi_blades",
+        "terran_fragmentation_grenade"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 0,
+      "p1_alive": 4,
+      "p2_alive": 8,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "tank_vs_dragoon",
+      "name": "3 Tank vs 6 Dragoon",
+      "ticks": 200,
+      "total_events": 567,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned"
+      ],
+      "weapon_ids": [
+        "protoss_phase_disruptor",
+        "terran_arclite_cannon"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 0,
+      "p1_alive": 3,
+      "p2_alive": 6,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "hydra_vs_dragoon",
+      "name": "8 Hydralisk vs 6 Dragoon",
+      "ticks": 200,
+      "total_events": 1102,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned"
+      ],
+      "weapon_ids": [
+        "protoss_phase_disruptor",
+        "zerg_needle_spines"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 0,
+      "p1_alive": 8,
+      "p2_alive": 6,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "mutalisk_vs_marine",
+      "name": "6 Mutalisk vs 10 Marine",
+      "ticks": 200,
+      "total_events": 309,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned",
+        "unit_destroyed"
+      ],
+      "weapon_ids": [
+        "terran_c10_rifle",
+        "zerg_glave_wurm"
+      ],
+      "p1_deaths": 3,
+      "p2_deaths": 0,
+      "p1_alive": 6,
+      "p2_alive": 10,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "zealot_vs_marine",
+      "name": "8 Zealot vs 12 Marine",
+      "ticks": 200,
+      "total_events": 833,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "unit_destroyed"
+      ],
+      "weapon_ids": [
+        "protoss_psi_blades",
+        "terran_c10_rifle"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 1,
+      "p1_alive": 8,
+      "p2_alive": 12,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "dragoon_vs_ultralisk",
+      "name": "6 Dragoon vs 3 Ultralisk",
+      "ticks": 200,
+      "total_events": 464,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned"
+      ],
+      "weapon_ids": [
+        "protoss_phase_disruptor",
+        "zerg_kaiser_blades"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 0,
+      "p1_alive": 6,
+      "p2_alive": 3,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "storm_vs_marine",
+      "name": "2 High Templar Storm vs Marine group",
+      "ticks": 200,
+      "total_events": 180,
+      "event_types": [
+        "attack_started",
+        "impact_resolved"
+      ],
+      "weapon_ids": [
+        "terran_c10_rifle"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 0,
+      "p1_alive": 2,
+      "p2_alive": 10,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    },
+    {
+      "id": "reaver_vs_zergling",
+      "name": "3 Reaver vs Zergling group",
+      "ticks": 200,
+      "total_events": 418,
+      "event_types": [
+        "attack_started",
+        "impact_resolved",
+        "projectile_spawned",
+        "unit_destroyed"
+      ],
+      "weapon_ids": [
+        "protoss_scarab",
+        "zerg_claws"
+      ],
+      "p1_deaths": 0,
+      "p2_deaths": 3,
+      "p1_alive": 3,
+      "p2_alive": 15,
+      "scores": {
+        "identity": 5,
+        "attack_action": 5,
+        "projectile": 5,
+        "hit_feedback": 5,
+        "readability": null
+      },
+      "gate": "PASS"
+    }
+  ]
+}
