@@ -18,7 +18,7 @@
 | A1 Registry semantics | PASS | PASS | schema requires invocation_mode/skill_kind/completion_criteria + composes (pattern, uniqueItems); 22/22 entries migrated with completion_criteria; composition graph acyclic; validate_composition wired into validator; tests/harness/test_skill_registry_semantics.py green |
 | A2 Domain language | PASS | PASS | CONTEXT-MAP.md references all four bounded-context glossaries; required terms present and unambiguous; domain-modeling skill registered; brainstorm.composes=["domain-modeling"]; test_domain_contexts.py green |
 | A3 Review workflow | FAIL | PASS | code-review upgraded to v0.2.0 with three independent axes (Standards, Specification, Source Truth); fixed-point diff (git diff <fixed-point>...HEAD) pins scope; verdicts kept separate per axis; contract tests (tests/harness/test_code_review_skill_contract.py) green; combat-remediation-review fixture created |
-| A4 Vertical execution | FAIL | PASS | task schema gained vertical ticket fields (source_spec, blocked_by, acceptance_criteria, verification_seams, evidence_outputs, status) with status enum {blocked, ready, in_progress, verification, done}; harness/skills/validate_tasks.py enforces schema, blocker existence, blocked_by acyclicity, ready-requires-done, source_spec on disk, and no fixture forbidding the task graph; both fixtures (godot-vfx/sc1-resource-alignment, code-review/combat-remediation-review) carry the full vertical ticket; strategy_runner.py renders Source Specification / Blocked By / Acceptance Criteria / Verification Seams / Evidence Outputs / Stop Condition sections before Validation Commands; tests/harness/test_task_graph.py green |
+| A4 Vertical execution | FAIL | PASS | task schema gained vertical ticket fields (source_spec, blocked_by, acceptance_criteria, verification_seams, evidence_outputs, status) with status enum {blocked, ready, in_progress, verification, done}; harness/skills/validate_tasks.py enforces schema, blocker existence, blocked_by acyclicity, ready-requires-done, source_spec on disk, and no fixture forbidding the task graph; both fixtures (godot-vfx/sc1-resource-alignment, code-review/combat-remediation-review) carry the full vertical ticket; strategy_runner.py renders Source Specification / Blocked By / Acceptance Criteria / Verification Seams / Evidence Outputs / Stop Condition sections before Validation Commands; tests/harness/test_task_graph.py green; sprint-plan SKILL.md (v0.2.0) mandates vertical-slice tickets (Status/Blocked by/Source specification/What it delivers/Acceptance criteria/Verification seams/Evidence outputs/Owner skill) and forbids per-layer decomposition; harness-run SKILL.md (v0.2.0) defines the tight red-capable feedback loop (read spec → reproduce → minimise → one hypothesis at a time → regression test → smallest fix → targeted+arch+full tests → code-review → evidence+status in one commit) with structured handoff and repository-only output locations (harness/output/, docs/reports/); hardcoded S3/MLflow/fabricated run IDs removed; tests/harness/test_execution_skill_contracts.py green |
 | A5 Handoff | FAIL | FAIL | no structured handoff skill |
 | A6 Candidate held-out | FAIL | FAIL | candidate patch is not executed during held-out |
 | A7 Coverage | FAIL | FAIL | 4/22 skills have held-out suites |
@@ -77,6 +77,44 @@ evidence outputs, and lifecycle status.
   Acceptance Criteria, Verification Seams, Evidence Outputs, and a Stop
   Condition that pins the agent to the current fixture and halts after evidence
   is recorded.
+
+## A4 Vertical Execution — Planning & Harness Alignment
+
+The vertical ticket schema is only useful if the skills that *produce* and
+*consume* tickets speak the same vocabulary. This step aligned the two
+end-to-end skills:
+
+- **sprint-plan** (`v0.1.0` → `v0.2.0`) now plans sprints as **vertical slice**
+  tickets. Each ticket block carries `Status`, `Blocked by`, `Source
+  specification`, `What it delivers`, `Acceptance criteria`, `Verification
+  seams`, `Evidence outputs`, and `Owner skill`. The skill explicitly forbids
+  decomposing a ticket into one ticket per architectural layer: *"A ticket may
+  cross Proto, SimCore, gRPC, and Godot when that is the narrowest
+  independently demonstrable path."* The `blocked_by` graph must be acyclic and
+  a `ready` ticket may only depend on `done` tickets — the same invariants the
+  task validator enforces on fixtures.
+
+- **harness-run** (`v0.1.0` → `v0.2.0`) now executes each ticket through a
+  **tight red-capable feedback loop** in fixed order: (1) read source
+  specification, domain context, ADR, and fixture; (2) build one fast
+  deterministic red-capable command; (3) reproduce and minimise; (4) record
+  3-5 falsifiable hypotheses; (5) test one hypothesis at a time; (6) convert
+  the minimal reproducer into a regression test at the highest stable seam;
+  (7) implement the smallest fix; (8) run targeted → architecture → full
+  tests; (9) run code-review against the fixture source specification;
+  (10) update evidence and task status in the same commit. The skill mandates
+  a structured **handoff** (restating ticket ID, red-capable command, ruled-out
+  hypotheses, receiving owner skill) when a ticket cannot be completed alone.
+  Hardcoded S3 URIs, MLflow experiment numbers, fabricated run IDs, and the
+  synthetic progress table were removed; all evidence now references
+  repository-relative paths (`harness/output/`, `docs/reports/`,
+  `production/sprints/`).
+
+- **Contract tests** (`tests/harness/test_execution_skill_contracts.py`) pin
+  both skills: `TestSprintPlanContract` asserts the vertical-slice ticket
+  format and required fields; `TestHarnessRunContract` asserts the red-capable
+  loop, minimise, one-hypothesis-at-a-time, regression, handoff, and execution
+  order. 13 tests, all green.
 
 ## Known State Drift
 - Commit 2dbcf66 completes combat Tasks 8-9 but docs/reports/sc1-combat-differentiation-remediation-qa.md previously reported those tasks as partial (now fixed in 1203b28).

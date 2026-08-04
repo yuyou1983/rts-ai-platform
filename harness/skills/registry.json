@@ -112,8 +112,8 @@
       "SKILL.md 说 '必须跑测试' 但 trace 中无 pytest 调用",
       "executor 跳过 verify 步骤"
     ],
-    "version": "0.1.0",
-    "last_evolved": null,
+    "version": "0.2.0",
+    "last_evolved": "2026-08-04T18:42:00.000000+00:00",
     "held_out_suite": "harness/skills/held_out/harness-run"
   },
   {
@@ -849,8 +849,8 @@
     "silent_bypass_risks": [
       "SKILL.md is loaded but its declared primary action is not reflected in the trace"
     ],
-    "version": "0.1.0",
-    "last_evolved": null,
+    "version": "0.2.0",
+    "last_evolved": "2026-08-04T18:42:00.000000+00:00",
     "held_out_suite": null
   },
   {
