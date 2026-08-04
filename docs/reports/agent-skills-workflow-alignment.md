@@ -15,7 +15,7 @@
 | Gate | Initial status | Evidence |
 |---|---|---|
 | A0 Source pin | PASS | external commit and license recorded |
-| A1 Registry semantics | FAIL | invocation_mode, skill_kind, composes, completion_criteria absent |
+| A1 Registry semantics | PASS | schema requires invocation_mode/skill_kind/completion_criteria + composes (pattern, uniqueItems); 22/22 entries migrated with completion_criteria; composition graph acyclic; validate_composition wired into validator; tests/harness/test_skill_registry_semantics.py green |
 | A2 Domain language | FAIL | no CONTEXT-MAP.md or bounded-context glossaries |
 | A3 Review workflow | FAIL | code-review has no independent Spec axis |
 | A4 Vertical execution | FAIL | task schema has no blockers or verification seams |

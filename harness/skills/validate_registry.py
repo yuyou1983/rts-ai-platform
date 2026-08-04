@@ -99,7 +99,103 @@ def validate() -> list[str]:
     if missing:
         issues.append(f"Missing registry entries for local skills: {missing}")
 
+    # 11. 组合语义校验：composes 目标存在、仅 orchestrator 可组合、
+    #     model orchestrator 不能依赖 user-only child、无环、无自组合
+    issues.extend(validate_composition(registry))
+
     return issues
+
+
+def validate_composition(registry: list[dict]) -> list[str]:
+    """Validate composes target existence, kind restrictions, invocation
+    compatibility, and graph acyclicity.
+
+    Rules:
+      1. Every ``composes`` target must exist in the registry.
+      2. Only ``orchestrator`` entries may carry a non-empty ``composes``.
+      3. A ``model`` orchestrator cannot require a ``user``-only child.
+      4. The directed composition graph must be acyclic.
+      5. A skill cannot compose itself.
+
+    Returned issue strings are deterministic and always contain the offending
+    skill name and, where relevant, the offending edge target.
+    """
+    issues: list[str] = []
+    names = {entry.get("name") for entry in registry}
+    by_name: dict[str, dict] = {entry.get("name"): entry for entry in registry}
+
+    for entry in registry:
+        name = entry.get("name", "?")
+        composes = entry.get("composes") or []
+        kind = entry.get("skill_kind")
+        mode = entry.get("invocation_mode")
+
+        # Rule 5: a skill cannot compose itself.
+        if name in composes:
+            issues.append(f"{name}: skill cannot compose itself")
+
+        # Rule 1: every composes target must exist.
+        for target in composes:
+            if target == name:
+                continue  # already reported by Rule 5
+            if target not in names:
+                issues.append(f"{name}: composes target '{target}' does not exist")
+
+        # Rule 2: only orchestrators may compose.
+        if composes and kind != "orchestrator":
+            issues.append(
+                f"{name}: non-orchestrator skill_kind '{kind}' cannot have composes"
+            )
+
+        # Rule 3: a model orchestrator cannot require a user-only child.
+        if mode == "model" and kind == "orchestrator":
+            for target in composes:
+                child = by_name.get(target)
+                if child and child.get("invocation_mode") == "user":
+                    issues.append(
+                        f"{name}: model orchestrator cannot require "
+                        f"user-only child '{target}'"
+                    )
+
+    # Rule 4: the directed composition graph must be acyclic (DFS).
+    issues.extend(_detect_composition_cycles(by_name))
+
+    return issues
+
+
+def _detect_composition_cycles(by_name: dict[str, dict]) -> list[str]:
+    """Return cycle descriptions found via DFS on the composes graph.
+
+    Self-loops are reported by ``validate_composition`` (Rule 5) and skipped
+    here to avoid duplicate messages.
+    """
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {name: WHITE for name in by_name}
+    cycles: list[str] = []
+
+    def dfs(node: str, path: list[str]) -> None:
+        color[node] = GRAY
+        path.append(node)
+        for target in by_name.get(node, {}).get("composes") or []:
+            if target == node:
+                continue  # self-loop handled by Rule 5
+            if target not in color:
+                continue  # missing target handled by Rule 1
+            if color[target] == GRAY:
+                start = path.index(target)
+                cycle = path[start:] + [target]
+                cycles.append(
+                    "cycle detected in composition graph: " + " -> ".join(cycle)
+                )
+            elif color[target] == WHITE:
+                dfs(target, path)
+        path.pop()
+        color[node] = BLACK
+
+    for name in by_name:
+        if color[name] == WHITE:
+            dfs(name, [])
+    return cycles
 
 
 def fix() -> None:
