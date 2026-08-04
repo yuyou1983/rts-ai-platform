@@ -1,0 +1,29 @@
+{
+  "skill_name": "replay-analyze",
+  "suite": "replay-analyze-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/replay-analyze/deterministic-replay",
+      "type": "deterministic_replay",
+      "description": "A recorded game replayed from the deterministic command stream must reproduce the exact same world-state hash at every checkpoint. The replay hash must match the recorded fixture hash, proving determinism holds across re-runs.",
+      "skill": "replay-analyze",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_replay_v2.py tests/simcore/test_hash.py -q",
+        "python3 -m pytest tests/simcore/test_determinism_smoke.py -q"
+      ],
+      "pass_criteria": "Replay v2 and hash tests pass (replay reproduces recorded hash at each tick); determinism smoke test confirms two runs from the same seed produce identical state; analysis metrics are recorded in the report."
+    },
+    {
+      "id": "held-out/replay-analyze/corrupted-divergent-replay",
+      "type": "corrupted_replay",
+      "description": "A corrupted or divergent replay (truncated command stream, swapped tick, or non-deterministic RNG injection) must be detected and rejected — the replay result must report divergence rather than silently producing a mismatched but 'valid-looking' final state.",
+      "skill": "replay-analyze",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_replay_v2.py -q",
+        "python3 -m pytest tests/simcore/test_replay_result.py -q"
+      ],
+      "pass_criteria": "Replay v2 tests cover divergence detection; replay result tests assert that corrupted streams yield a non-OK verdict and that divergence is surfaced, not hidden behind a coincidentally-matching final hash."
+    }
+  ]
+}

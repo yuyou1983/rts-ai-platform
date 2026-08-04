@@ -1,0 +1,29 @@
+{
+  "skill_name": "balance-check",
+  "suite": "balance-check-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/balance-check/normal-progression",
+      "type": "normal_progression",
+      "description": "Under a representative config, both sides progress through economy, tech, and combat without any unit or strategy dominating. Resource accumulation, build completion, and combat resolution all fall within expected bands across multiple seeds.",
+      "skill": "balance-check",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_engine.py tests/simcore/test_state.py -q",
+        "python3 -m pytest tests/simcore/test_combat.py -q"
+      ],
+      "pass_criteria": "Engine + state tests pass (economy/combat loops behave under default config); combat resolution tests confirm no unit class one-shots another under normal parameters; balance metrics table is recorded in the report."
+    },
+    {
+      "id": "held-out/balance-check/dominant-degenerate-config",
+      "type": "dominant_config",
+      "description": "A degenerate or dominant config (e.g. an over-tuned damage value, a zero-cost unit, or a single-race closed loop) must be flagged as imbalanced. The check must not silently approve a config where one side wins deterministically regardless of play.",
+      "skill": "balance-check",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_combat.py -q",
+        "python3 -m pytest tests/simcore/test_e2e_three_races.py -q"
+      ],
+      "pass_criteria": "Combat tests cover resolution edge cases; the three-races end-to-end test confirms the engine exercises all factions without a hardcoded winner; the balance report records the degenerate config as CONCERNS or FAIL rather than PASS."
+    }
+  ]
+}

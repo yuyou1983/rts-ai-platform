@@ -1,0 +1,28 @@
+{
+  "skill_name": "godot-gdscript-specialist",
+  "suite": "godot-gdscript-specialist-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/godot-gdscript-specialist/typed-script-contract",
+      "type": "typed_script_contract",
+      "description": "A GDScript edit must keep typed signal signatures and presentation-manifest contracts intact: the manifest must still resolve abstract units/buildings to concrete visual resources, atlas rects must stay within PNG bounds, and no hardcoded entity drift may be introduced.",
+      "skill": "godot-gdscript-specialist",
+      "validation_commands": [
+        "python3 scripts/verify_presentation_scene.py",
+        "python3 -m pytest tests/godot/test_presentation_manifest.py -q"
+      ],
+      "pass_criteria": "Presentation scene verifier exits 0 (manifest valid, atlas in bounds, abstract mappings resolve, no hardcoded drift); presentation manifest tests pass confirming the typed script contract still holds after the edit."
+    },
+    {
+      "id": "held-out/godot-gdscript-specialist/event-ownership-regression",
+      "type": "event_ownership",
+      "description": "A GDScript change must not break combat event ownership — the frontend must continue to attribute combat events to the correct source unit and target. A regression that re-routes or drops events between SimCore and the presentation layer must be caught.",
+      "skill": "godot-gdscript-specialist",
+      "validation_commands": [
+        "python3 -m pytest tests/godot/test_combat_event_contract.py -q"
+      ],
+      "pass_criteria": "Combat event contract tests pass, confirming event ownership (source/target/entity-type) is preserved across the SimCore→Frontend boundary after the GDScript edit; no event is silently dropped or misattributed."
+    }
+  ]
+}

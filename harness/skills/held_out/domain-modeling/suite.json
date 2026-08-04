@@ -1,0 +1,29 @@
+{
+  "skill_name": "domain-modeling",
+  "suite": "domain-modeling-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/domain-modeling/overloaded-term-conflict",
+      "type": "overloaded_term",
+      "description": "A single domain term (e.g. 'unit') is overloaded across bounded contexts (SimCore gameplay unit vs. Godot presentation unit vs. proto message Unit). The modeling skill must detect the conflict, keep each glossary entry scoped to its bounded context, and forbid glossary entries that leak file paths or function signatures.",
+      "skill": "domain-modeling",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_domain_contexts.py -q",
+        "python3 -m pytest tests/harness/test_strategy_runner.py -q"
+      ],
+      "pass_criteria": "Domain context tests pass confirming all four bounded-context glossaries are present, required terms are unambiguous, and no glossary entry contains implementation detail; strategy runner tests confirm domain context is rendered before validation commands."
+    },
+    {
+      "id": "held-out/domain-modeling/context-boundary-disagreement",
+      "type": "context_boundary_disagreement",
+      "description": "A change assumes a term means the same thing across two bounded contexts when it does not (e.g. treating a SimCore combat unit and a Godot visual unit as interchangeable). The skill must surface the boundary disagreement via CONTEXT-MAP.md and the per-context glossaries rather than silently merging the contexts.",
+      "skill": "domain-modeling",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_domain_contexts.py -q",
+        "test -f CONTEXT-MAP.md && test -f docs/domain/simcore-context.md"
+      ],
+      "pass_criteria": "Domain context tests pass confirming CONTEXT-MAP.md references all four bounded-context glossaries; CONTEXT-MAP.md and the simcore-context glossary both exist on disk; the boundary between SimCore and presentation contexts is explicit, not merged."
+    }
+  ]
+}

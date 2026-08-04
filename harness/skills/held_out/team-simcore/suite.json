@@ -1,1 +1,51 @@
-{"suite": "team-simcore-held-out", "version": "0.1.0", "scenarios": [{"id": "sim-move-001", "type": "movement", "description": "工人寻路到远处矿点", "skill": "team-simcore", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable"}, {"id": "sim-combat-002", "type": "combat", "description": "soldier 攻击敌方 base", "skill": "team-simcore", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable"}, {"id": "sim-econ-003", "type": "economy", "description": "资源采集 + 消费循环", "skill": "team-simcore", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable"}, {"id": "sim-replay-004", "type": "replay", "description": "replay hash 一致性", "skill": "team-simcore", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; s=SimCore(); s.initialize(map_seed=1,config={'map_size':64,'max_ticks':10}); print('OK')\""], "pass_criteria": "SimCore initializes and steps without error"}]}
+{
+  "skill_name": "team-simcore",
+  "suite": "team-simcore-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/team-simcore/movement-pathfinding",
+      "type": "movement",
+      "description": "A worker pathfinds to a distant mineral node — the movement/order system must issue a valid move command and the engine must advance the unit toward the target without clipping or stalling.",
+      "skill": "team-simcore",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_engine.py -q",
+        "python3 -m pytest tests/simcore/test_order.py -q"
+      ],
+      "pass_criteria": "Engine tests confirm units advance per tick; order tests confirm move commands are well-formed and dispatched; the worker reaches the target node within the expected tick budget."
+    },
+    {
+      "id": "held-out/team-simcore/combat-resolution",
+      "type": "combat",
+      "description": "A soldier attacks an enemy base — combat resolution must apply damage, respect cooldown and range, and emit a combat event with correct source/target ownership.",
+      "skill": "team-simcore",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_combat.py -q",
+        "python3 -m pytest tests/simcore/test_combat_resolution.py -q"
+      ],
+      "pass_criteria": "Combat and combat-resolution tests pass confirming damage application, cooldown, and range checks; combat events carry correct source/target ownership."
+    },
+    {
+      "id": "held-out/team-simcore/economy-loop",
+      "type": "economy",
+      "description": "Resource gathering and spending loop — workers harvest, resources accumulate, and the engine spends them on build orders without leaking state across ticks.",
+      "skill": "team-simcore",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_gas_loop.py -q",
+        "python3 -m pytest tests/simcore/test_engine.py -q"
+      ],
+      "pass_criteria": "Gas-loop tests confirm the resource gather/spend cycle is deterministic and leak-free; engine tests confirm the economy loop advances correctly per tick."
+    },
+    {
+      "id": "held-out/team-simcore/replay-hash-consistency",
+      "type": "replay",
+      "description": "Replay hash consistency — a game run from a fixed seed must produce a deterministic state hash at every checkpoint, and replaying the recorded command stream must reproduce the identical hash.",
+      "skill": "team-simcore",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_replay_v2.py tests/simcore/test_hash.py -q",
+        "python3 -m pytest tests/simcore/test_determinism_smoke.py -q"
+      ],
+      "pass_criteria": "Replay v2 and hash tests pass (replay reproduces recorded hash at each tick); determinism smoke test confirms two runs from the same seed produce identical state; no non-deterministic RNG is introduced."
+    }
+  ]
+}

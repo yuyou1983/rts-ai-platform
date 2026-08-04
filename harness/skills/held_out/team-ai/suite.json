@@ -1,1 +1,39 @@
-{"suite": "team-ai-held-out", "version": "0.1.0", "scenarios": [{"id": "ai-build-001", "type": "build_order", "description": "AI 能在 200 tick 内建出 barracks", "skill": "team-ai", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable, build order logic exists"}, {"id": "ai-micro-002", "type": "combat_micro", "description": "AI soldier 自动攻击范围内敌人", "skill": "team-ai", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable"}, {"id": "ai-scout-003", "type": "scouting", "description": "scout 自动探索未知区域", "skill": "team-ai", "validation_commands": ["python3 -c \"from simcore.engine import SimCore; print('OK')\""], "pass_criteria": "SimCore importable"}]}
+{
+  "skill_name": "team-ai",
+  "suite": "team-ai-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/team-ai/build-order",
+      "type": "build_order",
+      "description": "The scripted AI can build a barracks within a bounded tick budget on at least two different map seeds — the build order must generalize across maps rather than overfitting to one seed.",
+      "skill": "team-ai",
+      "validation_commands": [
+        "python3 -m pytest tests/agents/test_script_ai.py -q",
+        "python3 -m pytest tests/simcore/test_engine.py -q"
+      ],
+      "pass_criteria": "Scripted AI tests pass confirming build-order logic produces a barracks within budget; engine tests confirm the economy/combat loop supports the build path; build order is validated on more than one seed."
+    },
+    {
+      "id": "held-out/team-ai/combat-micro",
+      "type": "combat_micro",
+      "description": "AI soldiers automatically engage enemies within weapons range — the combat micro logic selects valid targets, respects range and cooldown, and does not issue per-tick LLM calls.",
+      "skill": "team-ai",
+      "validation_commands": [
+        "python3 -m pytest tests/agents/test_script_ai.py -q",
+        "python3 -m pytest tests/simcore/test_combat.py -q"
+      ],
+      "pass_criteria": "Scripted AI tests confirm target selection and range discipline; combat resolution tests pass confirming the micro decisions translate into valid combat outcomes; no per-tick LLM call is present in the agent loop."
+    },
+    {
+      "id": "held-out/team-ai/scouting",
+      "type": "scouting",
+      "description": "The scout agent explores unknown map regions and updates fog-of-war knowledge without hardcoding map coordinates or seed values.",
+      "skill": "team-ai",
+      "validation_commands": [
+        "python3 -m pytest tests/agents/test_scout.py -q"
+      ],
+      "pass_criteria": "Scout tests pass confirming the agent explores unknown tiles, respects fog-of-war, and does not hardcode coordinates; the scouting behavior generalizes across at least two seeds."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "skill_name": "sprint-plan",
+  "suite": "sprint-plan-held-out",
+  "version": "0.2.0",
+  "scenarios": [
+    {
+      "id": "held-out/sprint-plan/independent-vertical-tickets",
+      "type": "independent_vertical_tickets",
+      "description": "A sprint backlog composed of independent vertical-slice tickets — each ticket crosses layers (Proto/SimCore/gRPC/Godot) as the narrowest independently demonstrable path, with no per-layer decomposition. Each ticket carries Status, Blocked by, Source specification, Acceptance criteria, Verification seams, and Evidence outputs.",
+      "skill": "sprint-plan",
+      "validation_commands": [
+        "python3 harness/skills/validate_tasks.py",
+        "python3 -m pytest tests/harness/test_task_graph.py -q"
+      ],
+      "pass_criteria": "Task validator confirms every fixture is a well-formed vertical ticket (source_spec exists, acceptance_criteria non-empty, status in enum); task-graph tests confirm blockers resolve and a ready ticket only depends on done blockers; no ticket is decomposed into one-per-layer slices."
+    },
+    {
+      "id": "held-out/sprint-plan/invalid-blocker-cycle",
+      "type": "blocker_cycle",
+      "description": "A sprint plan containing a cyclic blocker dependency (A blocked by B blocked by A) or a ready ticket depending on a non-done blocker must be rejected. The planner must detect the cycle and refuse to emit the backlog rather than silently producing an unexecutable plan.",
+      "skill": "sprint-plan",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_task_graph.py -q",
+        "python3 -m pytest tests/harness/test_execution_skill_contracts.py -q"
+      ],
+      "pass_criteria": "Task-graph tests assert the blocked_by graph is acyclic (DFS) and that a ready ticket with an unfinished blocker is flagged; execution-skill contract tests confirm sprint-plan mandates the acyclicity and ready-requires-done invariants."
+    }
+  ]
+}

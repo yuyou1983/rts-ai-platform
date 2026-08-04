@@ -1,0 +1,29 @@
+{
+  "skill_name": "code-review",
+  "suite": "code-review-held-out",
+  "version": "0.2.0",
+  "scenarios": [
+    {
+      "id": "held-out/code-review/standards-violation-spec-pass",
+      "type": "standards_axis_violation",
+      "description": "A change set that violates architecture/layer standards (caught by the Standards axis) while still satisfying the originating specification. The reviewer must keep the Standards verdict separate from the Specification verdict and must not merge them into a single composite score.",
+      "skill": "code-review",
+      "validation_commands": [
+        "python3 scripts/lint_deps.py",
+        "python3 -m pytest tests/harness/test_code_review_skill_contract.py -q"
+      ],
+      "pass_criteria": "Standards axis reports a CONCERNS or FAIL verdict independent of the Specification axis; lint_deps exits 0 on the current tree (proving the contract harness enforces boundaries); three-axis contract tests pass with separate per-axis verdicts recorded."
+    },
+    {
+      "id": "held-out/code-review/spec-violation-standards-pass",
+      "type": "specification_axis_violation",
+      "description": "A change set that compiles and respects layer boundaries (Standards PASS) but drifts from the originating specification — e.g. a QA report claims a task is complete while the diff shows it is only partial. The Specification axis must detect status drift; the Standards verdict must remain PASS and must not be downgraded to mask the spec gap.",
+      "skill": "code-review",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_code_review_skill_contract.py -q",
+        "python3 harness/skills/validate_tasks.py"
+      ],
+      "pass_criteria": "Specification axis detects the drift (missing/partial/incorrect classification) and records a non-PASS verdict; Standards axis stays PASS; combat-remediation-review fixture remains valid and the task validator confirms the fixed-point fixture is well-formed."
+    }
+  ]
+}

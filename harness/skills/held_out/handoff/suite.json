@@ -1,0 +1,28 @@
+{
+  "skill_name": "handoff",
+  "suite": "handoff-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/handoff/complete-single-task-handoff",
+      "type": "complete_handoff",
+      "description": "A structured handoff for exactly one active task: all ten required template sections are present (Objective, Fixed Point, Active Task Fixture, Gate Status, Completed Evidence, Current Failure, Unrelated Working Tree Paths, Next Command, Suggested Skills, Stop Conditions), exactly one next command is recorded, and the handoff is written to the OS temp directory — never inside the repository working tree.",
+      "skill": "handoff",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_handoff_skill_contract.py -q",
+        "python3 -m pytest tests/harness/test_execution_skill_contracts.py -q"
+      ],
+      "pass_criteria": "Handoff contract tests confirm all ten sections are present in both SKILL.md and the template, exactly one next command is recorded, temp-directory usage is enforced, and no 'Conversation Dump' heading is allowed; execution-skill contract tests confirm harness-run mandates a structured handoff when a ticket cannot be completed alone."
+    },
+    {
+      "id": "held-out/handoff/stale-missing-next-command",
+      "type": "stale_handoff",
+      "description": "A handoff with a stale or missing next command (zero next commands, or a next command referencing a task that is no longer active) must be rejected. The skill must enforce exactly one active task and one valid next command; a conversation dump or a credential leak must also be rejected.",
+      "skill": "handoff",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_handoff_skill_contract.py -q"
+      ],
+      "pass_criteria": "Handoff contract tests confirm the one-active-task and one-next-command constraints are enforced; a handoff missing the next command or carrying credentials is rejected; the skill scans for API keys, tokens, and passwords before writing."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "skill_name": "gate-check",
+  "suite": "gate-check-held-out",
+  "version": "0.1.0",
+  "scenarios": [
+    {
+      "id": "held-out/gate-check/automatic-evidence-pass",
+      "type": "automatic_evidence",
+      "description": "All declared validation commands exit 0 and the gate may advance automatically. Evidence is machine-collected (command exit codes + trace), with no manual sign-off required.",
+      "skill": "gate-check",
+      "validation_commands": [
+        "python3 harness/skills/validate_registry.py",
+        "python3 -m pytest tests/harness/test_promotion.py -q"
+      ],
+      "pass_criteria": "Registry validator and promotion tests both exit 0; gate verdict is PASS with the evidence trail referencing the originating specification; no manual evidence is required when all automatic commands are green."
+    },
+    {
+      "id": "held-out/gate-check/missing-manual-evidence-blocks",
+      "type": "missing_manual_evidence",
+      "description": "A candidate trial that passes command-only validation but lacks a candidate_id / fresh agent_run_id must NOT be promotion-eligible. The gate must yield CONCERNS or FAIL rather than advancing, because command-only evidence is insufficient for promotion.",
+      "skill": "gate-check",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_candidate_held_out.py -q",
+        "python3 harness/skills/validate_held_out_suites.py"
+      ],
+      "pass_criteria": "Candidate-aware held-out contract tests confirm that an empty candidate_id or agent_run_id yields promotion_eligible=False; the held-out suite validator exits 0; the gate records CONCERNS or FAIL when manual/fresh-agent evidence is missing."
+    }
+  ]
+}

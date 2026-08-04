@@ -1,1 +1,51 @@
-{"suite": "harness-run-held-out", "version": "0.1.0", "scenarios": [{"id": "exec-frontend-001", "type": "frontend_bug", "description": "修复 Godot HUD 显示不刷新", "skill": "harness-run", "validation_commands": ["python3 -c \"from pathlib import Path; assert Path('godot/scripts/hud.gd').exists()\""], "pass_criteria": "hud.gd exists"}, {"id": "exec-backend-002", "type": "backend_bug", "description": "修复 gRPC 返回 map_width=0", "skill": "harness-run", "validation_commands": ["python3 -c \"import simcore.grpc_server; print('OK')\""], "pass_criteria": "simcore.grpc_server importable"}, {"id": "exec-testfail-003", "type": "test_failure", "description": "修复 flaky xdist test 端口冲突", "skill": "harness-run", "validation_commands": ["python3 -c \"from pathlib import Path; assert Path('harness/devops_harness/executor/scripts/task_state.py').exists()\""], "pass_criteria": "task_state.py exists"}, {"id": "exec-arch-004", "type": "architecture_fix", "description": "修复 L1>L0 导入违规", "skill": "harness-run", "validation_commands": ["python3 -c \"import importlib; m=importlib.import_module('simcore.engine'); print('OK')\""], "pass_criteria": "simcore.engine importable"}]}
+{
+  "skill_name": "harness-run",
+  "suite": "harness-run-held-out",
+  "version": "0.2.0",
+  "scenarios": [
+    {
+      "id": "held-out/harness-run/frontend-hud-refresh",
+      "type": "frontend_bug",
+      "description": "A Godot HUD display that fails to refresh is fixed via the presentation workflow only — the executor must reproduce with a red-capable command, minimise, write a regression test, apply the smallest fix, then run targeted → architecture → full tests.",
+      "skill": "harness-run",
+      "validation_commands": [
+        "python3 scripts/verify_presentation_scene.py",
+        "python3 -m pytest tests/godot/test_presentation_manifest.py -q"
+      ],
+      "pass_criteria": "Presentation verifier and manifest tests exit 0; the fix targets the presentation workflow (frontend-godot layer) without touching SimCore game rules; evidence references the originating task."
+    },
+    {
+      "id": "held-out/harness-run/grpc-map-width-zero",
+      "type": "backend_bug",
+      "description": "gRPC server returns map_width=0 because GameConfig is not populated — the executor must reproduce, localise to _state_to_snapshot, add a regression test, and apply the smallest fix that guarantees map_width>0 in snapshots.",
+      "skill": "harness-run",
+      "validation_commands": [
+        "python3 -m pytest tests/simcore/test_engine.py -q",
+        "python3 harness/skills/validate_registry.py"
+      ],
+      "pass_criteria": "Engine tests confirm state snapshots carry map_width>0; registry validator exits 0; the regression test for the gRPC snapshot field is present and green."
+    },
+    {
+      "id": "held-out/harness-run/test-failure-fix",
+      "type": "test_failure",
+      "description": "A flaky xdist test port conflict is resolved — the executor minimises the reproducer, writes a regression test pinning the port-isolation invariant, and applies the smallest fix in the devops harness.",
+      "skill": "harness-run",
+      "validation_commands": [
+        "python3 -m pytest tests/harness/test_devops_harness.py -q",
+        "python3 harness/skills/validate_tasks.py"
+      ],
+      "pass_criteria": "Devops harness tests pass (port isolation regression holds); task validator exits 0 confirming the vertical ticket fixture is well-formed; evidence is recorded in the same commit as the fix."
+    },
+    {
+      "id": "held-out/harness-run/architecture-violation",
+      "type": "architecture_fix",
+      "description": "An L1→L0 import violation (SimCore importing Agents) is detected and reversed — the executor runs the architecture lint as both the reproducer and the verifier, ensuring the layer invariant is restored.",
+      "skill": "harness-run",
+      "validation_commands": [
+        "python3 scripts/lint_deps.py",
+        "python3 harness/skills/validate_registry.py"
+      ],
+      "pass_criteria": "Architecture lint exits 0 (no SimCore→Agents or L1→L0 violations); registry validator exits 0; the fix does not introduce new cross-layer dependencies."
+    }
+  ]
+}

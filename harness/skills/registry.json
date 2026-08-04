@@ -310,7 +310,7 @@
     ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/balance-check"
   },
   {
     "name": "brainstorm",
@@ -405,7 +405,7 @@
     ],
     "version": "0.2.0",
     "last_evolved": "2026-08-04T10:33:43.302911+00:00",
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/code-review"
   },
   {
     "name": "estimate",
@@ -489,7 +489,7 @@
     ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/gate-check"
   },
   {
     "name": "godot-gdextension-specialist",
@@ -581,7 +581,7 @@
     ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/godot-gdscript-specialist"
   },
   {
     "name": "godot-shader-specialist",
@@ -717,7 +717,7 @@
     ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/replay-analyze"
   },
   {
     "name": "scope-check",
@@ -851,7 +851,7 @@
     ],
     "version": "0.2.0",
     "last_evolved": "2026-08-04T18:42:00.000000+00:00",
-    "held_out_suite": null
+    "held_out_suite": "harness/skills/held_out/sprint-plan"
   },
   {
     "name": "team-balance",
@@ -1071,7 +1071,7 @@
     ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null,
+    "held_out_suite": "harness/skills/held_out/domain-modeling",
     "invocation_mode": "both",
     "skill_kind": "discipline",
     "composes": [],
@@ -1085,21 +1085,41 @@
     "description": "Structured context transfer between agents — one task, one command, no conversation dumps",
     "primary_action": "write_file",
     "primary_script": null,
-    "expected_tool_calls": ["Read", "Write", "Bash"],
-    "validation_commands": ["python3 -m pytest tests/harness/test_handoff_skill_contract.py -q"],
-    "owner_domain": "cross-cutting",
-    "layer_constraints": ["dev-harness"],
-    "known_failure_modes": [
-      {"pattern": "Conversation dump instead of structured handoff", "mitigation": "Reject sections named Conversation Dump"},
-      {"pattern": "Credentials leaked into handoff", "mitigation": "Scan for API keys, tokens, and passwords before writing"}
+    "expected_tool_calls": [
+      "Read",
+      "Write",
+      "Bash"
     ],
-    "silent_bypass_risks": ["SKILL.md loaded but no temp file written"],
+    "validation_commands": [
+      "python3 -m pytest tests/harness/test_handoff_skill_contract.py -q"
+    ],
+    "owner_domain": "cross-cutting",
+    "layer_constraints": [
+      "dev-harness"
+    ],
+    "known_failure_modes": [
+      {
+        "pattern": "Conversation dump instead of structured handoff",
+        "mitigation": "Reject sections named Conversation Dump"
+      },
+      {
+        "pattern": "Credentials leaked into handoff",
+        "mitigation": "Scan for API keys, tokens, and passwords before writing"
+      }
+    ],
+    "silent_bypass_risks": [
+      "SKILL.md loaded but no temp file written"
+    ],
     "version": "0.1.0",
     "last_evolved": null,
-    "held_out_suite": null,
+    "held_out_suite": "harness/skills/held_out/handoff",
     "invocation_mode": "user",
     "skill_kind": "discipline",
     "composes": [],
-    "completion_criteria": ["all template sections present", "valid next command recorded", "no credentials in output"]
+    "completion_criteria": [
+      "all template sections present",
+      "valid next command recorded",
+      "no credentials in output"
+    ]
   }
 ]
