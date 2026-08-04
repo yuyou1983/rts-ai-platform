@@ -46,3 +46,40 @@ def test_strategy_runner_writes_packet_per_strategy(tmp_path, monkeypatch):
         text = packet_path.read_text()
         assert "Read `.agents/skills/godot-specialist/SKILL.md` first" in text
         assert "Record a SkillTrial v2" in text
+
+
+def test_strategy_packet_includes_vertical_ticket_sections(tmp_path):
+    """Generated packets must render the vertical ticket sections before
+    Validation Commands."""
+    from harness.evolve.strategy_runner import generate_strategy_packets
+
+    fixture_path = ROOT / "harness/skills/tasks/godot-vfx/sc1-resource-alignment.json"
+    out_dir = tmp_path / "runs"
+    manifest = generate_strategy_packets(fixture_path, out_dir=out_dir, run_id="run-vertical")
+
+    expected_sections = [
+        "## Source Specification",
+        "## Blocked By",
+        "## Acceptance Criteria",
+        "## Verification Seams",
+        "## Evidence Outputs",
+        "## Stop Condition",
+    ]
+    for packet in manifest["packets"]:
+        text = (out_dir / packet["packet_path"]).read_text()
+        # Every vertical section header is present.
+        for section in expected_sections:
+            assert section in text, f"missing section {section!r} in packet {packet['strategy_label']}"
+        # The vertical sections must appear before the Validation Commands section.
+        for section in expected_sections:
+            assert text.index(section) < text.index("## Validation Commands"), (
+                f"{section!r} must precede Validation Commands"
+            )
+        # Stop condition pins the fixture id and forbids starting other tickets.
+        assert "Execute ONLY the current task fixture" in text
+        # Source spec and acceptance content render from the fixture.
+        fixture = json.loads(fixture_path.read_text())
+        assert fixture["source_spec"] in text
+        assert fixture["acceptance_criteria"][0] in text
+        assert fixture["verification_seams"][0] in text
+        assert fixture["evidence_outputs"][0] in text

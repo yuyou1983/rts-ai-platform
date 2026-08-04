@@ -1,1 +1,103 @@
-{"id": "godot-vfx/sc1-resource-alignment", "skill_name": "godot-specialist", "task_type": "godot-vfx", "description": "Align SC1-inspired unit/building resource manifest, atlas rectangles, selection rings, health bars, and fallback sprites without changing SimCore rules.", "fresh_agent_strategies": [{"label": "A", "description": "Manifest-first audit", "focus_files": ["godot/resources/presentation_manifest.json", "scripts/generate_presentation_manifest.py", "scripts/verify_presentation_scene.py"], "extra_rules": ["Start by validating manifest structure and abstract-to-visual mappings.", "Do not edit Godot runtime scripts unless validation proves manifest data cannot express the correction."]}, {"label": "B", "description": "SpriteLoader atlas audit", "focus_files": ["godot/scripts/sprite_loader.gd", "godot/resources/sprite_frames_config.json", "godot/resources/presentation_manifest.json"], "extra_rules": ["Trace how atlas_rect, pivot, render_scale, and selection_radius flow into rendered sprites.", "Check AtlasTexture usage and do not assign flip_h to AtlasTexture."]}, {"label": "C", "description": "GameView selection and health-bar audit", "focus_files": ["godot/scripts/game_view.gd", "godot/scripts/selection_manager.gd", "godot/resources/presentation_manifest.json"], "extra_rules": ["Check _visual_radius, selection rings, and health bar offsets against manifest values.", "Preserve the frontend-only boundary for visual corrections."]}, {"label": "D", "description": "Regression-verification first", "focus_files": ["tests/godot/test_presentation_manifest.py", "scripts/verify_presentation_scene.py", "scripts/verify_godot_fog_smoothing.py"], "extra_rules": ["Run validation before proposing changes.", "Prefer adding a failing validation for any visual mismatch that cannot currently be detected."]}], "allowed_paths": [".agents/skills/godot-specialist/SKILL.md", "harness/skills/tasks/godot-vfx/", "harness/skills/candidates/", "harness/trace/", "tests/harness/", "tests/godot/", "scripts/verify_presentation_scene.py"], "forbidden_paths": ["simcore/", "agents/", "godot/scripts/"], "validation_commands": ["python3 scripts/verify_presentation_scene.py", "python3 -m pytest tests/godot/test_presentation_manifest.py -q", "/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --check-only godot/scripts/game_view.gd"], "pass_criteria": ["presentation manifest validates without atlas bounds errors", "abstract unit/building mappings resolve to known visuals", "Godot check-only succeeds", "candidate skill patch does not modify SimCore, Agents, or Godot runtime scripts"]}
+{
+  "id": "godot-vfx/sc1-resource-alignment",
+  "name": "Godot VFX: SC1 Resource Alignment",
+  "skill_name": "godot-specialist",
+  "task_type": "godot-vfx",
+  "description": "Align SC1-inspired unit/building resource manifest, atlas rectangles, selection rings, health bars, and fallback sprites without changing SimCore rules.",
+  "source_spec": "docs/plans/2026-08-03-sc1-combat-differentiation-remediation-plan.md",
+  "blocked_by": [],
+  "acceptance_criteria": [
+    "presentation manifest validates without atlas bounds errors",
+    "abstract unit/building mappings resolve to known visuals",
+    "candidate skill patch does not modify SimCore, Agents, or Godot runtime scripts"
+  ],
+  "verification_seams": [
+    "python3 scripts/verify_presentation_scene.py",
+    "python3 -m pytest tests/godot/test_presentation_manifest.py -q"
+  ],
+  "evidence_outputs": [
+    "harness/skills/candidates/",
+    "harness/trace/"
+  ],
+  "status": "ready",
+  "fresh_agent_strategies": [
+    {
+      "label": "A",
+      "description": "Manifest-first audit",
+      "focus_files": [
+        "godot/resources/presentation_manifest.json",
+        "scripts/generate_presentation_manifest.py",
+        "scripts/verify_presentation_scene.py"
+      ],
+      "extra_rules": [
+        "Start by validating manifest structure and abstract-to-visual mappings.",
+        "Do not edit Godot runtime scripts unless validation proves manifest data cannot express the correction."
+      ]
+    },
+    {
+      "label": "B",
+      "description": "SpriteLoader atlas audit",
+      "focus_files": [
+        "godot/scripts/sprite_loader.gd",
+        "godot/resources/sprite_frames_config.json",
+        "godot/resources/presentation_manifest.json"
+      ],
+      "extra_rules": [
+        "Trace how atlas_rect, pivot, render_scale, and selection_radius flow into rendered sprites.",
+        "Check AtlasTexture usage and do not assign flip_h to AtlasTexture."
+      ]
+    },
+    {
+      "label": "C",
+      "description": "GameView selection and health-bar audit",
+      "focus_files": [
+        "godot/scripts/game_view.gd",
+        "godot/scripts/selection_manager.gd",
+        "godot/resources/presentation_manifest.json"
+      ],
+      "extra_rules": [
+        "Check _visual_radius, selection rings, and health bar offsets against manifest values.",
+        "Preserve the frontend-only boundary for visual corrections."
+      ]
+    },
+    {
+      "label": "D",
+      "description": "Regression-verification first",
+      "focus_files": [
+        "tests/godot/test_presentation_manifest.py",
+        "scripts/verify_presentation_scene.py",
+        "scripts/verify_godot_fog_smoothing.py"
+      ],
+      "extra_rules": [
+        "Run validation before proposing changes.",
+        "Prefer adding a failing validation for any visual mismatch that cannot currently be detected."
+      ]
+    }
+  ],
+  "allowed_paths": [
+    ".agents/skills/godot-specialist/SKILL.md",
+    "harness/skills/tasks/godot-vfx/",
+    "harness/skills/candidates/",
+    "harness/trace/",
+    "tests/harness/",
+    "tests/godot/",
+    "scripts/verify_presentation_scene.py"
+  ],
+  "forbidden_paths": [
+    "simcore/",
+    "agents/",
+    "godot/scripts/",
+    "proto/"
+  ],
+  "validation_commands": [
+    "python3 scripts/verify_presentation_scene.py",
+    "python3 -m pytest tests/godot/test_presentation_manifest.py -q",
+    "/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --check-only godot/scripts/game_view.gd"
+  ],
+  "pass_criteria": [
+    "presentation manifest validates without atlas bounds errors",
+    "abstract unit/building mappings resolve to known visuals",
+    "Godot check-only succeeds",
+    "candidate skill patch does not modify SimCore, Agents, or Godot runtime scripts"
+  ]
+}

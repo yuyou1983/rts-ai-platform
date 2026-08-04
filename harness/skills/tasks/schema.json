@@ -1,1 +1,132 @@
-{"$schema": "http://json-schema.org/draft-07/schema#", "title": "Skill Evolver Task Fixture", "type": "object", "required": ["id", "skill_name", "task_type", "description", "fresh_agent_strategies", "allowed_paths", "forbidden_paths", "validation_commands", "pass_criteria"], "properties": {"id": {"type": "string"}, "skill_name": {"type": "string"}, "task_type": {"type": "string"}, "description": {"type": "string"}, "fresh_agent_strategies": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["label", "description", "focus_files", "extra_rules"], "properties": {"label": {"type": "string"}, "description": {"type": "string"}, "focus_files": {"type": "array", "items": {"type": "string"}}, "extra_rules": {"type": "array", "items": {"type": "string"}}}}}, "allowed_paths": {"type": "array", "items": {"type": "string"}}, "forbidden_paths": {"type": "array", "items": {"type": "string"}}, "validation_commands": {"type": "array", "items": {"type": "string"}, "minItems": 1}, "pass_criteria": {"type": "array", "items": {"type": "string"}, "minItems": 1}}}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Skill Evolver Task Fixture",
+  "description": "Vertical ticket schema. Every fixture is a self-contained ticket with a source specification, a dependency graph (blocked_by), acceptance criteria, verification seams, evidence outputs, and a lifecycle status. The legacy strategy-evolution fields (skill_name, task_type, fresh_agent_strategies, allowed_paths, validation_commands, pass_criteria) remain accepted as optional properties for backward compatibility.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "description",
+    "source_spec",
+    "blocked_by",
+    "acceptance_criteria",
+    "verification_seams",
+    "evidence_outputs",
+    "status",
+    "forbidden_paths"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable, unique ticket identifier (may include a category prefix such as 'godot-vfx/')."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable ticket title.",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "What the ticket asks the agent to accomplish.",
+      "minLength": 1
+    },
+    "source_spec": {
+      "type": "string",
+      "description": "Repository-relative path to the authoritative specification document (plan, contract, or design) that scopes this ticket.",
+      "minLength": 1
+    },
+    "blocked_by": {
+      "type": "array",
+      "description": "IDs of tickets that must reach 'done' before this ticket can leave 'blocked'. Empty means the ticket is not gated.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "description": "Observable conditions that must all hold for the ticket to be considered complete.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "verification_seams": {
+      "type": "array",
+      "description": "Commands an agent must run to prove the acceptance criteria. At least one seam is required so completion is always machine-checkable.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "evidence_outputs": {
+      "type": "array",
+      "description": "Repository-relative paths to artifacts the agent must produce or update as proof of work.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle status of the ticket.",
+      "enum": ["blocked", "ready", "in_progress", "verification", "done"]
+    },
+    "forbidden_paths": {
+      "type": "array",
+      "description": "Path prefixes the agent must not modify while working this ticket.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "skill_name": {
+      "type": "string",
+      "description": "Optional: skill that owns this ticket (legacy strategy-evolution fixtures)."
+    },
+    "task_type": {
+      "type": "string",
+      "description": "Optional: category label for legacy strategy-evolution fixtures."
+    },
+    "fresh_agent_strategies": {
+      "type": "array",
+      "minItems": 2,
+      "description": "Optional: alternative fresh-agent strategies for legacy strategy-evolution runs.",
+      "items": {
+        "type": "object",
+        "required": ["label", "description", "focus_files", "extra_rules"],
+        "properties": {
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "focus_files": { "type": "array", "items": { "type": "string" } },
+          "extra_rules": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "validation_commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "pass_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "fixed_point": {
+      "type": "string",
+      "description": "Optional: git commit SHA anchoring the review baseline."
+    },
+    "target": {
+      "type": "string",
+      "description": "Optional: git commit SHA anchoring the review target."
+    }
+  }
+}

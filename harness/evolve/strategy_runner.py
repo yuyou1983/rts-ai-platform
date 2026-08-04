@@ -21,6 +21,20 @@ def _packet_text(fixture: dict[str, Any], strategy: dict[str, Any]) -> str:
     forbidden = "\n".join(f"- `{p}`" for p in fixture["forbidden_paths"])
     criteria = "\n".join(f"- {p}" for p in fixture["pass_criteria"])
     skill = fixture["skill_name"]
+
+    # Vertical ticket semantics (optional on legacy fixtures).
+    source_spec = fixture.get("source_spec", "")
+    blocked_by = fixture.get("blocked_by", [])
+    acceptance = fixture.get("acceptance_criteria", [])
+    seams = fixture.get("verification_seams", [])
+    evidence = fixture.get("evidence_outputs", [])
+
+    source_spec_line = f"`{source_spec}`" if source_spec else "_(none declared)_"
+    blocked_lines = "\n".join(f"- `{b}`" for b in blocked_by) if blocked_by else "_(none — ticket is ungated)_"
+    acceptance_lines = "\n".join(f"- {c}" for c in acceptance) if acceptance else "_(none declared)_"
+    seams_lines = "\n".join(f"- `{s}`" for s in seams) if seams else "_(none declared)_"
+    evidence_lines = "\n".join(f"- `{p}`" for p in evidence) if evidence else "_(none declared)_"
+
     return f"""# Strategy {strategy["label"]}: {strategy["description"]}
 
 Task fixture: `{fixture["id"]}`
@@ -45,6 +59,33 @@ Read `.agents/skills/{skill}/SKILL.md` first and follow its instructions.
 ## Forbidden Runtime Paths
 
 {forbidden}
+
+## Source Specification
+
+{source_spec_line}
+
+## Blocked By
+
+{blocked_lines}
+
+## Acceptance Criteria
+
+{acceptance_lines}
+
+## Verification Seams
+
+{seams_lines}
+
+## Evidence Outputs
+
+{evidence_lines}
+
+## Stop Condition
+
+Execute ONLY the current task fixture (`{fixture["id"]}`). Do not begin any other
+fixture. Stop after every verification seam passes and all evidence outputs have
+been recorded/updated. If a seam fails, stop and report the failure rather than
+proceeding to a different ticket.
 
 ## Validation Commands
 
