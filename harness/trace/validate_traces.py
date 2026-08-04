@@ -6,12 +6,24 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# Ensure the repo root is importable when this file is run as a script
+# (python3 harness/trace/validate_traces.py --strict) rather than as a module.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from harness.trace.schema import SkillTrial, validate_candidate_trial  # noqa: E402
+
 TRIALS_DIR = REPO_ROOT / "harness" / "trace" / "trials"
+
+# Valid SkillTrial field names, used to safely hydrate a dict into a
+# SkillTrial for candidate strict validation.
+_VALID_TRIAL_FIELDS = {f.name for f in dataclasses.fields(SkillTrial)}
 
 REQUIRED_FIELDS = [
     "task_id", "task_description", "skill_name", "outcome",
@@ -110,6 +122,18 @@ def validate_file(path: Path, strict: bool = False) -> list[str]:
                 issues.append(
                     f"{path.name}:{line_no}: silent_bypass_inferred but field is false: {inferred}"
                 )
+
+        # strict 模式: candidate trial 必须满足 promotion-evidence 要求
+        if strict and d.get("baseline_or_candidate") == "candidate":
+            try:
+                trial = SkillTrial(
+                    **{k: v for k, v in d.items() if k in _VALID_TRIAL_FIELDS}
+                )
+            except TypeError:
+                trial = None
+            if trial is not None:
+                for ci in validate_candidate_trial(trial):
+                    issues.append(f"{path.name}:{line_no}: {ci}")
 
     return issues
 

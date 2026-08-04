@@ -140,3 +140,66 @@ def load_trials(skill_name: str | None = None, outcome: str | None = None) -> li
                 continue
             trials.append(t)
     return trials
+
+
+# ─── Candidate-trial strict validation ──────────────────────────
+
+# Fields that a candidate trial must populate to be eligible as
+# promotion evidence.  A baseline trial is exempt from these checks.
+CANDIDATE_REQUIRED_FIELDS = (
+    "candidate_id",
+    "agent_run_id",
+    "task_fixture_id",
+)
+
+
+def validate_candidate_trial(trial: SkillTrial) -> list[str]:
+    """Strict validation for *candidate* trials.
+
+    A trial with ``baseline_or_candidate == "candidate"`` must carry
+    fresh-agent evidence to qualify as promotion material.  This returns
+    a list of human-readable issue strings (empty when the trial is
+    valid or when it is a baseline trial).
+    """
+    if trial.baseline_or_candidate != "candidate":
+        return []
+
+    issues: list[str] = []
+
+    # ── Identity fields ────────────────────────────────────────
+    for field_name in CANDIDATE_REQUIRED_FIELDS:
+        value = getattr(trial, field_name, "")
+        if not value:
+            issues.append(
+                f"candidate trial missing non-empty {field_name}"
+            )
+
+    # task_fixture_id for a candidate must reference a held-out fixture
+    # (non-empty is enforced above; we only add the semantic note here).
+    if trial.task_fixture_id and not trial.task_fixture_id.startswith(("held_out", "tasks/")):
+        issues.append(
+            f"candidate trial task_fixture_id does not look held-out: {trial.task_fixture_id}"
+        )
+
+    # ── Skill-engagement evidence ──────────────────────────────
+    if not trial.skill_md_read:
+        issues.append("candidate trial did not read SKILL.md")
+    if not trial.primary_action_invoked:
+        issues.append("candidate trial did not invoke primary_action")
+
+    # ── Validation evidence ────────────────────────────────────
+    if not trial.validation_commands_run:
+        issues.append("candidate trial ran no validation commands")
+    if not trial.validation_exit_codes:
+        issues.append("candidate trial recorded no validation exit codes")
+
+    # ── Functional outcome ─────────────────────────────────────
+    if trial.functional_verification != "pass":
+        issues.append(
+            f"candidate trial functional_verification != pass: "
+            f"{trial.functional_verification!r}"
+        )
+    if trial.outcome != "pass":
+        issues.append(f"candidate trial outcome != pass: {trial.outcome!r}")
+
+    return issues

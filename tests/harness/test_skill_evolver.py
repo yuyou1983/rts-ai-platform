@@ -17,6 +17,7 @@ from harness.evolve.skill_evolver import (
     _load_registry, _save_registry,
     STRATEGY_TEMPLATES, get_strategies,
 )
+from harness.evolve.held_out import HeldOutResult
 from harness.trace.schema import SkillTrial, record_trial, load_trials
 
 
@@ -318,8 +319,13 @@ class TestPromotion:
         )
         audit = AuditResult(patch_path="test-skill/20260101-000000", accepted=True, issues=[])
 
-        # promote — 需要 backup 存在
-        result = promote_patch(patch, audit, held_out_pass=True)
+        # promote — candidate-aware held-out evidence (promotion-eligible)
+        held_out = HeldOutResult(
+            passed=True, promotion_eligible=True, skill_name="test-skill",
+            candidate_id="cand-001",
+            scenario_results=[{"scenario": "s1", "passed": True}], issues=[],
+        )
+        result = promote_patch(patch, audit, held_out)
         assert result is True
         assert "Evolved Rules" in skill_md.read_text()
 
@@ -333,14 +339,45 @@ class TestPromotion:
             skill_name="any", timestamp="20260101", patch_content="", rationale=""
         )
         audit = AuditResult(patch_path="any/20260101", accepted=False, issues=["bad"])
-        assert promote_patch(patch, audit, held_out_pass=True) is False
+        held_out = HeldOutResult(
+            passed=True, promotion_eligible=True, skill_name="any",
+            candidate_id="cand-001", scenario_results=[], issues=[],
+        )
+        assert promote_patch(patch, audit, held_out) is False
 
     def test_promote_fails_without_held_out(self):
         patch = SkillPatch(
             skill_name="any", timestamp="20260101", patch_content="", rationale=""
         )
         audit = AuditResult(patch_path="any/20260101", accepted=True, issues=[])
-        assert promote_patch(patch, audit, held_out_pass=False) is False
+        # held-out failed → not promotion-eligible
+        held_out = HeldOutResult(
+            passed=False, promotion_eligible=False, skill_name="any",
+            candidate_id="cand-001", scenario_results=[], issues=["fail"],
+        )
+        assert promote_patch(patch, audit, held_out) is False
+
+    def test_promote_fails_with_command_only_held_out(self):
+        """A command-only (passed but not promotion-eligible) result blocks promotion."""
+        patch = SkillPatch(
+            skill_name="any", timestamp="20260101", patch_content="", rationale=""
+        )
+        audit = AuditResult(patch_path="any/20260101", accepted=True, issues=[])
+        held_out = HeldOutResult(
+            passed=True, promotion_eligible=False, skill_name="any",
+            candidate_id="", scenario_results=[], issues=["command-only"],
+        )
+        assert promote_patch(patch, audit, held_out) is False
+
+    def test_promote_bool_backward_compat_blocks(self):
+        """A legacy bool argument is treated as command-only and never promotes."""
+        patch = SkillPatch(
+            skill_name="any", timestamp="20260101", patch_content="", rationale=""
+        )
+        audit = AuditResult(patch_path="any/20260101", accepted=True, issues=[])
+        # Even True is command-only and thus not promotion-eligible.
+        assert promote_patch(patch, audit, True) is False
+        assert promote_patch(patch, audit, False) is False
 
 
 def test_godot_held_out_uses_real_validation_commands():

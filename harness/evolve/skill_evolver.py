@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.evolve.auditor import audit_candidate_patch
+from harness.evolve.held_out import HeldOutResult, validate_held_out_candidate
 from harness.trace.schema import SkillTrial, load_trials, record_trial
 
 logger = logging.getLogger(__name__)
@@ -415,14 +416,38 @@ def rollback_skill_md(skill_name: str, backup_path: Path) -> None:
     logger.info("Rolled back %s from %s", skill_md, backup_path)
 
 
-def promote_patch(patch: SkillPatch, audit: AuditResult, held_out_pass: bool) -> bool:
-    """audit pass + held-out pass -> 更新 SKILL.md + 更新 registry。"""
+def promote_patch(patch: SkillPatch, audit: AuditResult, held_out) -> bool:
+    """audit pass + candidate-aware held-out promotion_eligible -> update SKILL.md + registry.
+
+    ``held_out`` may be a :class:`HeldOutResult` (preferred) or a plain
+    ``bool`` for backward compatibility.  A ``bool`` is treated as
+    *command-only* validation: it may pass but is **never** promotion-eligible,
+    so promotion is blocked until fresh candidate evidence is supplied.
+    """
+    audit_path = getattr(audit, "patch_path", f"{patch.skill_name}/{patch.timestamp}")
+
+    # Backward compatibility: a plain bool is command-only validation,
+    # which can never be promotion-eligible.
+    if isinstance(held_out, bool):
+        held_out = HeldOutResult(
+            passed=held_out,
+            promotion_eligible=False,
+            skill_name=patch.skill_name,
+            candidate_id="",
+            scenario_results=[],
+            issues=["command-only validation (bool) is not promotion-eligible"],
+        )
+
     if not audit.accepted:
-        logger.warning("Patch %s rejected by auditor: %s", audit.patch_path, audit.issues)
+        logger.warning("Patch %s rejected by auditor: %s", audit_path, audit.issues)
         return False
 
-    if not held_out_pass:
-        logger.warning("Patch %s failed held-out validation", audit.patch_path)
+    if not held_out.passed or not held_out.promotion_eligible:
+        logger.warning(
+            "Patch %s not promotion-eligible: "
+            "held_out.passed=%s, promotion_eligible=%s, issues=%s",
+            audit_path, held_out.passed, held_out.promotion_eligible, held_out.issues,
+        )
         return False
 
     # 备份
@@ -450,14 +475,19 @@ def promote_patch(patch: SkillPatch, audit: AuditResult, held_out_pass: bool) ->
             break
     _save_registry(registry)
 
-    logger.info("Patch promoted: %s (backup at %s)", audit.patch_path, backup)
+    logger.info("Patch promoted: %s (backup at %s)", audit_path, backup)
     return True
 
 
 # ─── Main: 单 skill 完整闭环 ───────────────────────────────────
 
-def evolve_skill(skill_name: str) -> bool:
-    """对单个 skill 执行完整 evolve 闭环，返回是否成功 promote。"""
+def evolve_skill(skill_name: str, candidate_id: str = "", agent_run_id: str = "") -> bool:
+    """对单个 skill 执行完整 evolve 闭环，返回是否成功 promote。
+
+    ``candidate_id`` / ``agent_run_id`` are required for a promotion-eligible
+    held-out result.  When omitted the held-out validation runs in
+    command-only mode and promotion is blocked.
+    """
     print(f"=== SkillEvolver: {skill_name} ===\n")
 
     # Phase 4: Contrast
@@ -493,15 +523,22 @@ def evolve_skill(skill_name: str) -> bool:
 
     # Phase 6: Held-Out + Promote/Rollback
     print(f"\n[3/4] Held-out validation for {len(accepted)} accepted patches...")
+    if not candidate_id or not agent_run_id:
+        print("  BLOCKED - candidate-aware held-out evidence unavailable")
+        print("  (supply candidate_id + agent_run_id for promotion-eligible evidence)")
     promoted_any = False
     for patch, audit in accepted:
-        held_out_pass = validate_held_out(skill_name)
-        promoted = promote_patch(patch, audit, held_out_pass)
+        held_out = validate_held_out_candidate(
+            skill_name, candidate_id=candidate_id, agent_run_id=agent_run_id,
+        )
+        promoted = promote_patch(patch, audit, held_out)
         if promoted:
             print(f"  Patch {patch.timestamp} PROMOTED")
             promoted_any = True
         else:
-            print(f"  Patch {patch.timestamp} NOT promoted (held-out={held_out_pass})")
+            elig = "ELIGIBLE" if held_out.promotion_eligible else "not-eligible"
+            print(f"  Patch {patch.timestamp} NOT promoted "
+                  f"(held-out.passed={held_out.passed}, {elig})")
         patch.audit_result = "promoted" if promoted else "rejected_held_out"
         save_patch_candidate(patch)
 
@@ -514,8 +551,13 @@ def evolve_skill(skill_name: str) -> bool:
     return promoted_any
 
 
-def evolve_skill_dry(skill_name: str) -> bool:
-    """Dry-run: 只生成 candidate，不写 SKILL.md，不更新 registry。"""
+def evolve_skill_dry(skill_name: str, candidate_id: str = "", agent_run_id: str = "") -> bool:
+    """Dry-run: 只生成 candidate，不写 SKILL.md，不更新 registry。
+
+    Without ``candidate_id`` / ``agent_run_id`` the held-out result is
+    command-only and therefore *not* promotion-eligible.  A clear BLOCKED
+    message is printed and SKILL.md is left unchanged.
+    """
     print(f"=== SkillEvolver (dry-run): {skill_name} ===\n")
 
     # Phase 4: Contrast
@@ -545,9 +587,16 @@ def evolve_skill_dry(skill_name: str) -> bool:
     accepted = [(p, a) for p in patches for a in [audit_patch(p, skill_content)] if a.accepted]
     if accepted:
         print(f"\n[3/3] Held-out validation (dry-run, no promotion) for {len(accepted)} accepted patches...")
+        if not candidate_id or not agent_run_id:
+            print("  BLOCKED - candidate-aware held-out evidence unavailable")
+            print("  (supply candidate_id + agent_run_id for promotion-eligible evidence)")
         for patch, audit in accepted:
-            held_out_pass = validate_held_out(skill_name)
-            print(f"  Patch {patch.timestamp}: held-out={'PASS' if held_out_pass else 'FAIL'} (not promoted)")
+            held_out = validate_held_out_candidate(
+                skill_name, candidate_id=candidate_id, agent_run_id=agent_run_id,
+            )
+            elig = "ELIGIBLE" if held_out.promotion_eligible else "not-eligible"
+            print(f"  Patch {patch.timestamp}: held-out.passed={held_out.passed}, "
+                  f"{elig} (not promoted)")
     else:
         print("\n[3/3] No accepted patches to validate.")
 
@@ -565,10 +614,18 @@ if __name__ == "__main__":
     parser.add_argument("skill_name", help="e.g. godot-specialist")
     parser.add_argument("--apply", action="store_true",
                         help="Allow writing SKILL.md and registry (default: dry-run)")
+    parser.add_argument("--candidate-id", default="",
+                        help="Candidate patch ID for promotion-eligible held-out evidence")
+    parser.add_argument("--agent-run-id", default="",
+                        help="Fresh agent run ID for promotion-eligible held-out evidence")
     args = parser.parse_args()
 
     if args.apply:
-        ok = evolve_skill(args.skill_name)
+        ok = evolve_skill(args.skill_name,
+                          candidate_id=args.candidate_id,
+                          agent_run_id=args.agent_run_id)
     else:
-        ok = evolve_skill_dry(args.skill_name)
+        ok = evolve_skill_dry(args.skill_name,
+                              candidate_id=args.candidate_id,
+                              agent_run_id=args.agent_run_id)
     sys.exit(0 if ok else 1)

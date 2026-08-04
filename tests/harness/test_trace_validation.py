@@ -69,3 +69,93 @@ def test_strict_trace_infers_missing_validation_as_bypass(tmp_path):
     _write_trial(path, trial)
     issues = validate_file(path, strict=True)
     assert any("validation_commands_run empty" in issue for issue in issues)
+
+
+# ─── Candidate-aware strict validation ──────────────────────────
+
+
+def _base_candidate_trial() -> dict:
+    """A fully valid candidate trial that passes all strict checks."""
+    trial = _base_trial()
+    trial["baseline_or_candidate"] = "candidate"
+    trial["candidate_id"] = "cand-001"
+    trial["agent_run_id"] = "run-001"
+    trial["task_fixture_id"] = "tasks/godot-vfx/sc1-resource-alignment"
+    trial["skill_md_read"] = True
+    trial["primary_action_invoked"] = True
+    trial["validation_commands_run"] = ["python3 scripts/verify_presentation_scene.py"]
+    trial["validation_results"] = ["pass"]
+    trial["validation_exit_codes"] = [0]
+    trial["functional_verification"] = "pass"
+    trial["outcome"] = "pass"
+    return trial
+
+
+def test_strict_candidate_trial_passes_when_complete(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    _write_trial(path, _base_candidate_trial())
+    assert validate_file(path, strict=True) == []
+
+
+def test_strict_baseline_trial_exempt_from_candidate_checks(tmp_path):
+    """Baseline trials must not be flagged by candidate-only rules."""
+    path = tmp_path / "trials.jsonl"
+    trial = _base_trial()  # baseline, candidate_id=""
+    _write_trial(path, trial)
+    # baseline is exempt: no candidate_* issues should appear
+    issues = validate_file(path, strict=True)
+    assert not any("candidate trial" in i for i in issues)
+
+
+def test_strict_candidate_trial_missing_candidate_id(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["candidate_id"] = ""
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("missing non-empty candidate_id" in i for i in issues)
+
+
+def test_strict_candidate_trial_missing_agent_run_id(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["agent_run_id"] = ""
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("missing non-empty agent_run_id" in i for i in issues)
+
+
+def test_strict_candidate_trial_missing_skill_md_read(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["skill_md_read"] = False
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("did not read SKILL.md" in i for i in issues)
+
+
+def test_strict_candidate_trial_missing_validation_exit_codes(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["validation_exit_codes"] = []
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("recorded no validation exit codes" in i for i in issues)
+
+
+def test_strict_candidate_trial_outcome_not_pass(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["outcome"] = "fail"
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("candidate trial outcome != pass" in i for i in issues)
+
+
+def test_strict_candidate_trial_functional_verification_not_pass(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["functional_verification"] = "skip"
+    _write_trial(path, trial)
+    issues = validate_file(path, strict=True)
+    assert any("functional_verification != pass" in i for i in issues)

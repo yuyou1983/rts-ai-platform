@@ -19,8 +19,10 @@ SkillEvolver workflow owns:
 - `harness/trace/trials/*.jsonl`
 - `harness/evolve/skill_evolver.py`
 - `harness/evolve/auditor.py`
+- `harness/evolve/held_out.py`
 - `harness/evolve/strategy_runner.py`
 - `tests/harness/test_skill_*`
+- `tests/harness/test_candidate_held_out.py`
 - `tests/harness/test_trace_validation.py`
 - `tests/harness/test_strategy_runner.py`
 
@@ -37,8 +39,56 @@ fresh task trials
   -> propose small SKILL.md patch
   -> structured auditor rejects unsafe patches
   -> held-out validation checks generality
+  -> candidate-aware evidence required for promotion
   -> manual promotion or rejection
 ```
+
+---
+
+## Validation Tiers
+
+Skill evolution has four distinct validation tiers.  Each tier catches a
+different class of defect and **no tier substitutes for another**:
+
+| Tier | What it catches | What it cannot prove |
+|------|----------------|---------------------|
+| **1. Repository validation** (`validate_registry.py`, `lint_deps.py`, test suites) | Broken code, missing fields, architecture violations | That the skill *improves* agent behavior |
+| **2. Baseline fresh trial** (`baseline_or_candidate = "baseline"`) | Current skill behavior on a task; pass/fail outcome | That a candidate patch is better |
+| **3. Candidate held-out trial** (`baseline_or_candidate = "candidate"`, `promotion_eligible = True`) | That the candidate patch behaves correctly on unseen held-out fixtures with a fresh agent run | Whether the change is *desirable* (aesthetic, scope) |
+| **4. Manual promotion approval** | Final human judgement on scope, generality, and risk | — |
+
+### Why command-only validation is not enough
+
+Running the held-out suite `validation_commands` without a fresh agent run
+(`candidate_id` / `agent_run_id` empty) only proves the repository is in a
+working state.  It **cannot** prove the candidate skill patch was actually
+loaded and followed by an agent.  Therefore command-only validation always
+reports `HeldOutResult.passed` but `promotion_eligible = False`.
+
+A candidate patch is only promotable when all of the following hold:
+
+- `audit.accepted` is `True` (structured auditor found no issues);
+- `held_out.passed` is `True` (suite commands succeeded);
+- `held_out.promotion_eligible` is `True` (candidate identity + fresh run
+  evidence + no training/held-out fixture overlap);
+- manual review agrees.
+
+### Candidate trace requirements (strict mode)
+
+When `validate_traces.py --strict` runs, every trial with
+`baseline_or_candidate == "candidate"` is checked for:
+
+- non-empty `candidate_id`
+- non-empty `agent_run_id`
+- a held-out `task_fixture_id`
+- `skill_md_read = True`
+- `primary_action_invoked = True`
+- at least one `validation_commands_run` entry
+- at least one `validation_exit_codes` entry
+- `functional_verification == "pass"`
+- `outcome == "pass"`
+
+A baseline trial is exempt from these candidate-only checks.
 
 ---
 
@@ -111,11 +161,27 @@ Synthetic traces are acceptable for harness tests. Promotion-quality traces shou
 
 6. **Run held-out validation.**
 
-   A candidate is not promotable without held-out passing.
+   A candidate is only promotable when held-out validation is
+   *candidate-aware*: it must carry a `candidate_id` and `agent_run_id`
+   from a fresh agent run.  Command-only validation (no candidate
+   identity) may pass but reports `promotion_eligible = False` and cannot
+   promote.
+
+   ```bash
+   python3 -m harness.evolve.skill_evolver <skill> --apply \
+       --candidate-id <cand-id> --agent-run-id <run-id>
+   ```
+
+   Without `--candidate-id` / `--agent-run-id` the evolver prints
+   `BLOCKED - candidate-aware held-out evidence unavailable` and leaves
+   `SKILL.md` unchanged.
 
 7. **Promote manually.**
 
-   Promotion should append or edit the relevant `SKILL.md` only after review.
+   Promotion should append or edit the relevant `SKILL.md` only after
+   review.  `promote_patch` requires both `audit.accepted` and
+   `held_out.promotion_eligible`; a plain `bool` argument is treated as
+   command-only and never promotes.
 
 ---
 
@@ -159,7 +225,7 @@ python3 harness/trace/validate_traces.py --strict
 Harness tests:
 
 ```bash
-python3 -m pytest tests/harness/test_skill_evolver.py tests/harness/test_trace_validation.py tests/harness/test_strategy_runner.py tests/harness/test_skill_auditor.py -q
+python3 -m pytest tests/harness/test_skill_evolver.py tests/harness/test_trace_validation.py tests/harness/test_strategy_runner.py tests/harness/test_skill_auditor.py tests/harness/test_candidate_held_out.py -q
 ```
 
 Godot held-out support:
@@ -182,13 +248,17 @@ python3 scripts/lint_deps.py simcore/ agents/ runtime/ proto/
 Before promoting a skill patch:
 
 - [ ] Registry validation passes.
-- [ ] Strict trace validation passes.
+- [ ] Strict trace validation passes (`validate_traces.py --strict`).
 - [ ] Candidate has pass/fail evidence.
-- [ ] Auditor accepts the patch.
-- [ ] Held-out suite passes.
+- [ ] Auditor accepts the patch (`audit.accepted = True`).
+- [ ] Held-out suite passes (`HeldOutResult.passed = True`).
+- [ ] Held-out is **candidate-aware** (`HeldOutResult.promotion_eligible = True`):
+      non-empty `candidate_id`, non-empty `agent_run_id`, no
+      training/held-out fixture overlap.
 - [ ] Patch only changes skill or harness-owned files.
 - [ ] Patch is general, not task-specific.
 - [ ] Business-code changes are split into a separate task.
+- [ ] Manual review agrees to promote.
 
 ---
 
