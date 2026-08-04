@@ -1,0 +1,16 @@
+{
+  "run_id": "code-review-alignment-baseline-001",
+  "fixture_id": "combat-remediation-review",
+  "skill_name": "code-review",
+  "created_at": "2026-08-04T12:05:37.249416+00:00",
+  "packets": [
+    {
+      "strategy_label": "A",
+      "packet_path": "code-review-alignment-baseline-001/strategy-A.md"
+    },
+    {
+      "strategy_label": "B",
+      "packet_path": "code-review-alignment-baseline-001/strategy-B.md"
+    }
+  ]
+}

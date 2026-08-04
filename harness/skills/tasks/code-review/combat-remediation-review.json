@@ -24,5 +24,53 @@
     "godot/scripts/",
     "proto/"
   ],
-  "status": "ready"
+  "status": "ready",
+  "skill_name": "code-review",
+  "task_type": "code-review",
+  "fresh_agent_strategies": [
+    {
+      "label": "A",
+      "description": "Standards-first review",
+      "focus_files": [
+        ".agents/skills/code-review/SKILL.md",
+        "AGENTS.md",
+        "harness/skills/registry.json"
+      ],
+      "extra_rules": [
+        "Start by running git diff e201355...2dbcf66 to identify all changes.",
+        "Evaluate architecture boundary compliance against AGENTS.md.",
+        "Do not modify runtime business code."
+      ]
+    },
+    {
+      "label": "B",
+      "description": "Specification-drift review",
+      "focus_files": [
+        "docs/plans/2026-08-03-sc1-combat-differentiation-remediation-plan.md",
+        "docs/reports/sc1-combat-differentiation-remediation-qa.md"
+      ],
+      "extra_rules": [
+        "Compare plan task status against QA report status for drift.",
+        "Report missing, partial, incorrect, and out-of-scope behavior."
+      ]
+    }
+  ],
+  "allowed_paths": [
+    ".agents/skills/code-review/SKILL.md",
+    "harness/skills/tasks/code-review/",
+    "harness/skills/candidates/",
+    "harness/trace/",
+    "tests/harness/",
+    "docs/reports/"
+  ],
+  "validation_commands": [
+    "python3 -m pytest tests/harness/test_code_review_skill_contract.py -q",
+    "python3 harness/skills/validate_registry.py"
+  ],
+  "pass_criteria": [
+    "Standards axis reports architecture boundary compliance",
+    "Specification axis detects QA status drift",
+    "Source Truth axis checks SC1 DAT weapon identity",
+    "No runtime business code modified"
+  ]
 }

@@ -22,7 +22,7 @@
 | A5 Handoff | FAIL | PASS | structured handoff skill registered (skill 24); SKILL.md at .agents/skills/handoff/ mandates one active task, one next command, temp-directory output (rts-agent-handoff-<task-id>.md), credential redaction, and rejects Conversation Dump headings; fill-in template at docs/agents/templates/agent-handoff-template.md covers all ten required sections; contract tests (tests/harness/test_handoff_skill_contract.py) green |
 | A6 Candidate held-out | FAIL | PASS | HeldOutResult dataclass with promotion_eligible field; validate_held_out_candidate() requires candidate_id + agent_run_id; promote_patch takes HeldOutResult; candidate overlay; strict trace validation; 8+45 tests pass |
 | A7 Coverage | FAIL | PASS | 12/24 skills with behavioral held-out suites; 8 new suites created; validate_held_out_suites.py + 10 coverage tests pass |
-| A8 Fresh-agent proof | BLOCKED | BLOCKED | no alignment pilot trials yet |
+| A8 Fresh-agent proof | BLOCKED | CONCERNS | Baseline trial valid (detected QA drift, 0 runtime paths touched); 0 candidates generated (no failed trials); no promotion attempted |
 
 ## A3 Review Workflow — Detail
 
@@ -155,3 +155,32 @@ and `owner_domain: cross-cutting`.
 
 ## Known State Drift
 - Commit 2dbcf66 completes combat Tasks 8-9 but docs/reports/sc1-combat-differentiation-remediation-qa.md previously reported those tasks as partial (now fixed in 1203b28).
+
+## A8 Code-Review Pilot — Detail
+
+### Baseline Trial
+- Agent run ID: baseline-code-review-001
+- Strategy: A (Standards-first review)
+- Fixed point: e201355 → target: 2dbcf66
+- SkillTrial trace: harness/trace/trials/2026-08-04-baseline.jsonl
+
+### Findings
+- **Standards**: PASS — architecture boundaries respected, no forbidden imports
+- **Specification**: CONCERNS — QA status drift detected (Task 8-9 marked PARTIAL at 2dbcf66 but implementation is complete)
+- **Source Truth**: PASS — all 12 weapon DAT identities match, no source truth files modified
+
+### Candidate Generation
+- skill_evolver dry-run: no failed trials to contrast → 0 candidate patches generated
+- SKILL.md unchanged
+
+### Pilot Metrics
+| Metric | Baseline |
+|--------|----------|
+| Requirement findings detected | 4 |
+| False-positive findings | 0 |
+| Validation commands executed | 2 |
+| Runtime paths touched | 0 |
+| Silent bypass | No |
+
+### Gate A8 Verdict: CONCERNS
+Baseline trial is valid (detected drift, no business code changes). No candidate patches were generated because there are no failed trials to contrast. The workflow is demonstrated end-to-end at the baseline level. Promotion requires candidate patches from failed-trial contrast, which is blocked until real failure data exists.
