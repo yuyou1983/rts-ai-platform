@@ -2,26 +2,26 @@
 
 ## Baseline (2026-08-04)
 - Branch: main
-- HEAD: 1203b28
-- Local skills: 22
-- Registry entries: 22
+- HEAD: 4f7a275
+- Local skills: 24
+- Registry entries: 24
 - Skills with held-out suites: 4
-- Skills with non-null last_evolved: 1
+- Skills with non-null last_evolved: 2
 - Registry validator: PASS
-- Focused Harness tests: 42 PASS
+- Focused Harness tests: 54 PASS
 
 ## Gate Status
 
 | Gate | Initial status | Final status | Evidence |
 |---|---|---|---|
 | A0 Source pin | PASS | PASS | external commit and license recorded |
-| A1 Registry semantics | PASS | PASS | schema requires invocation_mode/skill_kind/completion_criteria + composes (pattern, uniqueItems); 22/22 entries migrated with completion_criteria; composition graph acyclic; validate_composition wired into validator; tests/harness/test_skill_registry_semantics.py green |
+| A1 Registry semantics | PASS | PASS | schema requires invocation_mode/skill_kind/completion_criteria + composes (pattern, uniqueItems); 24/24 entries migrated with completion_criteria; composition graph acyclic; validate_composition wired into validator; tests/harness/test_skill_registry_semantics.py green |
 | A2 Domain language | PASS | PASS | CONTEXT-MAP.md references all four bounded-context glossaries; required terms present and unambiguous; domain-modeling skill registered; brainstorm.composes=["domain-modeling"]; test_domain_contexts.py green |
 | A3 Review workflow | FAIL | PASS | code-review upgraded to v0.2.0 with three independent axes (Standards, Specification, Source Truth); fixed-point diff (git diff <fixed-point>...HEAD) pins scope; verdicts kept separate per axis; contract tests (tests/harness/test_code_review_skill_contract.py) green; combat-remediation-review fixture created |
 | A4 Vertical execution | FAIL | PASS | task schema gained vertical ticket fields (source_spec, blocked_by, acceptance_criteria, verification_seams, evidence_outputs, status) with status enum {blocked, ready, in_progress, verification, done}; harness/skills/validate_tasks.py enforces schema, blocker existence, blocked_by acyclicity, ready-requires-done, source_spec on disk, and no fixture forbidding the task graph; both fixtures (godot-vfx/sc1-resource-alignment, code-review/combat-remediation-review) carry the full vertical ticket; strategy_runner.py renders Source Specification / Blocked By / Acceptance Criteria / Verification Seams / Evidence Outputs / Stop Condition sections before Validation Commands; tests/harness/test_task_graph.py green; sprint-plan SKILL.md (v0.2.0) mandates vertical-slice tickets (Status/Blocked by/Source specification/What it delivers/Acceptance criteria/Verification seams/Evidence outputs/Owner skill) and forbids per-layer decomposition; harness-run SKILL.md (v0.2.0) defines the tight red-capable feedback loop (read spec → reproduce → minimise → one hypothesis at a time → regression test → smallest fix → targeted+arch+full tests → code-review → evidence+status in one commit) with structured handoff and repository-only output locations (harness/output/, docs/reports/); hardcoded S3/MLflow/fabricated run IDs removed; tests/harness/test_execution_skill_contracts.py green |
-| A5 Handoff | FAIL | FAIL | no structured handoff skill |
+| A5 Handoff | FAIL | PASS | structured handoff skill registered (skill 24); SKILL.md at .agents/skills/handoff/ mandates one active task, one next command, temp-directory output (rts-agent-handoff-<task-id>.md), credential redaction, and rejects Conversation Dump headings; fill-in template at docs/agents/templates/agent-handoff-template.md covers all ten required sections; contract tests (tests/harness/test_handoff_skill_contract.py) green |
 | A6 Candidate held-out | FAIL | FAIL | candidate patch is not executed during held-out |
-| A7 Coverage | FAIL | FAIL | 4/22 skills have held-out suites |
+| A7 Coverage | FAIL | FAIL | 4/24 skills have held-out suites |
 | A8 Fresh-agent proof | BLOCKED | BLOCKED | no alignment pilot trials yet |
 
 ## A3 Review Workflow — Detail
@@ -115,6 +115,43 @@ end-to-end skills:
   format and required fields; `TestHarnessRunContract` asserts the red-capable
   loop, minimise, one-hypothesis-at-a-time, regression, handoff, and execution
   order. 13 tests, all green.
+
+## A5 Handoff — Detail
+
+The structured agent handoff skill (skill 24, `handoff`) provides a disciplined
+way to transfer context between agents without pasting raw conversation
+history. It is registered as a `discipline` skill with `invocation_mode: user`
+and `owner_domain: cross-cutting`.
+
+- **SKILL.md** (`.agents/skills/handoff/SKILL.md`) mandates that the handoff
+  be written to the OS temporary directory as
+  `rts-agent-handoff-<task-id>.md`, never inside the repository working tree.
+  The skill enforces exactly one active task and one next command per handoff.
+  It rejects any heading named "Conversation Dump" (or "Chat Log",
+  "Transcript") — conversation dumps are forbidden. Before writing, the agent
+  must scan for and redact API keys, tokens, passwords, and other credential
+  material. Proprietary asset paths outside the repository must not be copied
+  into the handoff. Plans, reports, diffs, and fixtures are referenced by
+  repository-relative path, never inlined.
+
+- **Template** (`docs/agents/templates/agent-handoff-template.md`) provides a
+  fill-in skeleton with all ten required sections: Objective, Fixed Point,
+  Active Task Fixture, Gate Status, Completed Evidence, Current Failure,
+  Unrelated Working Tree Paths, Next Command, Suggested Skills, and Stop
+  Conditions. The template uses placeholders (`<task-id>`, `<commit-sha>`,
+  `<path>`) and references existing artifacts by path rather than duplicating
+  their contents.
+
+- **Registry entry** (`harness/skills/registry.json`, skill 24) declares
+  `expected_tool_calls: [Read, Write, Bash]`, `validation_commands` pointing
+  to the contract test suite, and two `known_failure_modes`: conversation-dump
+  substitution and credential leakage.
+
+- **Contract tests** (`tests/harness/test_handoff_skill_contract.py`) — 12
+  tests pinning file existence, all ten required sections in both SKILL.md and
+  the template, conversation-dump rejection, credential mention, temp-directory
+  usage, one-active-task constraint, one-next-command constraint, path-based
+  references in the template, registry registration, and the 24-skill count.
 
 ## Known State Drift
 - Commit 2dbcf66 completes combat Tasks 8-9 but docs/reports/sc1-combat-differentiation-remediation-qa.md previously reported those tasks as partial (now fixed in 1203b28).

@@ -1079,5 +1079,27 @@
       "glossary tests pass",
       "all required terms present and unambiguous"
     ]
+  },
+  {
+    "name": "handoff",
+    "description": "Structured context transfer between agents — one task, one command, no conversation dumps",
+    "primary_action": "write_file",
+    "primary_script": null,
+    "expected_tool_calls": ["Read", "Write", "Bash"],
+    "validation_commands": ["python3 -m pytest tests/harness/test_handoff_skill_contract.py -q"],
+    "owner_domain": "cross-cutting",
+    "layer_constraints": ["dev-harness"],
+    "known_failure_modes": [
+      {"pattern": "Conversation dump instead of structured handoff", "mitigation": "Reject sections named Conversation Dump"},
+      {"pattern": "Credentials leaked into handoff", "mitigation": "Scan for API keys, tokens, and passwords before writing"}
+    ],
+    "silent_bypass_risks": ["SKILL.md loaded but no temp file written"],
+    "version": "0.1.0",
+    "last_evolved": null,
+    "held_out_suite": null,
+    "invocation_mode": "user",
+    "skill_kind": "discipline",
+    "composes": [],
+    "completion_criteria": ["all template sections present", "valid next command recorded", "no credentials in output"]
   }
 ]

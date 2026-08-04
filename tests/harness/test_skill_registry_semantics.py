@@ -190,9 +190,9 @@ class TestCompositionGraph:
         assert not any("cannot compose itself" in i for i in real_issues)
 
     def test_all_entries_carry_semantic_fields(self) -> None:
-        """Gate A1: all 23 entries carry invocation_mode, skill_kind, composes."""
+        """Gate A1: all 24 entries carry invocation_mode, skill_kind, composes."""
         real = _load_registry()
-        assert len(real) == 23
+        assert len(real) == 24
         for entry in real:
             assert entry["invocation_mode"] in {"user", "model", "both"}, entry["name"]
             assert entry["skill_kind"] in {
