@@ -6,7 +6,7 @@ SkillEvolver 对比 pass/fail 组生成 skill patch。
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -69,6 +69,7 @@ class SkillTrial:
 
     # ─── 文件影响 ───
     touched_files: list[str] = field(default_factory=list)
+    runtime_paths_changed: list[str] = field(default_factory=list)
 
     # ─── 最终结果 ───
     outcome: str = ""  # "pass" / "fail" / "error" / "timeout"
@@ -76,6 +77,9 @@ class SkillTrial:
     # ─── Silent-bypass 检测 ───
     silent_bypass_detected: bool = False
     silent_bypass_details: list[str] = field(default_factory=list)
+
+    # ─── 评审发现（code-review 专用） ───
+    findings: list[dict] = field(default_factory=list)
 
     # ─── 时间戳 ───
     timestamp: str = ""
@@ -133,7 +137,10 @@ def load_trials(skill_name: str | None = None, outcome: str | None = None) -> li
                 continue
             # Tolerate v1 records missing schema_version and other v2 fields
             d.setdefault("schema_version", 1)
-            t = SkillTrial(**d)
+            # Filter unknown keys to avoid TypeError on new fields not in dataclass
+            known_fields = {f.name for f in fields(SkillTrial)}
+            filtered = {k: v for k, v in d.items() if k in known_fields}
+            t = SkillTrial(**filtered)
             if skill_name and t.skill_name != skill_name:
                 continue
             if outcome and t.outcome != outcome:

@@ -184,3 +184,34 @@ and `owner_domain: cross-cutting`.
 
 ### Gate A8 Verdict: CONCERNS
 Baseline trial is valid (detected drift, no business code changes). No candidate patches were generated because there are no failed trials to contrast. The workflow is demonstrated end-to-end at the baseline level. Promotion requires candidate patches from failed-trial contrast, which is blocked until real failure data exists.
+
+## Final Gate Summary
+
+### Automated Gates
+- validate_registry.py: PASS (24 skills)
+- validate_tasks.py: PASS
+- validate_held_out_suites.py: PASS (12/24 covered)
+- validate_traces.py --strict: PASS
+- pytest tests/harness: 324 PASS, 0 FAIL
+
+### Scope Audit
+- Baseline: f1c8b73
+- Final HEAD: (this commit)
+- Runtime business paths changed: NONE
+- All changes within: docs/, harness/, tests/, .agents/, CONTEXT-MAP.md
+
+### Coverage
+- 24/24 Registry skills with invocation semantics and completion criteria
+- 12/24 skills with behavioral held-out suites (50%)
+- 1 real fresh-agent baseline trial (code-review, detected QA drift)
+- 0 candidates promoted (no failed trials to contrast)
+- 0 candidates rejected
+- SkillEvolver did not change runtime business code
+
+### Known Limitations
+- Gate A8 is CONCERNS: baseline trial valid but no candidate patches generated
+- Promotion pipeline demonstrated at dry-run level only
+- Readability metric for SC1 combat still PENDING human evaluation
+
+### Final Verdict: CONCERNS
+All structural gates (A0-A7) PASS. A8 is CONCERNS because the candidate-aware promotion pipeline has no real failure data to generate patches from. The workflow is fully implemented and the baseline trial proves the code-review skill can detect specification drift.
