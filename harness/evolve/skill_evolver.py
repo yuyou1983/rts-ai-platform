@@ -10,20 +10,27 @@ Explore -> Contrast -> Patch Candidate -> Audit -> Held-Out -> Promote/Rollback
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from harness.evolve.auditor import audit_candidate_patch
-from harness.evolve.held_out import HeldOutResult, validate_held_out_candidate
-from harness.trace.schema import SkillTrial, load_trials, record_trial
+from harness.evolve.held_out import (
+    HeldOutResult,
+    candidate_id_for_patch,
+    create_candidate_overlay,
+    validate_candidate_overlay,
+    validate_held_out_candidate,
+)
+from harness.evolve.strategy_runner import generate_held_out_candidate_packets
+from harness.trace.schema import SkillTrial, load_trials, load_trials_file
 
 logger = logging.getLogger(__name__)
 
@@ -416,7 +423,13 @@ def rollback_skill_md(skill_name: str, backup_path: Path) -> None:
     logger.info("Rolled back %s from %s", skill_md, backup_path)
 
 
-def promote_patch(patch: SkillPatch, audit: AuditResult, held_out) -> bool:
+def promote_patch(
+    patch: SkillPatch,
+    audit: AuditResult,
+    held_out,
+    *,
+    manual_approval: bool = False,
+) -> bool:
     """audit pass + candidate-aware held-out promotion_eligible -> update SKILL.md + registry.
 
     ``held_out`` may be a :class:`HeldOutResult` (preferred) or a plain
@@ -442,11 +455,72 @@ def promote_patch(patch: SkillPatch, audit: AuditResult, held_out) -> bool:
         logger.warning("Patch %s rejected by auditor: %s", audit_path, audit.issues)
         return False
 
+    if not manual_approval:
+        logger.warning("Patch %s lacks explicit manual approval", audit_path)
+        return False
+
     if not held_out.passed or not held_out.promotion_eligible:
         logger.warning(
             "Patch %s not promotion-eligible: "
             "held_out.passed=%s, promotion_eligible=%s, issues=%s",
             audit_path, held_out.passed, held_out.promotion_eligible, held_out.issues,
+        )
+        return False
+
+    expected_candidate_id = candidate_id_for_patch(
+        patch.skill_name, patch.patch_content
+    )
+    if held_out.skill_name != patch.skill_name:
+        logger.warning(
+            "Patch %s held-out skill mismatch: %s",
+            audit_path,
+            held_out.skill_name,
+        )
+        return False
+    if held_out.candidate_id != expected_candidate_id:
+        logger.warning(
+            "Patch %s held-out candidate mismatch: expected %s, got %s",
+            audit_path,
+            expected_candidate_id,
+            held_out.candidate_id,
+        )
+        return False
+    overlay_metadata, overlay_issues = validate_candidate_overlay(
+        held_out.candidate_overlay_path,
+        skill_name=patch.skill_name,
+        candidate_id=expected_candidate_id,
+    )
+    if overlay_issues:
+        logger.warning("Patch %s overlay evidence invalid: %s", audit_path, overlay_issues)
+        return False
+    expected_patch_hash = "sha256:" + hashlib.sha256(
+        patch.patch_content.encode("utf-8")
+    ).hexdigest()
+    if overlay_metadata.get("patch_sha256") != expected_patch_hash:
+        logger.warning("Patch %s overlay patch hash mismatch", audit_path)
+        return False
+    if not held_out.agent_run_ids or not held_out.held_out_fixture_ids:
+        logger.warning("Patch %s lacks bound run or fixture evidence", audit_path)
+        return False
+    if not held_out.candidate_trials:
+        logger.warning("Patch %s lacks original candidate trial evidence", audit_path)
+        return False
+
+    # Do not trust a caller-constructed HeldOutResult. Re-run the suite and
+    # trace binding immediately before the write boundary.
+    revalidated = validate_held_out_candidate(
+        patch.skill_name,
+        candidate_id=expected_candidate_id,
+        training_fixture_ids=held_out.training_fixture_ids,
+        held_out_fixture_ids=held_out.held_out_fixture_ids,
+        candidate_overlay_path=held_out.candidate_overlay_path,
+        candidate_trials=held_out.candidate_trials,
+    )
+    if not revalidated.passed or not revalidated.promotion_eligible:
+        logger.warning(
+            "Patch %s failed promotion-time held-out revalidation: %s",
+            audit_path,
+            revalidated.issues,
         )
         return False
 
@@ -481,12 +555,45 @@ def promote_patch(patch: SkillPatch, audit: AuditResult, held_out) -> bool:
 
 # ─── Main: 单 skill 完整闭环 ───────────────────────────────────
 
-def evolve_skill(skill_name: str, candidate_id: str = "", agent_run_id: str = "") -> bool:
+def _candidate_trials_from_file(
+    candidate_trace_file: Path | None,
+    *,
+    skill_name: str,
+    candidate_id: str,
+) -> list[SkillTrial]:
+    if candidate_trace_file is None:
+        return []
+    trials = load_trials_file(candidate_trace_file, strict_candidate=True)
+    return [
+        trial for trial in trials
+        if trial.baseline_or_candidate == "candidate"
+        and trial.skill_name == skill_name
+        and trial.candidate_id == candidate_id
+    ]
+
+
+def _prepare_candidate(patch: SkillPatch) -> tuple[str, str]:
+    candidate_id = candidate_id_for_patch(patch.skill_name, patch.patch_content)
+    overlay_path = create_candidate_overlay(
+        patch.skill_name,
+        patch.patch_content,
+        candidate_id=candidate_id,
+    )
+    return candidate_id, overlay_path
+
+
+def evolve_skill(
+    skill_name: str,
+    candidate_id: str = "",
+    agent_run_id: str = "",
+    candidate_trace_file: Path | None = None,
+    approve_promotion: bool = False,
+) -> bool:
     """对单个 skill 执行完整 evolve 闭环，返回是否成功 promote。
 
-    ``candidate_id`` / ``agent_run_id`` are required for a promotion-eligible
-    held-out result.  When omitted the held-out validation runs in
-    command-only mode and promotion is blocked.
+    ``candidate_id`` / ``agent_run_id`` are deprecated caller assertions and
+    cannot make a result promotion-eligible. Supply a JSONL
+    ``candidate_trace_file`` produced by the fresh-agent packets instead.
     """
     print(f"=== SkillEvolver: {skill_name} ===\n")
 
@@ -523,15 +630,40 @@ def evolve_skill(skill_name: str, candidate_id: str = "", agent_run_id: str = ""
 
     # Phase 6: Held-Out + Promote/Rollback
     print(f"\n[3/4] Held-out validation for {len(accepted)} accepted patches...")
-    if not candidate_id or not agent_run_id:
+    if candidate_id or agent_run_id:
+        print("  NOTE - caller candidate_id/agent_run_id are ignored as evidence")
+    if candidate_trace_file is None:
         print("  BLOCKED - candidate-aware held-out evidence unavailable")
-        print("  (supply candidate_id + agent_run_id for promotion-eligible evidence)")
+        print("  (run generated candidate packets, then supply --candidate-trace-file)")
     promoted_any = False
     for patch, audit in accepted:
-        held_out = validate_held_out_candidate(
-            skill_name, candidate_id=candidate_id, agent_run_id=agent_run_id,
+        derived_candidate_id, overlay_path = _prepare_candidate(patch)
+        candidate_trials = _candidate_trials_from_file(
+            candidate_trace_file,
+            skill_name=skill_name,
+            candidate_id=derived_candidate_id,
         )
-        promoted = promote_patch(patch, audit, held_out)
+        if not candidate_trials:
+            manifest = generate_held_out_candidate_packets(
+                skill_name,
+                Path(overlay_path),
+                run_id=derived_candidate_id,
+            )
+            print(f"  Candidate: {derived_candidate_id}")
+            print(f"  Overlay: {overlay_path}")
+            print(f"  Packets: {len(manifest['packets'])}")
+        held_out = validate_held_out_candidate(
+            skill_name,
+            candidate_id=derived_candidate_id,
+            candidate_overlay_path=overlay_path,
+            candidate_trials=candidate_trials,
+        )
+        promoted = promote_patch(
+            patch,
+            audit,
+            held_out,
+            manual_approval=approve_promotion,
+        )
         if promoted:
             print(f"  Patch {patch.timestamp} PROMOTED")
             promoted_any = True
@@ -551,7 +683,12 @@ def evolve_skill(skill_name: str, candidate_id: str = "", agent_run_id: str = ""
     return promoted_any
 
 
-def evolve_skill_dry(skill_name: str, candidate_id: str = "", agent_run_id: str = "") -> bool:
+def evolve_skill_dry(
+    skill_name: str,
+    candidate_id: str = "",
+    agent_run_id: str = "",
+    candidate_trace_file: Path | None = None,
+) -> bool:
     """Dry-run: 只生成 candidate，不写 SKILL.md，不更新 registry。
 
     Without ``candidate_id`` / ``agent_run_id`` the held-out result is
@@ -587,12 +724,32 @@ def evolve_skill_dry(skill_name: str, candidate_id: str = "", agent_run_id: str 
     accepted = [(p, a) for p in patches for a in [audit_patch(p, skill_content)] if a.accepted]
     if accepted:
         print(f"\n[3/3] Held-out validation (dry-run, no promotion) for {len(accepted)} accepted patches...")
-        if not candidate_id or not agent_run_id:
+        if candidate_id or agent_run_id:
+            print("  NOTE - caller candidate_id/agent_run_id are ignored as evidence")
+        if candidate_trace_file is None:
             print("  BLOCKED - candidate-aware held-out evidence unavailable")
-            print("  (supply candidate_id + agent_run_id for promotion-eligible evidence)")
+            print("  (run generated candidate packets, then supply --candidate-trace-file)")
         for patch, audit in accepted:
+            derived_candidate_id, overlay_path = _prepare_candidate(patch)
+            candidate_trials = _candidate_trials_from_file(
+                candidate_trace_file,
+                skill_name=skill_name,
+                candidate_id=derived_candidate_id,
+            )
+            if not candidate_trials:
+                manifest = generate_held_out_candidate_packets(
+                    skill_name,
+                    Path(overlay_path),
+                    run_id=derived_candidate_id,
+                )
+                print(f"  Candidate: {derived_candidate_id}")
+                print(f"  Overlay: {overlay_path}")
+                print(f"  Packets: {len(manifest['packets'])}")
             held_out = validate_held_out_candidate(
-                skill_name, candidate_id=candidate_id, agent_run_id=agent_run_id,
+                skill_name,
+                candidate_id=derived_candidate_id,
+                candidate_overlay_path=overlay_path,
+                candidate_trials=candidate_trials,
             )
             elig = "ELIGIBLE" if held_out.promotion_eligible else "not-eligible"
             print(f"  Patch {patch.timestamp}: held-out.passed={held_out.passed}, "
@@ -600,7 +757,7 @@ def evolve_skill_dry(skill_name: str, candidate_id: str = "", agent_run_id: str 
     else:
         print("\n[3/3] No accepted patches to validate.")
 
-    print(f"\n  DRY-RUN: no files modified in .agents/skills/")
+    print("\n  DRY-RUN: no files modified in .agents/skills/")
     return True  # 有 candidate 生成就算成功
 
 
@@ -615,17 +772,24 @@ if __name__ == "__main__":
     parser.add_argument("--apply", action="store_true",
                         help="Allow writing SKILL.md and registry (default: dry-run)")
     parser.add_argument("--candidate-id", default="",
-                        help="Candidate patch ID for promotion-eligible held-out evidence")
+                        help="Deprecated: candidate identity is derived from patch content")
     parser.add_argument("--agent-run-id", default="",
-                        help="Fresh agent run ID for promotion-eligible held-out evidence")
+                        help="Deprecated: IDs alone are not promotion evidence")
+    parser.add_argument("--candidate-trace-file", type=Path,
+                        help="JSONL fresh-agent candidate traces for every held-out scenario")
+    parser.add_argument("--approve-promotion", action="store_true",
+                        help="Explicit manual approval required before writing SKILL.md")
     args = parser.parse_args()
 
     if args.apply:
         ok = evolve_skill(args.skill_name,
                           candidate_id=args.candidate_id,
-                          agent_run_id=args.agent_run_id)
+                          agent_run_id=args.agent_run_id,
+                          candidate_trace_file=args.candidate_trace_file,
+                          approve_promotion=args.approve_promotion)
     else:
         ok = evolve_skill_dry(args.skill_name,
                               candidate_id=args.candidate_id,
-                              agent_run_id=args.agent_run_id)
+                              agent_run_id=args.agent_run_id,
+                              candidate_trace_file=args.candidate_trace_file)
     sys.exit(0 if ok else 1)

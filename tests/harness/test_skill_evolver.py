@@ -2,24 +2,32 @@
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from harness.evolve.skill_evolver import (
-    REPO_ROOT, SKILLS_DIR, REGISTRY_PATH, SCHEMA_PATH,
-    CANDIDATES_DIR, HELD_OUT_DIR, TRIALS_DIR, BACKUP_DIR,
-    ExplorationStrategy, SkillPatch, AuditResult,
-    audit_patch, contrast_trials, save_patch_candidate,
-    promote_patch, validate_held_out, _backup_skill_md, rollback_skill_md,
-    _load_registry, _save_registry,
-    STRATEGY_TEMPLATES, get_strategies,
+from harness.evolve.held_out import (
+    HeldOutResult,
+    candidate_id_for_patch,
+    create_candidate_overlay,
 )
-from harness.evolve.held_out import HeldOutResult
-from harness.trace.schema import SkillTrial, record_trial, load_trials
-
+from harness.evolve.skill_evolver import (
+    HELD_OUT_DIR,
+    REGISTRY_PATH,
+    REPO_ROOT,
+    SCHEMA_PATH,
+    SKILLS_DIR,
+    STRATEGY_TEMPLATES,
+    AuditResult,
+    SkillPatch,
+    _backup_skill_md,
+    audit_patch,
+    get_strategies,
+    promote_patch,
+    rollback_skill_md,
+    save_patch_candidate,
+)
+from harness.trace.schema import SkillTrial, load_trials, record_trial
 
 # ─── Path correctness ──────────────────────────────────────────
 
@@ -265,6 +273,27 @@ class TestStrategies:
 # ─── Promotion + rollback ──────────────────────────────────────
 
 class TestPromotion:
+    @staticmethod
+    def _promotion_files(tmp_path, monkeypatch, skill_name="test-skill"):
+        skill_dir = tmp_path / "skills" / skill_name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Original\n")
+        registry_path = tmp_path / "registry.json"
+        registry_path.write_text(json.dumps([{
+            "name": skill_name,
+            "version": "0.1.0",
+            "last_evolved": None,
+        }]))
+        monkeypatch.setattr(
+            "harness.evolve.skill_evolver.SKILLS_DIR", tmp_path / "skills"
+        )
+        monkeypatch.setattr(
+            "harness.evolve.skill_evolver.REGISTRY_PATH", registry_path
+        )
+        monkeypatch.setattr(
+            "harness.evolve.skill_evolver.BACKUP_DIR", tmp_path / "backups"
+        )
+
     def test_backup_and_rollback(self, tmp_path, monkeypatch):
         # 设置临时 skill 目录
         skill_dir = tmp_path / ".agents" / "skills" / "test-skill"
@@ -312,6 +341,7 @@ class TestPromotion:
         monkeypatch.setattr("harness.evolve.skill_evolver.SKILLS_DIR", tmp_path / "skills")
         monkeypatch.setattr("harness.evolve.skill_evolver.REGISTRY_PATH", reg_file)
         monkeypatch.setattr("harness.evolve.skill_evolver.BACKUP_DIR", backup_dir)
+        monkeypatch.setattr("harness.evolve.held_out.SKILLS_DIR", tmp_path / "skills")
 
         patch = SkillPatch(
             skill_name="test-skill", timestamp="20260101-000000",
@@ -320,12 +350,32 @@ class TestPromotion:
         audit = AuditResult(patch_path="test-skill/20260101-000000", accepted=True, issues=[])
 
         # promote — candidate-aware held-out evidence (promotion-eligible)
+        candidate_id = candidate_id_for_patch("test-skill", patch.patch_content)
+        overlay_path = create_candidate_overlay("test-skill", patch.patch_content)
         held_out = HeldOutResult(
             passed=True, promotion_eligible=True, skill_name="test-skill",
-            candidate_id="cand-001",
+            candidate_id=candidate_id,
             scenario_results=[{"scenario": "s1", "passed": True}], issues=[],
+            agent_run_ids=["run-001"],
+            held_out_fixture_ids=["held-out/test/s1"],
+            candidate_overlay_path=overlay_path,
+            candidate_trials=[SkillTrial(
+                task_id="held-out/test/s1",
+                task_description="candidate run",
+                skill_name="test-skill",
+            )],
         )
-        result = promote_patch(patch, audit, held_out)
+        monkeypatch.setattr(
+            "harness.evolve.skill_evolver.validate_held_out_candidate",
+            lambda *args, **kwargs: held_out,
+        )
+        assert promote_patch(patch, audit, held_out) is False
+        result = promote_patch(
+            patch,
+            audit,
+            held_out,
+            manual_approval=True,
+        )
         assert result is True
         assert "Evolved Rules" in skill_md.read_text()
 
@@ -344,6 +394,83 @@ class TestPromotion:
             candidate_id="cand-001", scenario_results=[], issues=[],
         )
         assert promote_patch(patch, audit, held_out) is False
+
+    def test_promote_rejects_held_out_result_for_another_skill(
+        self, tmp_path, monkeypatch
+    ):
+        self._promotion_files(tmp_path, monkeypatch, "test-skill")
+        patch = SkillPatch(
+            skill_name="test-skill",
+            timestamp="20260101",
+            patch_content="exact patch",
+            rationale="test",
+        )
+        audit = AuditResult(
+            patch_path="test-skill/20260101", accepted=True, issues=[]
+        )
+        held_out = HeldOutResult(
+            passed=True,
+            promotion_eligible=True,
+            skill_name="another-skill",
+            candidate_id=candidate_id_for_patch("test-skill", patch.patch_content),
+        )
+
+        assert promote_patch(patch, audit, held_out) is False
+
+    def test_promote_rejects_held_out_result_for_another_patch(
+        self, tmp_path, monkeypatch
+    ):
+        self._promotion_files(tmp_path, monkeypatch, "test-skill")
+        patch = SkillPatch(
+            skill_name="test-skill",
+            timestamp="20260101",
+            patch_content="exact patch",
+            rationale="test",
+        )
+        audit = AuditResult(
+            patch_path="test-skill/20260101", accepted=True, issues=[]
+        )
+        held_out = HeldOutResult(
+            passed=True,
+            promotion_eligible=True,
+            skill_name="test-skill",
+            candidate_id=candidate_id_for_patch("test-skill", "different patch"),
+        )
+
+        assert promote_patch(patch, audit, held_out) is False
+
+    def test_manual_held_out_object_without_trials_cannot_promote(
+        self, tmp_path, monkeypatch
+    ):
+        self._promotion_files(tmp_path, monkeypatch, "test-skill")
+        monkeypatch.setattr("harness.evolve.held_out.SKILLS_DIR", tmp_path / "skills")
+        patch = SkillPatch(
+            skill_name="test-skill",
+            timestamp="20260101",
+            patch_content="exact patch",
+            rationale="test",
+        )
+        audit = AuditResult(
+            patch_path="test-skill/20260101", accepted=True, issues=[]
+        )
+        candidate_id = candidate_id_for_patch("test-skill", patch.patch_content)
+        overlay_path = create_candidate_overlay("test-skill", patch.patch_content)
+        held_out = HeldOutResult(
+            passed=True,
+            promotion_eligible=True,
+            skill_name="test-skill",
+            candidate_id=candidate_id,
+            agent_run_ids=["run-001"],
+            held_out_fixture_ids=["held-out/test/s1"],
+            candidate_overlay_path=overlay_path,
+        )
+
+        assert promote_patch(
+            patch,
+            audit,
+            held_out,
+            manual_approval=True,
+        ) is False
 
     def test_promote_fails_without_held_out(self):
         patch = SkillPatch(

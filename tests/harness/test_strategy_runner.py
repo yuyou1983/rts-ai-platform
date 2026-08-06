@@ -83,3 +83,62 @@ def test_strategy_packet_includes_vertical_ticket_sections(tmp_path):
         assert fixture["acceptance_criteria"][0] in text
         assert fixture["verification_seams"][0] in text
         assert fixture["evidence_outputs"][0] in text
+
+
+def test_held_out_candidate_packets_bind_overlay_and_unique_runs(tmp_path, monkeypatch):
+    import harness.evolve.strategy_runner as runner
+    from harness.evolve.strategy_runner import generate_held_out_candidate_packets
+
+    skill_name = "fake-skill"
+    candidate_id = "cand-exact-patch"
+    overlay = tmp_path / "overlay"
+    overlay_skill = overlay / skill_name
+    overlay_skill.mkdir(parents=True)
+    (overlay_skill / "SKILL.md").write_text("# Candidate Skill\n")
+    (overlay / ".candidate.json").write_text(json.dumps({
+        "schema_version": 1,
+        "candidate_id": candidate_id,
+        "skill_name": skill_name,
+        "skill_md_sha256": "sha256:skill-md",
+    }))
+
+    held_out_dir = tmp_path / "held-out"
+    suite_dir = held_out_dir / skill_name
+    suite_dir.mkdir(parents=True)
+    scenario_ids = ["held-out/fake/one", "held-out/fake/two"]
+    (suite_dir / "suite.json").write_text(json.dumps({
+        "skill_name": skill_name,
+        "scenarios": [
+            {
+                "id": scenario_id,
+                "description": f"Review fixture {scenario_id}",
+                "validation_commands": ["python3 -c \"assert True\""],
+                "pass_criteria": "The review identifies the planted issue.",
+            }
+            for scenario_id in scenario_ids
+        ],
+    }))
+    monkeypatch.setattr(runner, "HELD_OUT_DIR", held_out_dir)
+
+    out_dir = tmp_path / "runs"
+    manifest = generate_held_out_candidate_packets(
+        skill_name,
+        overlay,
+        out_dir=out_dir,
+        run_id="candidate-run",
+    )
+
+    assert manifest["candidate_id"] == candidate_id
+    assert manifest["candidate_overlay_path"] == str(overlay.resolve())
+    assert manifest["skill_md_sha256"] == "sha256:skill-md"
+    assert len(manifest["packets"]) == 2
+    assert len({packet["agent_run_id"] for packet in manifest["packets"]}) == 2
+    for packet, scenario_id in zip(manifest["packets"], scenario_ids):
+        assert packet["scenario_id"] == scenario_id
+        text = (out_dir / packet["packet_path"]).read_text()
+        overlay_skill_path = overlay.resolve() / skill_name / "SKILL.md"
+        assert f"Read `{overlay_skill_path}` first" in text
+        assert "Do not read the repository base skill" in text
+        assert f"- `candidate_id`: `{candidate_id}`" in text
+        assert f"- `agent_run_id`: `{packet['agent_run_id']}`" in text
+        assert "- `baseline_or_candidate`: `candidate`" in text

@@ -1,0 +1,11 @@
+diff --git a/simcore/policy_adapter.py b/simcore/policy_adapter.py
+new file mode 100644
+--- /dev/null
++++ b/simcore/policy_adapter.py
+@@ -0,0 +1,6 @@
++from agents.strategy import StrategyAgent
++
++
++def select_policy(agent: StrategyAgent, observation: dict) -> str:
++    """Return the policy selected by the runtime strategy agent."""
++    return agent.select_policy(observation)

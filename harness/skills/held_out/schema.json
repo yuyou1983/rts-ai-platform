@@ -14,6 +14,29 @@
         "properties": {
           "id": {"type": "string", "pattern": "^held-out/"},
           "description": {"type": "string"},
+          "fixture_files": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string"}
+          },
+          "expected_findings": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["axis", "allowed_verdicts"],
+              "properties": {
+                "axis": {"type": "string"},
+                "allowed_verdicts": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "enum": ["PASS", "CONCERNS", "FAIL", "NOT AVAILABLE", "NOT APPLICABLE"]
+                  }
+                }
+              }
+            }
+          },
           "validation_commands": {"type": "array", "minItems": 1, "items": {"type": "string"}},
           "pass_criteria": {"type": "string"}
         }

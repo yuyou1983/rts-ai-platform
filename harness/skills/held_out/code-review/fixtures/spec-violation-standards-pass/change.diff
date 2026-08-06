@@ -1,0 +1,8 @@
+diff --git a/harness/evolve/runner_config.py b/harness/evolve/runner_config.py
+new file mode 100644
+--- /dev/null
++++ b/harness/evolve/runner_config.py
+@@ -0,0 +1,3 @@
++"""Runner retry configuration."""
++
++DEFAULT_RETRY_COUNT = 3

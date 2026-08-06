@@ -59,8 +59,8 @@ different class of defect and **no tier substitutes for another**:
 
 ### Why command-only validation is not enough
 
-Running the held-out suite `validation_commands` without a fresh agent run
-(`candidate_id` / `agent_run_id` empty) only proves the repository is in a
+Running the held-out suite `validation_commands` without fresh candidate
+`SkillTrial` records only proves the repository is in a
 working state.  It **cannot** prove the candidate skill patch was actually
 loaded and followed by an agent.  Therefore command-only validation always
 reports `HeldOutResult.passed` but `promotion_eligible = False`.
@@ -69,8 +69,8 @@ A candidate patch is only promotable when all of the following hold:
 
 - `audit.accepted` is `True` (structured auditor found no issues);
 - `held_out.passed` is `True` (suite commands succeeded);
-- `held_out.promotion_eligible` is `True` (candidate identity + fresh run
-  evidence + no training/held-out fixture overlap);
+- `held_out.promotion_eligible` is `True` (patch-derived identity, matching
+  overlay hash, one fresh run per suite scenario, and no fixture overlap);
 - manual review agrees.
 
 ### Candidate trace requirements (strict mode)
@@ -83,8 +83,15 @@ When `validate_traces.py --strict` runs, every trial with
 - a held-out `task_fixture_id`
 - `skill_md_read = True`
 - `primary_action_invoked = True`
+- `skill_md_sha256` matches the candidate overlay
+- the first recorded tool call reads that exact overlay `SKILL.md` path
+- non-empty `runner_provenance`
+- a `sha256:` runner output hash
 - at least one `validation_commands_run` entry
-- at least one `validation_exit_codes` entry
+- one successful exit code and stdout hash per validation command
+- positive token, turn, and duration metrics
+- empty `runtime_paths_changed`
+- every scenario's declared `expected_findings` is present with an allowed verdict
 - `functional_verification == "pass"`
 - `outcome == "pass"`
 
@@ -133,7 +140,7 @@ Synthetic traces are acceptable for harness tests. Promotion-quality traces shou
 3. **Run dry evolution first.**
 
    ```bash
-   python3 -m harness.evolve.skill_evolver --skill godot-specialist --dry-run
+   python3 -m harness.evolve.skill_evolver godot-specialist
    ```
 
 4. **Inspect candidates.**
@@ -159,29 +166,35 @@ Synthetic traces are acceptable for harness tests. Promotion-quality traces shou
    - weaken existing validation commands,
    - overfit to one task.
 
-6. **Run held-out validation.**
+6. **Run every generated held-out packet in a fresh task.**
 
-   A candidate is only promotable when held-out validation is
-   *candidate-aware*: it must carry a `candidate_id` and `agent_run_id`
-   from a fresh agent run.  Command-only validation (no candidate
-   identity) may pass but reports `promotion_eligible = False` and cannot
-   promote.
+   The dry run prints the derived candidate ID, temporary overlay path, and
+   packet count. Packets are stored under
+   `harness/skills/candidates/strategy_runs/<candidate-id>/`. Execute every
+   packet in an independent Hermes/Codex task and combine the resulting
+   SkillTrial rows into one JSONL evidence file. Each task must read the exact
+   overlay path written in its packet before taking any other action. When the
+   packet declares `fixture_files`, review only those isolated inputs and record
+   the required per-axis findings in the trace.
+
+7. **Validate and explicitly approve promotion.**
 
    ```bash
    python3 -m harness.evolve.skill_evolver <skill> --apply \
-       --candidate-id <cand-id> --agent-run-id <run-id>
+       --candidate-trace-file <candidate-traces.jsonl> \
+       --approve-promotion
    ```
 
-   Without `--candidate-id` / `--agent-run-id` the evolver prints
-   `BLOCKED - candidate-aware held-out evidence unavailable` and leaves
-   `SKILL.md` unchanged.
+   Without a complete trace file, or without `--approve-promotion`, the evolver
+   leaves `SKILL.md` unchanged. Legacy `--candidate-id` / `--agent-run-id`
+   arguments are ignored as evidence and cannot authorize promotion.
 
-7. **Promote manually.**
+8. **Review the resulting diff.**
 
    Promotion should append or edit the relevant `SKILL.md` only after
    review.  `promote_patch` requires both `audit.accepted` and
-   `held_out.promotion_eligible`; a plain `bool` argument is treated as
-   command-only and never promotes.
+   `held_out.promotion_eligible` plus explicit manual approval; a plain `bool`
+   argument is treated as command-only and never promotes.
 
 ---
 
@@ -238,7 +251,7 @@ python3 scripts/verify_godot_fog_smoothing.py
 Architecture gate:
 
 ```bash
-python3 scripts/lint_deps.py simcore/ agents/ runtime/ proto/
+python3 scripts/lint_deps.py
 ```
 
 ---
@@ -253,12 +266,13 @@ Before promoting a skill patch:
 - [ ] Auditor accepts the patch (`audit.accepted = True`).
 - [ ] Held-out suite passes (`HeldOutResult.passed = True`).
 - [ ] Held-out is **candidate-aware** (`HeldOutResult.promotion_eligible = True`):
-      non-empty `candidate_id`, non-empty `agent_run_id`, no
+      derived candidate identity, matching overlay/trace hashes, unique
+      `agent_run_id` per suite scenario, complete scenario coverage, and no
       training/held-out fixture overlap.
 - [ ] Patch only changes skill or harness-owned files.
 - [ ] Patch is general, not task-specific.
 - [ ] Business-code changes are split into a separate task.
-- [ ] Manual review agrees to promote.
+- [ ] Manual review agrees and `--approve-promotion` is supplied.
 
 ---
 
@@ -272,4 +286,3 @@ As of 2026-06-10, the final gate is not clean because:
 - At least one dry-run candidate passed audit but failed held-out validation.
 
 Treat SkillEvolver as an evidence assistant until these blockers are fixed.
-

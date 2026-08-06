@@ -1,9 +1,14 @@
 # Agent Skills Workflow Alignment — 变更对比与验证说明
 
 > **基线**: `1203b28` (SC1 Combat Remediation 完成点)
-> **终点**: `9e113ee` (Agent Skills Workflow Alignment 完成)
+> **终点**: `9e113ee` (原始 Agent 提交点；复核后不等于最终验收完成)
 > **变更范围**: 55 files, +6486 / -178 lines
 > **日期**: 2026-08-04 ~ 2026-08-05
+
+> **2026-08-05 校验修正**: 本文记录的固定点统计仍然有效，但原文将
+> command-only suite、未纳入提交的 baseline trace 和 caller-supplied ID
+> 解释成了完整 candidate 闭环。修复后的门禁状态以本文“最终门禁”和
+> “已知限制”为准：A6-A8 均需真实 fresh-agent candidate trace 才能关闭。
 
 ---
 
@@ -23,7 +28,7 @@
 | 8 | `1aa2dfc` | Task 7 | 使 held-out 验证候选感知 |
 | 9 | `109bae6` | Task 8 | 扩展和加强 held-out 覆盖 |
 | 10 | `523ae80` | Task 9 | 运行真实 code-review skill 改进试点 |
-| 11 | `9e113ee` | Task 10 | 最终集成与文档门禁 |
+| 11 | `9e113ee` | Task 10 | 原始 Agent 声明的最终集成；复核状态 BLOCKED |
 
 ### 1.2 文件变更统计
 
@@ -326,29 +331,30 @@ class HeldOutResult:
     issues: list[str]              # 问题列表
 
 def validate_held_out_candidate(
-    skill_name, candidate_id, agent_run_id,
-    training_fixture_ids, held_out_fixture_ids
+    skill_name, candidate_id, candidate_overlay_path,
+    candidate_trials, training_fixture_ids, held_out_fixture_ids
 ) -> HeldOutResult:
-    # 必须有 candidate_id + agent_run_id 才能 promote
+    # candidate_id 必须由 patch 派生，不能由调用者自报
+    # 每个 suite 场景必须有唯一 fresh-agent candidate trial
+    # trial 必须绑定 overlay SKILL.md hash 和首次读取路径
     # 训练 fixture 不能复用为 held-out
-    # 创建候选覆盖层 (candidate overlay)
 
 # skill_evolver.py:
-def promote_patch(patch, audit, held_out: HeldOutResult) -> bool:
-    # 需要 audit.accepted AND held_out.promotion_eligible
-    # 命令行验证 (无 candidate_id) 不算数
+def promote_patch(patch, audit, held_out, manual_approval=False) -> bool:
+    # 写入前重新运行 held-out 校验
+    # 需要 audit + verified evidence + explicit manual approval
 ```
 
 #### 优势
 
 | 改进点 | Before | After |
 |--------|--------|-------|
-| Promotion 证据 | `bool` (命令通过即可) | `HeldOutResult` (需要 candidate_id + agent_run_id) |
-| 候选覆盖层 | 无 | `create_candidate_overlay()` 临时目录 |
+| Promotion 证据 | `bool` (命令通过即可) | patch-derived ID + overlay hash + per-scenario traces + manual approval |
+| 候选覆盖层 | 无 | `create_candidate_overlay()` 临时目录和 `.candidate.json` |
 | 训练/Held-out 隔离 | 无 | fixture ID 交叉检测 |
-| Trace 严格验证 | 无 | `validate_candidate_trial()` 检查 7 项 |
+| Trace 严格验证 | 无 | 身份、来源、非零指标、命令哈希、runtime 边界和场景覆盖 |
 | Silent bypass | 不可检测 | `skill_md_read` + `primary_action_invoked` 检查 |
-| 测试 | 0 | 8 (test_candidate_held_out.py) + 45 (evolver+trace) |
+| 测试 | 0 | 15 candidate held-out + 55 evolver/trace tests |
 
 **验证命令**:
 ```bash
@@ -436,13 +442,13 @@ python3 -m pytest tests/harness/test_held_out_coverage.py -q
 
 | 改进点 | Before | After |
 |--------|--------|-------|
-| 真实 trial | 0 | 1 baseline |
-| QA drift 检测 | 不可能 | ✅ 检测到 (Task 8-9 标记 PARTIAL 但实现完成) |
+| 本地 trial artifact | 0 | 1 baseline（未纳入固定点提交，不能独立复现） |
+| QA drift 检测 | 不可能 | 本地 trace 声称检测到，尚缺 runner provenance |
 | 架构验证 | 不可能 | ✅ PASS (无禁止导入) |
 | 源真验证 | 不可能 | ✅ PASS (12 weapon ID 匹配) |
 | 运行时修改 | 不可控 | 0 文件修改 |
 | 候选生成 | N/A | 0 (无失败 trial 可对比) |
-| Gate | A8 = BLOCKED | A8 = CONCERNS (baseline 有效, 候选管道已实现) |
+| Gate | A8 = BLOCKED | A8 = BLOCKED（无可复现 baseline/candidate runner 证据） |
 
 **验证命令**:
 ```bash
@@ -475,9 +481,9 @@ findings: list[dict]                # 评审发现 (axis, verdict, details)
 | A3 Code Review | ✅ PASS | 三轴评审, combat-remediation-review fixture |
 | A4 垂直票单 | ✅ PASS | task schema, validate_tasks.py, 依赖图无环 |
 | A5 交接 | ✅ PASS | handoff skill (#24), 10 节模板 |
-| A6 候选 Held-Out | ✅ PASS | HeldOutResult, promotion_eligible, candidate overlay |
-| A7 覆盖 | ✅ PASS | 12/24 covered, validate_held_out_suites.py |
-| A8 试点 | ⚠️ CONCERNS | Baseline valid, 0 candidates (无失败 trial) |
+| A6 候选 Held-Out | ⛔ BLOCKED | 代码门已加固；尚无覆盖全部 suite 场景的真实 candidate traces |
+| A7 覆盖 | ⚠️ CONCERNS | 12/24 通过结构校验；code-review 已有具体 spec/diff fixture，其余 suite 仍需逐项增强，行为有效性依赖 fresh-agent evidence |
+| A8 试点 | ⛔ BLOCKED | baseline trace 不可从固定点复现，且 0 candidates |
 
 ---
 
@@ -489,7 +495,7 @@ findings: list[dict]                # 评审发现 (axis, verdict, details)
 |----------|--------|
 | (harness 测试已存在) | ~217 |
 
-### After (`9e113ee`)
+### After (`9e113ee`, 原始报告口径)
 
 | 新增测试文件 | 测试数 | 覆盖内容 |
 |-------------|--------|---------|
@@ -509,7 +515,9 @@ findings: list[dict]                # 评审发现 (axis, verdict, details)
 ### 最终测试统计
 
 ```
-pytest tests/harness — 324 passed, 0 failed
+原报告记录 `324 passed`，首次复核实际收集为 `336`。候选证据加固后，
+2026-08-05 全量验证为 `357 passed, 0 failed`。后续仍以 pytest 的实际
+collected 数为准，不用旧报告数字作为门禁输入。
 ```
 
 ---
@@ -561,10 +569,10 @@ python3 harness/skills/validate_tasks.py
 # 3. Held-out suite 验证 (12 suites, 场景 ID 规范)
 python3 harness/skills/validate_held_out_suites.py
 
-# 4. Trace 严格验证 (候选 trial 7 项检查)
+# 4. Trace 严格验证
 python3 harness/trace/validate_traces.py --strict
 
-# 5. 全量 harness 测试 (324 tests)
+# 5. 全量 harness 测试（以 pytest 实际 collected 数为准）
 python3 -m pytest tests/harness -q -p no:warnings
 
 # 6. 运行时业务代码零修改验证
@@ -580,8 +588,8 @@ git diff --stat 1203b28..9e113ee | tail -1
 
 ## 六、已知限制
 
-1. **Gate A8 = CONCERNS**: 候选推广管道已实现但无真实失败 trial 数据生成候选 patch。需要在未来 agent 执行中产生 pass/fail 对比数据。
-2. **Held-out 覆盖 50%**: 12/24 skills 有行为 suite。剩余 12 个 (如 architecture-decision, estimate, scope-check) 主要是 gate/discipline 类型，行为验证较难自动化。
+1. **Gate A6-A8 = BLOCKED**: candidate promotion 代码已改为 fail-closed，但还没有真实 runner 证据。任意 `candidate_id`/`agent_run_id` 字符串不再能授权 promotion。
+2. **Held-out 结构覆盖 50%**: 12/24 skills 有 suite；code-review 已补两组具体 spec/diff/expected fixture，但还没有 fresh-agent trace。其余 suite 仍需逐项加入等价的行为 fixture。“结构覆盖”不能表述为“行为验证完成”。
 3. **Readability PENDING**: SC1 combat 的密集可读性指标仍需在 Godot Test Mode 中人工评估。
 4. **`make proto` pre-existing**: `service.proto` 找不到 `rts.state.GameStateSnapshot`，这是基线已存在的问题，本次变更未引入。
 
@@ -627,4 +635,17 @@ git diff --stat 1203b28..9e113ee | tail -1
      └───────────────────────────────────────────────────────────┘
 ```
 
-**核心改进**: Skills → Harness → Trace 三层全部结构化，每层有 schema + validator + 测试。Agent 执行可追溯，skill 改进可验证，promotion 有候选感知门禁。
+**核心改进**: Skills → Harness → Trace 三层已结构化。Promotion 现在要求
+patch 派生的 candidate ID、overlay 元数据和哈希、每场景唯一 agent run、
+runner provenance、非零执行指标及 validation hashes 全部一致。没有真实
+runner trace 时系统保持 BLOCKED，而不是把 command-only PASS 当作候选验证。
+
+## 八、修复后的 Candidate 执行流程
+
+1. `skill_evolver` 根据 `skill_name + patch_content` 派生 candidate ID，禁止调用者自报身份。
+2. `create_candidate_overlay()` 写入候选 `SKILL.md` 和 `.candidate.json`，记录 base、patch、overlay 三个哈希。
+3. `generate_held_out_candidate_packets()` 为 suite 中每个场景生成独立 packet 和唯一 `agent_run_id`。
+4. Fresh Agent 必须先读取 overlay，而非仓库中的 base skill，并输出 SkillTrial JSONL。
+5. 再次执行 `skill_evolver --apply --candidate-trace-file <trace.jsonl>`；只有全部场景证据匹配时才可 promotion。
+
+旧参数 `--candidate-id` 和 `--agent-run-id` 只保留兼容提示，不能单独成为 promotion 证据。

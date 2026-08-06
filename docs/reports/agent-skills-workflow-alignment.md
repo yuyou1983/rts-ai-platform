@@ -1,6 +1,10 @@
 # Agent Skills Workflow Alignment Report
 
-## Baseline (2026-08-04)
+## Recorded Midpoint (2026-08-04)
+
+> 本节原名 Baseline，但 `4f7a275` 是执行链中点，不是计划起点或本次
+> review fixed point。固定点统计见
+> `docs/reports/agent-skills-workflow-alignment-change-summary.md`。
 - Branch: main
 - HEAD: 4f7a275
 - Local skills: 24
@@ -20,9 +24,9 @@
 | A3 Review workflow | FAIL | PASS | code-review upgraded to v0.2.0 with three independent axes (Standards, Specification, Source Truth); fixed-point diff (git diff <fixed-point>...HEAD) pins scope; verdicts kept separate per axis; contract tests (tests/harness/test_code_review_skill_contract.py) green; combat-remediation-review fixture created |
 | A4 Vertical execution | FAIL | PASS | task schema gained vertical ticket fields (source_spec, blocked_by, acceptance_criteria, verification_seams, evidence_outputs, status) with status enum {blocked, ready, in_progress, verification, done}; harness/skills/validate_tasks.py enforces schema, blocker existence, blocked_by acyclicity, ready-requires-done, source_spec on disk, and no fixture forbidding the task graph; both fixtures (godot-vfx/sc1-resource-alignment, code-review/combat-remediation-review) carry the full vertical ticket; strategy_runner.py renders Source Specification / Blocked By / Acceptance Criteria / Verification Seams / Evidence Outputs / Stop Condition sections before Validation Commands; tests/harness/test_task_graph.py green; sprint-plan SKILL.md (v0.2.0) mandates vertical-slice tickets (Status/Blocked by/Source specification/What it delivers/Acceptance criteria/Verification seams/Evidence outputs/Owner skill) and forbids per-layer decomposition; harness-run SKILL.md (v0.2.0) defines the tight red-capable feedback loop (read spec → reproduce → minimise → one hypothesis at a time → regression test → smallest fix → targeted+arch+full tests → code-review → evidence+status in one commit) with structured handoff and repository-only output locations (harness/output/, docs/reports/); hardcoded S3/MLflow/fabricated run IDs removed; tests/harness/test_execution_skill_contracts.py green |
 | A5 Handoff | FAIL | PASS | structured handoff skill registered (skill 24); SKILL.md at .agents/skills/handoff/ mandates one active task, one next command, temp-directory output (rts-agent-handoff-<task-id>.md), credential redaction, and rejects Conversation Dump headings; fill-in template at docs/agents/templates/agent-handoff-template.md covers all ten required sections; contract tests (tests/harness/test_handoff_skill_contract.py) green |
-| A6 Candidate held-out | FAIL | PASS | HeldOutResult dataclass with promotion_eligible field; validate_held_out_candidate() requires candidate_id + agent_run_id; promote_patch takes HeldOutResult; candidate overlay; strict trace validation; 8+45 tests pass |
-| A7 Coverage | FAIL | PASS | 12/24 skills with behavioral held-out suites; 8 new suites created; validate_held_out_suites.py + 10 coverage tests pass |
-| A8 Fresh-agent proof | BLOCKED | CONCERNS | Baseline trial valid (detected QA drift, 0 runtime paths touched); 0 candidates generated (no failed trials); no promotion attempted |
+| A6 Candidate held-out | FAIL | BLOCKED | fail-closed implementation complete: patch-derived ID, overlay metadata/hash, strict trace evidence, unique run IDs, and full scenario coverage; no real candidate trace set has passed it yet |
+| A7 Coverage | FAIL | CONCERNS | 12/24 skills have structurally valid suites; code-review now has concrete spec/diff/expected fixtures, but no suite is behaviorally proven until fresh traces cover every scenario |
+| A8 Fresh-agent proof | BLOCKED | BLOCKED | local baseline artifact lacks committed runner provenance; 0 candidate traces and no promotion attempt |
 
 ## A3 Review Workflow — Detail
 
@@ -182,8 +186,13 @@ and `owner_domain: cross-cutting`.
 | Runtime paths touched | 0 |
 | Silent bypass | No |
 
-### Gate A8 Verdict: CONCERNS
-Baseline trial is valid (detected drift, no business code changes). No candidate patches were generated because there are no failed trials to contrast. The workflow is demonstrated end-to-end at the baseline level. Promotion requires candidate patches from failed-trial contrast, which is blocked until real failure data exists.
+### Gate A8 Verdict: BLOCKED
+The local baseline artifact reports useful findings, but it is ignored by Git,
+has zero token/turn/duration values, and has no runner provenance or output hash.
+It therefore cannot prove a fresh-agent execution from the fixed-point checkout.
+No candidate patches were generated because there are no failed trials to
+contrast. The implementation is fail-closed; the end-to-end behavior remains
+unproven until fresh candidate runs cover every held-out scenario.
 
 ## Final Gate Summary
 
@@ -192,7 +201,7 @@ Baseline trial is valid (detected drift, no business code changes). No candidate
 - validate_tasks.py: PASS
 - validate_held_out_suites.py: PASS (12/24 covered)
 - validate_traces.py --strict: PASS
-- pytest tests/harness: 324 PASS, 0 FAIL
+- pytest tests/harness: 357 PASS, 0 FAIL (2026-08-05 evidence-hardening verification)
 
 ### Scope Audit
 - Baseline: f1c8b73
@@ -202,16 +211,20 @@ Baseline trial is valid (detected drift, no business code changes). No candidate
 
 ### Coverage
 - 24/24 Registry skills with invocation semantics and completion criteria
-- 12/24 skills with behavioral held-out suites (50%)
-- 1 real fresh-agent baseline trial (code-review, detected QA drift)
+- 12/24 skills with structurally valid held-out suites (50%)
+- 0 independently reproducible fresh-agent baseline trials
 - 0 candidates promoted (no failed trials to contrast)
 - 0 candidates rejected
 - SkillEvolver did not change runtime business code
 
 ### Known Limitations
-- Gate A8 is CONCERNS: baseline trial valid but no candidate patches generated
-- Promotion pipeline demonstrated at dry-run level only
+- Gates A6-A8 remain BLOCKED until fresh candidate evidence is recorded
+- Promotion pipeline is implemented fail-closed but has not passed a real candidate run
 - Readability metric for SC1 combat still PENDING human evaluation
 
-### Final Verdict: CONCERNS
-All structural gates (A0-A7) PASS. A8 is CONCERNS because the candidate-aware promotion pipeline has no real failure data to generate patches from. The workflow is fully implemented and the baseline trial proves the code-review skill can detect specification drift.
+### Final Verdict: BLOCKED
+A0-A5 PASS. A6 is implemented but lacks real candidate evidence; A7 has
+structural rather than demonstrated behavioral coverage; A8 has no
+independently reproducible fresh-agent proof. Task 10 must not be marked
+complete until a real candidate is either promoted or correctly rejected with
+the full evidence chain.

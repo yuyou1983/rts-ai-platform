@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from harness.trace.schema import load_trials_file
 from harness.trace.validate_traces import validate_file
 
 
@@ -86,8 +89,12 @@ def _base_candidate_trial() -> dict:
     trial["validation_commands_run"] = ["python3 scripts/verify_presentation_scene.py"]
     trial["validation_results"] = ["pass"]
     trial["validation_exit_codes"] = [0]
+    trial["validation_stdout_hashes"] = ["sha256:stdout"]
     trial["functional_verification"] = "pass"
     trial["outcome"] = "pass"
+    trial["skill_md_sha256"] = "sha256:skill-md"
+    trial["runner_provenance"] = "codex/task/run-001"
+    trial["runner_output_hash"] = "sha256:runner-output"
     return trial
 
 
@@ -159,3 +166,94 @@ def test_strict_candidate_trial_functional_verification_not_pass(tmp_path):
     _write_trial(path, trial)
     issues = validate_file(path, strict=True)
     assert any("functional_verification != pass" in i for i in issues)
+
+
+def test_strict_candidate_trial_requires_runner_provenance(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["runner_provenance"] = ""
+    trial["runner_output_hash"] = ""
+    _write_trial(path, trial)
+
+    issues = validate_file(path, strict=True)
+
+    assert any("runner_provenance" in issue for issue in issues)
+    assert any("runner_output_hash" in issue for issue in issues)
+
+
+def test_strict_candidate_trial_rejects_zero_execution_metrics(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["token_count"] = 0
+    trial["turn_count"] = 0
+    trial["duration_seconds"] = 0
+    _write_trial(path, trial)
+
+    issues = validate_file(path, strict=True)
+
+    assert any("token_count must be positive" in issue for issue in issues)
+    assert any("turn_count must be positive" in issue for issue in issues)
+    assert any("duration_seconds must be positive" in issue for issue in issues)
+
+
+def test_strict_candidate_trial_requires_one_hash_per_command(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["validation_stdout_hashes"] = []
+    _write_trial(path, trial)
+
+    issues = validate_file(path, strict=True)
+
+    assert any("command/stdout-hash counts differ" in issue for issue in issues)
+
+
+def test_strict_candidate_trial_rejects_runtime_path_changes(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["runtime_paths_changed"] = ["simcore/engine.py"]
+    _write_trial(path, trial)
+
+    issues = validate_file(path, strict=True)
+
+    assert any("forbidden runtime paths" in issue for issue in issues)
+
+
+def test_strict_candidate_trial_derives_runtime_changes_from_touched_files(tmp_path):
+    path = tmp_path / "trials.jsonl"
+    trial = _base_candidate_trial()
+    trial["runtime_paths_changed"] = []
+    trial["touched_files"] = ["simcore/engine.py"]
+    _write_trial(path, trial)
+
+    issues = validate_file(path, strict=True)
+
+    assert any("touched forbidden runtime paths" in issue for issue in issues)
+
+
+def test_load_trials_file_fails_closed_on_malformed_json(tmp_path):
+    path = tmp_path / "candidate.jsonl"
+    path.write_text("{not-json}\n")
+
+    with pytest.raises(ValueError, match="invalid JSON"):
+        load_trials_file(path)
+
+
+def test_load_trials_file_reads_candidate_evidence(tmp_path):
+    path = tmp_path / "candidate.jsonl"
+    _write_trial(path, _base_candidate_trial())
+
+    trials = load_trials_file(path)
+
+    assert len(trials) == 1
+    assert trials[0].baseline_or_candidate == "candidate"
+    assert trials[0].runner_provenance == "codex/task/run-001"
+
+
+def test_load_trials_file_strict_candidate_rejects_missing_raw_evidence(tmp_path):
+    path = tmp_path / "candidate.jsonl"
+    trial = _base_candidate_trial()
+    trial.pop("runner_provenance")
+    _write_trial(path, trial)
+
+    with pytest.raises(ValueError, match="missing candidate evidence fields"):
+        load_trials_file(path, strict_candidate=True)

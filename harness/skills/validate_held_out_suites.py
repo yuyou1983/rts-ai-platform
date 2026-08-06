@@ -114,7 +114,6 @@ def validate() -> list[str]:
         return ["no suite.json files found under harness/skills/held_out/"]
 
     for path, suite in suites:
-        skill = path.parent.name
         rel = path.relative_to(REPO_ROOT)
 
         # 1. Schema validation.
@@ -153,6 +152,33 @@ def validate() -> list[str]:
                 )
             if not s.get("pass_criteria"):
                 issues.append(f"{rel}/{sid}: needs pass_criteria")
+            for fixture_file in s.get("fixture_files", []):
+                fixture_path = (REPO_ROOT / fixture_file).resolve()
+                if (
+                    Path(fixture_file).is_absolute()
+                    or not fixture_path.is_relative_to(REPO_ROOT.resolve())
+                    or not fixture_path.is_file()
+                ):
+                    issues.append(
+                        f"{rel}/{sid}: fixture file missing or not repository-relative: "
+                        f"{fixture_file}"
+                    )
+            expected_files = [
+                REPO_ROOT / fixture_file
+                for fixture_file in s.get("fixture_files", [])
+                if fixture_file.endswith("/expected.json")
+            ]
+            if expected_files and s.get("expected_findings"):
+                expected = json.loads(expected_files[0].read_text(encoding="utf-8"))
+                declared = {
+                    item["axis"]: item["allowed_verdicts"]
+                    for item in s["expected_findings"]
+                }
+                if declared != expected:
+                    issues.append(
+                        f"{rel}/{sid}: expected_findings drift from "
+                        f"{expected_files[0].relative_to(REPO_ROOT)}"
+                    )
 
         # 6. No sole existence/import checks.
         for s in scenarios:

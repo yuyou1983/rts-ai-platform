@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for held-out suite coverage and quality."""
 import json
-import pytest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -74,3 +73,13 @@ class TestSuiteQuality:
             capture_output=True, text=True, cwd=str(REPO)
         )
         assert result.returncode == 0, f"validate_held_out_suites.py failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_code_review_suite_has_concrete_behavioral_fixtures(self):
+        suite_path = HELD_OUT_DIR / "code-review" / "suite.json"
+        suite = json.loads(suite_path.read_text())
+
+        for scenario in suite["scenarios"]:
+            assert scenario.get("fixture_files")
+            assert scenario.get("expected_findings")
+            for fixture_file in scenario["fixture_files"]:
+                assert (REPO / fixture_file).is_file(), fixture_file

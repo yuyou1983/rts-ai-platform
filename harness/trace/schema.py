@@ -6,10 +6,9 @@ SkillEvolver 对比 pass/fail 组生成 skill patch。
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict, fields
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 
 @dataclass
@@ -42,6 +41,11 @@ class SkillTrial:
     task_fixture_id: str = ""    # 任务 fixture ID
     baseline_or_candidate: str = "baseline"  # "baseline" / "candidate"
     strategy_label: str = ""     # Phase 3 策略标签 (A/B/C/D)
+
+    # ─── Runner / candidate provenance ───
+    skill_md_sha256: str = ""     # 实际读取的 SKILL.md 内容哈希
+    runner_provenance: str = ""   # 可追溯的 runner/task 标识
+    runner_output_hash: str = ""  # runner 最终输出或证据包哈希
 
     # ─── Skill 读取 ───
     skill_md_read: bool = False  # 是否真的读取了 SKILL.md
@@ -100,6 +104,35 @@ class SkillTrial:
 TRIALS_DIR = Path(__file__).parent / "trials"
 USAGE_FILE = Path(__file__).parent / "skill_usage.jsonl"
 
+CANDIDATE_RAW_EVIDENCE_FIELDS = (
+    "schema_version",
+    "task_id",
+    "task_description",
+    "skill_name",
+    "skill_version",
+    "candidate_id",
+    "agent_run_id",
+    "task_fixture_id",
+    "baseline_or_candidate",
+    "skill_md_read",
+    "primary_action_invoked",
+    "tool_calls",
+    "validation_commands_run",
+    "validation_results",
+    "validation_exit_codes",
+    "validation_stdout_hashes",
+    "functional_verification",
+    "token_count",
+    "turn_count",
+    "duration_seconds",
+    "runtime_paths_changed",
+    "outcome",
+    "timestamp",
+    "skill_md_sha256",
+    "runner_provenance",
+    "runner_output_hash",
+)
+
 
 def record_trial(trial: SkillTrial) -> Path:
     """写入一条 trial 记录，返回文件路径。"""
@@ -149,6 +182,44 @@ def load_trials(skill_name: str | None = None, outcome: str | None = None) -> li
     return trials
 
 
+def load_trials_file(
+    path: Path,
+    *,
+    strict_candidate: bool = False,
+) -> list[SkillTrial]:
+    """Load a specific JSONL evidence file, failing closed on malformed rows."""
+    known_fields = {item.name for item in fields(SkillTrial)}
+    trials: list[SkillTrial] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError(f"{path}:{line_number}: trial must be a JSON object")
+        if strict_candidate and raw.get("baseline_or_candidate") == "candidate":
+            missing = [
+                field_name
+                for field_name in CANDIDATE_RAW_EVIDENCE_FIELDS
+                if field_name not in raw
+            ]
+            if missing:
+                raise ValueError(
+                    f"{path}:{line_number}: missing candidate evidence fields: {missing}"
+                )
+        raw.setdefault("schema_version", 1)
+        filtered = {key: value for key, value in raw.items() if key in known_fields}
+        try:
+            trials.append(SkillTrial(**filtered))
+        except TypeError as exc:
+            raise ValueError(f"{path}:{line_number}: invalid SkillTrial: {exc}") from exc
+    if not trials:
+        raise ValueError(f"{path}: candidate trace file contains no trials")
+    return trials
+
+
 # ─── Candidate-trial strict validation ──────────────────────────
 
 # Fields that a candidate trial must populate to be eligible as
@@ -157,6 +228,13 @@ CANDIDATE_REQUIRED_FIELDS = (
     "candidate_id",
     "agent_run_id",
     "task_fixture_id",
+)
+
+CANDIDATE_FORBIDDEN_RUNTIME_PREFIXES = (
+    "simcore/",
+    "agents/",
+    "godot/scripts/",
+    "proto/",
 )
 
 
@@ -183,7 +261,9 @@ def validate_candidate_trial(trial: SkillTrial) -> list[str]:
 
     # task_fixture_id for a candidate must reference a held-out fixture
     # (non-empty is enforced above; we only add the semantic note here).
-    if trial.task_fixture_id and not trial.task_fixture_id.startswith(("held_out", "tasks/")):
+    if trial.task_fixture_id and not trial.task_fixture_id.startswith(
+        ("held-out/", "held_out/", "tasks/")
+    ):
         issues.append(
             f"candidate trial task_fixture_id does not look held-out: {trial.task_fixture_id}"
         )
@@ -194,11 +274,52 @@ def validate_candidate_trial(trial: SkillTrial) -> list[str]:
     if not trial.primary_action_invoked:
         issues.append("candidate trial did not invoke primary_action")
 
+    if not trial.skill_md_sha256.startswith("sha256:"):
+        issues.append("candidate trial missing valid skill_md_sha256")
+    if not trial.runner_provenance:
+        issues.append("candidate trial missing runner_provenance")
+    if not trial.runner_output_hash.startswith("sha256:"):
+        issues.append("candidate trial missing valid runner_output_hash")
+
     # ── Validation evidence ────────────────────────────────────
     if not trial.validation_commands_run:
         issues.append("candidate trial ran no validation commands")
     if not trial.validation_exit_codes:
         issues.append("candidate trial recorded no validation exit codes")
+    if len(trial.validation_commands_run) != len(trial.validation_exit_codes):
+        issues.append("candidate trial validation command/exit-code counts differ")
+    if len(trial.validation_commands_run) != len(trial.validation_stdout_hashes):
+        issues.append("candidate trial validation command/stdout-hash counts differ")
+    if any(code != 0 for code in trial.validation_exit_codes):
+        issues.append("candidate trial contains a failing validation exit code")
+
+    # A fresh run cannot have zero execution evidence. These fields do not
+    # need to be large, but zero values are indistinguishable from a manually
+    # authored placeholder trace.
+    if trial.token_count <= 0:
+        issues.append("candidate trial token_count must be positive")
+    if trial.turn_count <= 0:
+        issues.append("candidate trial turn_count must be positive")
+    if trial.duration_seconds <= 0:
+        issues.append("candidate trial duration_seconds must be positive")
+
+    if trial.runtime_paths_changed:
+        issues.append(
+            "candidate trial changed forbidden runtime paths: "
+            f"{trial.runtime_paths_changed}"
+        )
+    derived_runtime_paths = [
+        path
+        for path in trial.touched_files
+        if path.replace("\\", "/").lstrip("./").startswith(
+            CANDIDATE_FORBIDDEN_RUNTIME_PREFIXES
+        )
+    ]
+    if derived_runtime_paths:
+        issues.append(
+            "candidate trial touched forbidden runtime paths: "
+            f"{derived_runtime_paths}"
+        )
 
     # ── Functional outcome ─────────────────────────────────────
     if trial.functional_verification != "pass":
