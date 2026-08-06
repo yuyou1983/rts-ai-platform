@@ -19,6 +19,8 @@ RTS-AI-Platform 现在已经不只是一个四层游戏原型。当前仓库已�
 Proto(L0) -> SimCore(L1) -> Agents/Runtime(L2) -> Frontend/Godot(L3)
 ```
 
+研发执行采用独立于运行时四层架构的控制平面模式：ChatGPT 负责读取全局上下文、拆分任务 DAG、路由和最终验收；本地 Hermes 每次执行一个原子任务单元，完成实现与自校验，并返回结构化结果包。Hermes 的 `PASS` 只是终验输入，只有 ChatGPT 复核规格、diff、证据、架构和关键行为后，任务才进入 `ACCEPTED`。权威决策见 `docs/architecture/adr-chatgpt-hermes-orchestration.md`。
+
 但当前实现已经出现一些偏移：
 
 - `scripts/lint_deps.py simcore/ agents/ runtime/ proto/` 当前失败，因为 `simcore/http_gateway.py` 在 L1 中导入了 `agents.script_ai`。
@@ -496,4 +498,3 @@ npm run dev
 - 保留 `simcore/grpc_server.py` 作为 L1 服务，因为它直接暴露 SimCore。
 - 将 AI-aware HTTP orchestration 移到 `runtime/http_gateway.py`，或者让现有 gateway 完全通过 factory 注入。
 - 把 Godot HTTP 视为前端 adapter，而不是核心仿真逻辑。
-

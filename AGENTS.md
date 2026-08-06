@@ -78,6 +78,28 @@ All cross-layer communication through protobuf + gRPC.
 
 See `.claude/agents/` for full definitions.
 
+## Development Orchestration
+
+ChatGPT is the development control plane and router. Local Hermes is an
+execution plane. Work delegated to Hermes must be split into independently
+returnable task units with a fixed point, source specification, bounded paths,
+acceptance criteria, executable validation, evidence outputs, and stop
+conditions.
+
+Hermes implements one task unit at a time, preserves unrelated worktree
+changes, runs its own validation, and returns a structured result envelope for
+`PASS`, `FAIL`, or `BLOCKED`. A Hermes `PASS` is evidence, not final acceptance.
+ChatGPT independently reviews the diff and evidence, reruns the highest-risk
+checks, and assigns the final `ACCEPTED`, `REWORK`, or `BLOCKED` verdict before
+recovering the result into the plan or release scope.
+
+Canonical documents:
+
+- `docs/architecture/adr-chatgpt-hermes-orchestration.md`
+- `docs/agents/chatgpt-hermes-orchestration-manual.md`
+- `docs/agents/templates/hermes-task-unit-template.md`
+- `docs/agents/templates/hermes-result-envelope-template.md`
+
 ## Milestone Status
 
 | Phase | Status | File |
@@ -102,3 +124,4 @@ GitHub Actions: `.github/workflows/ci.yml`
 - **ADR-3**: LLM not in high-frequency loop; compile trajectories to deterministic scripts
 - **ADR-4**: Python headless SimCore (not Unity headless server)
 - **ADR-5**: AgentScope as runtime agent framework (MsgHub + ReAct + Trinity-RFT)
+- **ADR-6**: ChatGPT control plane + local Hermes execution plane; executor self-verification followed by independent ChatGPT final acceptance
