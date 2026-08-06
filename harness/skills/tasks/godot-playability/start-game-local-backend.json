@@ -1,0 +1,57 @@
+{
+  "id": "godot-playability/start-game-local-backend",
+  "name": "Godot Start Game Owns Local Backend Readiness",
+  "description": "Make development-mode Start Game start and own the local gRPC and HTTP services when absent, wait for readiness, retry the initial request, preserve external services, and surface startup failures instead of entering an empty game view.",
+  "source_spec": "docs/plans/2026-08-05-project-next-iteration-roadmap.md",
+  "blocked_by": [],
+  "acceptance_criteria": [
+    "With ports 50051 and 8080 initially closed, Start Game receives non-empty entities and fog-of-war data.",
+    "Three sequential bootstrap runs pass and leave both ports closed after each owned run.",
+    "Pre-existing external services are neither duplicated nor terminated by Godot.",
+    "Startup timeout, missing Python, and backend failure produce a visible error state instead of an empty GameView.",
+    "Local backend bootstrap can be disabled for export or release builds and does not shell-concatenate user input."
+  ],
+  "verification_seams": [
+    "python3 -m pytest tests/godot/test_frontend_bootstrap_contract.py -q",
+    "python3 scripts/verify_frontend_bootstrap.py --runs 3 --require-cleanup",
+    "/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --check-only"
+  ],
+  "evidence_outputs": [
+    "docs/reports/godot-start-game-bootstrap-qa.md",
+    "harness/output/godot/bootstrap-runs.json"
+  ],
+  "status": "ready",
+  "forbidden_paths": [
+    "proto/",
+    "simcore/",
+    "agents/",
+    "runtime/",
+    "data/",
+    "harness/evolve/"
+  ],
+  "skill_name": "godot-specialist",
+  "task_type": "godot-playability",
+  "allowed_paths": [
+    "godot/scripts/grpc_bridge.gd",
+    "godot/scripts/main_menu.gd",
+    "godot/scripts/game_view.gd",
+    "godot/scripts/run_frontend_backend.sh",
+    "godot/scripts/test_start_game_bootstrap.gd",
+    "tests/godot/",
+    "scripts/verify_frontend_bootstrap.py",
+    "docs/reports/godot-start-game-bootstrap-qa.md",
+    "harness/output/godot/",
+    "production/sprints/sprint-m2-playability-01.md"
+  ],
+  "validation_commands": [
+    "python3 -m pytest tests/godot/test_frontend_bootstrap_contract.py -q",
+    "python3 scripts/verify_frontend_bootstrap.py --runs 3 --require-cleanup",
+    "/Applications/Godot.app/Contents/MacOS/Godot --headless --path godot --check-only"
+  ],
+  "pass_criteria": [
+    "All verification commands exit zero.",
+    "The bootstrap matrix records three owned clean-start passes plus one external-service preservation pass.",
+    "No forbidden path or inherited unrelated dirty path appears in the task diff.",
+    "The QA report maps every acceptance criterion to reproducible evidence."
+  ]
+}

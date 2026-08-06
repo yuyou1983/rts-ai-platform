@@ -4,7 +4,7 @@
 
 **Source plan:** `docs/plans/2026-08-05-project-next-iteration-roadmap.md`
 **Execution model:** one ticket per fresh Hermes run; Hermes self-verifies; ChatGPT independently accepts or returns each ticket.
-**Initial fixed point:** assigned by ChatGPT after S0 baseline recovery.
+**Initial fixed point:** assigned in the S1 Hermes Task Unit after the S0 acceptance commit.
 
 ## Current Red-Capable Baseline
 
@@ -18,7 +18,7 @@ Current result: exit 1 with `[GrpcBridge] start_game failed (HTTP 0)` and `Start
 
 ### S0 Freeze a recoverable project baseline
 
-- Status: ready
+- Status: done
 - Blocked by: none
 - Source specification: `docs/plans/2026-08-05-project-next-iteration-roadmap.md`
 - What it delivers: 把现有 Harness evidence-hardening、ChatGPT/Hermes 编排文档、启动红测试和无关生成输出分组，形成一个可供后续任务引用的 clean fixed point，不改变游戏行为。
@@ -38,7 +38,7 @@ Current result: exit 1 with `[GrpcBridge] start_game failed (HTTP 0)` and `Start
 
 ### S1 Start Game owns local backend readiness
 
-- Status: blocked
+- Status: ready
 - Blocked by: S0
 - Source specification: `docs/plans/2026-08-05-project-next-iteration-roadmap.md`
 - What it delivers: 在开发环境中关闭 50051/8080 后，Godot 主菜单 Start Game 自动启动受控的本地 gRPC/HTTP 服务，等待 readiness 后重试 start request；退出 Godot 后只清理由本次启动的服务。
@@ -56,6 +56,8 @@ Current result: exit 1 with `[GrpcBridge] start_game failed (HTTP 0)` and `Start
   - `docs/reports/godot-start-game-bootstrap-qa.md`
   - `harness/output/godot/bootstrap-runs.json`
 - Owner skill: godot-specialist
+
+S0 acceptance evidence: `docs/reports/m2-playability-baseline.md`. S1 may start only from the fixed point recorded in its ChatGPT-generated Hermes Task Unit; the status change here does not authorize an agent to infer a SHA.
 
 ### S2 Render initial entities and fog in the real GameView
 
