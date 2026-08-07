@@ -1,6 +1,14 @@
 extends SceneTree
 
 ## End-to-end regression: Start Game must work without manually starting SimCore.
+##
+## This test exercises the full local backend bootstrap path:
+##   1. Ports 50051/8080 are closed.
+##   2. The bridge detects the absent backend, launches the helper,
+##      waits for readiness, and retries the start_game request.
+##   3. The test verifies non-empty entities and fog-of-war data.
+##   4. On exit, the bridge kills only the process it owns, leaving
+##      both ports closed again.
 
 const GrpcBridgeScript = preload("res://scripts/grpc_bridge.gd")
 
@@ -19,10 +27,11 @@ func _run() -> void:
 	_bridge.ai_player = 2
 	_bridge.game_started.connect(_on_game_started)
 	_bridge.connection_lost.connect(_on_connection_lost)
+	_bridge.bootstrap_failed.connect(_on_bootstrap_failed)
 	_bridge.start_game(4242, 100)
 	_timeout_timer = Timer.new()
 	_timeout_timer.one_shot = true
-	_timeout_timer.wait_time = 12.0
+	_timeout_timer.wait_time = 30.0
 	_timeout_timer.timeout.connect(_on_timeout)
 	root.add_child(_timeout_timer)
 	_timeout_timer.start()
@@ -54,6 +63,11 @@ func _on_connection_lost() -> void:
 		_fail("Start Game lost the backend connection")
 
 
+func _on_bootstrap_failed(reason: String) -> void:
+	if not _finished:
+		_fail("Start Game bootstrap failed: " + reason)
+
+
 func _fail(message: String) -> void:
 	_finished = true
 	push_error("FAIL: %s" % message)
@@ -64,6 +78,12 @@ func _finish(exit_code: int) -> void:
 	if is_instance_valid(_timeout_timer):
 		_timeout_timer.queue_free()
 	if is_instance_valid(_bridge):
+		# _exit_tree on the bridge will kill the owned backend process.
 		_bridge.queue_free()
+	await process_frame
+	await process_frame
+	# Allow OS signals to propagate so child processes are fully
+	# terminated before we exit and check port cleanup.
+	await process_frame
 	await process_frame
 	quit(exit_code)

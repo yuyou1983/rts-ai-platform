@@ -111,6 +111,10 @@ var _replay_player: ReplayPlayer
 var _replay_overlay: Control
 var _victory_screen: CanvasLayer
 
+# ─── Backend error overlay ────────────────────────────────
+var _backend_error_label: Label = null
+var _backend_error_overlay: ColorRect = null
+
 # ─── APM counter ───────────────────────────────────────────
 var _apm_action_times: Array = []  # timestamps of effective actions
 var _apm_value: int = 0  # computed APM, updated every second
@@ -300,6 +304,8 @@ func _ready() -> void:
 	_bridge.state_updated.connect(_on_state)
 	_bridge.game_over.connect(_on_game_over)
 	_bridge.replay_loaded.connect(_on_replay_loaded)
+	_bridge.connection_lost.connect(_on_connection_lost)
+	_bridge.bootstrap_failed.connect(_on_bootstrap_failed)
 
 	# Replay system — ReplayPlayer as child of game_view (Node), overlay in CanvasLayer
 	_replay_player = ReplayPlayer.new()
@@ -320,9 +326,10 @@ func _ready() -> void:
 		_bridge.fetch_replay(_replay_match_id)
 		print("[GameView] Replay mode: fetching %s" % _replay_match_id)
 	else:
-		# Normal game mode
+		# Normal game mode — game_active is set in _on_start once the
+		# backend confirms the game has started.  If bootstrap fails,
+		# _on_bootstrap_failed shows the error overlay instead.
 		_bridge.start_game(42)
-		_game_active = true
 		_replay_overlay.visible = false
 
 	# Connect to autoloads
@@ -1046,6 +1053,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _game_over_shown and event is InputEventKey and event.pressed:
 		if event.keycode == KEY_ESCAPE:
 			_on_victory_back_to_menu()
+	# Backend error overlay: Esc returns to main menu
+	if _backend_error_overlay and _backend_error_overlay.visible and \
+			event is InputEventKey and event.pressed and \
+			event.keycode == KEY_ESCAPE:
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 	if _replay_mode and event is InputEventKey and event.pressed:
 		if event.keycode == KEY_Q:
 			get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
@@ -1531,6 +1543,7 @@ static func _calc_formation_fallback(center: Vector2, count: int, spacing: float
 
 # ─── Bridge callbacks ──────────────────────────────────────
 func _on_start(state: Dictionary) -> void:
+	_game_active = true
 	_apply_start_state(state)
 
 
@@ -1579,6 +1592,42 @@ func _apply_start_state(state: Dictionary) -> void:
 	if _cam_ctrl:
 		_cam_ctrl.set_map_size(_map_w, _map_h)
 	_parse(state)
+
+
+## Show a visible error overlay when the backend bootstrap fails.
+## The game view stays inactive — no empty GameView is shown.
+func _on_bootstrap_failed(reason: String) -> void:
+	_game_active = false
+	_show_backend_error("Backend startup failed: " + reason)
+	print("[GameView] Bootstrap failed: %s" % reason)
+
+
+## Handle connection loss after the game has started.
+func _on_connection_lost() -> void:
+	if _game_active:
+		_show_backend_error("Lost connection to the game backend.")
+	_game_active = false
+	print("[GameView] Connection lost")
+
+
+## Create or update a visible error overlay so the player sees a message
+## instead of an empty game view.
+func _show_backend_error(message: String) -> void:
+	if not _backend_error_overlay:
+		_backend_error_overlay = ColorRect.new()
+		_backend_error_overlay.color = Color(0.05, 0.0, 0.0, 0.92)
+		_backend_error_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_backend_error_overlay.z_index = 100
+		_ui_layer.add_child(_backend_error_overlay)
+		_backend_error_label = Label.new()
+		_backend_error_label.add_theme_font_size_override("font_size", 18)
+		_backend_error_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		_backend_error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_backend_error_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_backend_error_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_backend_error_overlay.add_child(_backend_error_label)
+	_backend_error_label.text = message + "\n\nCheck that Python 3 and SimCore are installed.\nPress Esc to return to the main menu."
+	_backend_error_overlay.visible = true
 
 
 func _on_game_over(winner: int, tick: int) -> void:

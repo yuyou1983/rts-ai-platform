@@ -1,0 +1,46 @@
+{
+  "test": "frontend-bootstrap",
+  "godot_version": "4.6.2.stable.official",
+  "grpc_port": 50051,
+  "http_port": 8080,
+  "runs": [
+    {
+      "run_id": "clean-start-1",
+      "type": "clean-start",
+      "passed": true,
+      "reason": "PASS: Start Game received 30 entities and fog-of-war data",
+      "ports_closed_before": true,
+      "ports_closed_after": true,
+      "timestamp": "2026-08-07T06:19:50.871654+00:00"
+    },
+    {
+      "run_id": "clean-start-2",
+      "type": "clean-start",
+      "passed": true,
+      "reason": "PASS: Start Game received 30 entities and fog-of-war data",
+      "ports_closed_before": true,
+      "ports_closed_after": true,
+      "timestamp": "2026-08-07T06:19:55.497153+00:00"
+    },
+    {
+      "run_id": "clean-start-3",
+      "type": "clean-start",
+      "passed": true,
+      "reason": "PASS: Start Game received 30 entities and fog-of-war data",
+      "ports_closed_before": true,
+      "ports_closed_after": true,
+      "timestamp": "2026-08-07T06:20:00.303534+00:00"
+    },
+    {
+      "run_id": "external-preservation",
+      "type": "external-preservation",
+      "passed": true,
+      "reason": "PASS: Start Game received 30 entities and fog-of-war data",
+      "external_service_started": true,
+      "external_service_survived": true,
+      "timestamp": "2026-08-07T06:20:05.295335+00:00"
+    }
+  ],
+  "all_passed": true,
+  "timestamp": "2026-08-07T06:20:07.634167+00:00"
+}
